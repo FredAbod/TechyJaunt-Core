@@ -41,13 +41,13 @@ export const setPasswordSchema = Joi.object({
       "string.pattern.base": "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
       "any.required": "Password is required",
     }),
-  confirmPassword: Joi.string()
-    .valid(Joi.ref("password"))
-    .required()
-    .messages({
-      "any.only": "Passwords do not match",
-      "any.required": "Password confirmation is required",
-    }),
+  // confirmPassword: Joi.string()
+  //   .valid(Joi.ref("password"))
+  //   .required()
+  //   .messages({
+  //     "any.only": "Passwords do not match",
+  //     "any.required": "Password confirmation is required",
+  //   }),
 });
 
 // Login validation

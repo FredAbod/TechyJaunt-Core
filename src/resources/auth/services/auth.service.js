@@ -5,14 +5,18 @@ import { sendOtpEmail, sendWelcomeOnboardingEmail } from "../../../utils/email/e
 import { createJwtToken } from "../../../middleware/isAuthenticated.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 
-class AuthService {
-  async registerUser(email) {
+class AuthService {  async registerUser(email) {
     try {
       // Check if user already exists
       const existingUser = await User.findOne({ email });
       
       if (existingUser && existingUser.emailVerified) {
         throw new Error("User already exists with this email");
+      }
+
+      // Check if user exists but unverified and still has valid OTP
+      if (existingUser && !existingUser.emailVerified && existingUser.otpExpiresAt > new Date()) {
+        throw new Error("OTP already sent to this email. Please check your inbox or wait for it to expire before requesting a new one.");
       }
 
       // Generate OTP

@@ -27,10 +27,9 @@ export const addProfile = async (req, res) => {
         profileCompleted: true
       },
       { new: true, runValidators: true }
-    );
-
-    logger.info(`Profile completed for user: ${user.email}`);
-    return successResMsg(res, 200, "Profile completed successfully", {
+    );    logger.info(`Profile completed for user: ${user.email}`);
+    return successResMsg(res, 200, {
+      message: "Profile completed successfully",
       user: updatedUser.toJSON()
     });
 
@@ -47,9 +46,8 @@ export const getProfile = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) {
       return errorResMsg(res, 404, "User not found");
-    }
-
-    return successResMsg(res, 200, "Profile retrieved successfully", {
+    }    return successResMsg(res, 200, {
+      message: "Profile retrieved successfully",
       user: user.toJSON()
     });
 
@@ -79,10 +77,9 @@ export const updateProfile = async (req, res) => {
 
     if (!updatedUser) {
       return errorResMsg(res, 404, "User not found");
-    }
-
-    logger.info(`Profile updated for user: ${updatedUser.email}`);
-    return successResMsg(res, 200, "Profile updated successfully", {
+    }    logger.info(`Profile updated for user: ${updatedUser.email}`);
+    return successResMsg(res, 200, {
+      message: "Profile updated successfully",
       user: updatedUser.toJSON()
     });
 
@@ -112,7 +109,10 @@ export const getDashboard = async (req, res) => {
       upcomingClasses: [],
     };
 
-    return successResMsg(res, 200, "Dashboard data retrieved successfully", dashboardData);
+    return successResMsg(res, 200, {
+      message: "Dashboard data retrieved successfully",
+      ...dashboardData
+    });
 
   } catch (error) {
     logger.error(`Get dashboard error: ${error.message}`);

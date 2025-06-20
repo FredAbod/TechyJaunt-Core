@@ -23,7 +23,7 @@ export const uploadVideoClass = async (req, res) => {
     );
 
     logger.info(`Video class uploaded: ${videoClass.title} by ${instructorId}`);
-    return successResMsg(res, 201, "Video class uploaded successfully", { videoClass });
+    return successResMsg(res, 201, { message: "Video class uploaded successfully", videoClass });
 
   } catch (error) {
     logger.error(`Upload video class error: ${error.message}`);
@@ -44,7 +44,7 @@ export const getVideoClasses = async (req, res) => {
       isInstructor
     );
 
-    return successResMsg(res, 200, "Video classes retrieved successfully", { videoClasses });
+    return successResMsg(res, 200, { message: "Video classes retrieved successfully", videoClasses });
 
   } catch (error) {
     logger.error(`Get video classes error: ${error.message}`);
@@ -60,7 +60,7 @@ export const getVideoClass = async (req, res) => {
 
     const videoClass = await PrerecordedContentService.getVideoClass(classId, userId);
 
-    return successResMsg(res, 200, "Video class retrieved successfully", { videoClass });
+    return successResMsg(res, 200, { message: "Video class retrieved successfully", videoClass });
 
   } catch (error) {
     logger.error(`Get video class error: ${error.message}`);
@@ -82,7 +82,7 @@ export const updateVideoClass = async (req, res) => {
     );
 
     logger.info(`Video class updated: ${classId} by ${instructorId}`);
-    return successResMsg(res, 200, "Video class updated successfully", { videoClass });
+    return successResMsg(res, 200, { message: "Video class updated successfully", videoClass });
 
   } catch (error) {
     logger.error(`Update video class error: ${error.message}`);
@@ -124,7 +124,7 @@ export const uploadClassResource = async (req, res) => {
     );
 
     logger.info(`Class resource uploaded: ${resource.title} by ${uploadedBy}`);
-    return successResMsg(res, 201, "Class resource uploaded successfully", { resource });
+    return successResMsg(res, 201, { message: "Class resource uploaded successfully", resource });
 
   } catch (error) {
     logger.error(`Upload class resource error: ${error.message}`);
@@ -149,7 +149,7 @@ export const getClassResources = async (req, res) => {
       userId
     );
 
-    return successResMsg(res, 200, "Class resources retrieved successfully", { resources });
+    return successResMsg(res, 200, { message: "Class resources retrieved successfully", resources });
 
   } catch (error) {
     logger.error(`Get class resources error: ${error.message}`);
@@ -200,7 +200,7 @@ export const getInstructorVideoClasses = async (req, res) => {
 
     // This would require a method in the service to get all instructor's videos
     // For now, we can return a placeholder
-    return successResMsg(res, 200, "Feature coming soon", { videoClasses: [] });
+    return successResMsg(res, 200, { message: "Feature coming soon", videoClasses: [] });
 
   } catch (error) {
     logger.error(`Get instructor video classes error: ${error.message}`);

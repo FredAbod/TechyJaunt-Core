@@ -11,7 +11,7 @@ export const createCourse = async (req, res) => {
     const course = await CourseService.createCourse(courseData, instructorId);
 
     logger.info(`Course created: ${course.title} by ${instructorId}`);
-    return successResMsg(res, 201, "Course created successfully", { course });
+    return successResMsg(res, 201, { message: "Course created successfully", course });
 
   } catch (error) {
     logger.error(`Create course error: ${error.message}`);
@@ -28,7 +28,7 @@ export const updateCourse = async (req, res) => {
     const course = await CourseService.updateCourse(courseId, updateData, userId);
 
     logger.info(`Course updated: ${courseId} by ${userId}`);
-    return successResMsg(res, 200, "Course updated successfully", { course });
+    return successResMsg(res, 200, { message: "Course updated successfully", course });
 
   } catch (error) {
     logger.error(`Update course error: ${error.message}`);
@@ -80,7 +80,7 @@ export const addCurriculum = async (req, res) => {
     }
 
     logger.info(`Curriculum added to course: ${courseId} by ${userId}`);
-    return successResMsg(res, 201, "Curriculum added successfully", { modules: results });
+    return successResMsg(res, 201, { message: "Curriculum added successfully", modules: results });
 
   } catch (error) {
     logger.error(`Add curriculum error: ${error.message}`);
@@ -96,7 +96,7 @@ export const addModule = async (req, res) => {
     const module = await CourseService.addModuleToCourse(moduleData, userId);
 
     logger.info(`Module added: ${module.title} by ${userId}`);
-    return successResMsg(res, 201, "Module added successfully", { module });
+    return successResMsg(res, 201, { message: "Module added successfully", module });
 
   } catch (error) {
     logger.error(`Add module error: ${error.message}`);
@@ -112,7 +112,7 @@ export const addLesson = async (req, res) => {
     const lesson = await CourseService.addLessonToModule(lessonData, userId);
 
     logger.info(`Lesson added: ${lesson.title} by ${userId}`);
-    return successResMsg(res, 201, "Lesson added successfully", { lesson });
+    return successResMsg(res, 201, { message: "Lesson added successfully", lesson });
 
   } catch (error) {
     logger.error(`Add lesson error: ${error.message}`);
@@ -158,7 +158,7 @@ export const getCourseById = async (req, res) => {
 
     const course = await CourseService.getCourseById(courseId);
 
-    return successResMsg(res, 200, "Course retrieved successfully", { course });
+    return successResMsg(res, 200, { message: "Course retrieved successfully", course });
 
   } catch (error) {
     logger.error(`Get course error: ${error.message}`);
@@ -174,7 +174,7 @@ export const enrollInCourse = async (req, res) => {
     const enrollment = await CourseService.enrollUserInCourse(userId, courseId);
 
     logger.info(`User enrolled: ${userId} in course ${courseId}`);
-    return successResMsg(res, 201, "Successfully enrolled in course", { enrollment });
+    return successResMsg(res, 201, { message: "Successfully enrolled in course", enrollment });
 
   } catch (error) {
     logger.error(`Enrollment error: ${error.message}`);
@@ -189,7 +189,7 @@ export const getCourseProgress = async (req, res) => {
 
     const progress = await CourseService.getUserCourseProgress(userId, courseId);
 
-    return successResMsg(res, 200, "Course progress retrieved successfully", { progress });
+    return successResMsg(res, 200, { message: "Course progress retrieved successfully", progress });
 
   } catch (error) {
     logger.error(`Get progress error: ${error.message}`);
@@ -205,7 +205,7 @@ export const markLessonComplete = async (req, res) => {
     const progress = await CourseService.markLessonComplete(userId, lessonId, timeSpent);
 
     logger.info(`Lesson completed: ${lessonId} by user ${userId}`);
-    return successResMsg(res, 200, "Lesson marked as complete", { progress });
+    return successResMsg(res, 200, { message: "Lesson marked as complete", progress });
 
   } catch (error) {
     logger.error(`Complete lesson error: ${error.message}`);

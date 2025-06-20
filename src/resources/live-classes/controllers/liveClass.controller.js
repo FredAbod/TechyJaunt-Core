@@ -11,7 +11,7 @@ export const scheduleLiveClass = async (req, res) => {
     const liveClass = await LiveClassService.scheduleLiveClass(classData, instructorId);
 
     logger.info(`Live class scheduled: ${liveClass.title} by ${instructorId}`);
-    return successResMsg(res, 201, "Live class scheduled successfully", { liveClass });
+    return successResMsg(res, 201, { message: "Live class scheduled successfully", liveClass });
 
   } catch (error) {
     logger.error(`Schedule live class error: ${error.message}`);
@@ -27,7 +27,7 @@ export const getInstructorClasses = async (req, res) => {
 
     const classes = await LiveClassService.getInstructorClasses(instructorId, status);
 
-    return successResMsg(res, 200, "Instructor classes retrieved successfully", { classes });
+    return successResMsg(res, 200, { message: "Instructor classes retrieved successfully", classes });
 
   } catch (error) {
     logger.error(`Get instructor classes error: ${error.message}`);
@@ -43,7 +43,7 @@ export const getStudentClasses = async (req, res) => {
 
     const classes = await LiveClassService.getStudentClasses(userId, status);
 
-    return successResMsg(res, 200, "Student classes retrieved successfully", { classes });
+    return successResMsg(res, 200, { message: "Student classes retrieved successfully", classes });
 
   } catch (error) {
     logger.error(`Get student classes error: ${error.message}`);
@@ -60,7 +60,7 @@ export const startLiveClass = async (req, res) => {
     const liveClass = await LiveClassService.startLiveClass(classId, instructorId);
 
     logger.info(`Live class started: ${classId} by ${instructorId}`);
-    return successResMsg(res, 200, "Live class started successfully", { liveClass });
+    return successResMsg(res, 200, { message: "Live class started successfully", liveClass });
 
   } catch (error) {
     logger.error(`Start live class error: ${error.message}`);
@@ -77,7 +77,7 @@ export const endLiveClass = async (req, res) => {
     const liveClass = await LiveClassService.endLiveClass(classId, instructorId);
 
     logger.info(`Live class ended: ${classId} by ${instructorId}`);
-    return successResMsg(res, 200, "Live class ended successfully", { liveClass });
+    return successResMsg(res, 200, { message: "Live class ended successfully", liveClass });
 
   } catch (error) {
     logger.error(`End live class error: ${error.message}`);
@@ -130,7 +130,7 @@ export const addComment = async (req, res) => {
 
     const comment = await LiveClassService.addComment(classId, userId, commentData);
 
-    return successResMsg(res, 201, "Comment added successfully", { comment });
+    return successResMsg(res, 201, { message: "Comment added successfully", comment });
 
   } catch (error) {
     logger.error(`Add comment error: ${error.message}`);
@@ -146,7 +146,7 @@ export const getClassComments = async (req, res) => {
 
     const comments = await LiveClassService.getClassComments(classId, userId);
 
-    return successResMsg(res, 200, "Comments retrieved successfully", { comments });
+    return successResMsg(res, 200, { message: "Comments retrieved successfully", comments });
 
   } catch (error) {
     logger.error(`Get class comments error: ${error.message}`);
@@ -164,7 +164,7 @@ export const updateLiveClass = async (req, res) => {
     const liveClass = await LiveClassService.updateLiveClass(classId, updateData, instructorId);
 
     logger.info(`Live class updated: ${classId} by ${instructorId}`);
-    return successResMsg(res, 200, "Live class updated successfully", { liveClass });
+    return successResMsg(res, 200, { message: "Live class updated successfully", liveClass });
 
   } catch (error) {
     logger.error(`Update live class error: ${error.message}`);
@@ -181,7 +181,7 @@ export const cancelLiveClass = async (req, res) => {
     const liveClass = await LiveClassService.cancelLiveClass(classId, instructorId);
 
     logger.info(`Live class cancelled: ${classId} by ${instructorId}`);
-    return successResMsg(res, 200, "Live class cancelled successfully", { liveClass });
+    return successResMsg(res, 200, { message: "Live class cancelled successfully", liveClass });
 
   } catch (error) {
     logger.error(`Cancel live class error: ${error.message}`);
