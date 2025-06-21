@@ -44,7 +44,7 @@ export const deleteCourse = async (req, res) => {
     const result = await CourseService.deleteCourse(courseId, userId);
 
     logger.info(`Course deleted: ${courseId} by ${userId}`);
-    return successResMsg(res, 200, result.message);
+    return successResMsg(res, 200, { message: result.message });
 
   } catch (error) {
     logger.error(`Delete course error: ${error.message}`);
@@ -61,13 +61,16 @@ export const addCurriculum = async (req, res) => {
     const results = [];
 
     for (const moduleData of modules) {
-      moduleData.courseId = courseId;
-      const module = await CourseService.addModuleToCourse(moduleData, userId);
+      // Extract lessons from moduleData before creating module
+      const { lessons, ...moduleInfo } = moduleData;
+      
+      moduleInfo.courseId = courseId;
+      const module = await CourseService.addModuleToCourse(moduleInfo, userId);
       
       // Add lessons to the module if provided
-      if (moduleData.lessons && moduleData.lessons.length > 0) {
+      if (lessons && lessons.length > 0) {
         const moduleLessons = [];
-        for (const lessonData of moduleData.lessons) {
+        for (const lessonData of lessons) {
           lessonData.moduleId = module._id;
           lessonData.courseId = courseId;
           const lesson = await CourseService.addLessonToModule(lessonData, userId);
@@ -144,7 +147,10 @@ export const getAllCourses = async (req, res) => {
       parseInt(limit)
     );
 
-    return successResMsg(res, 200, "Courses retrieved successfully", result);
+    return successResMsg(res, 200, { 
+      message: "Courses retrieved successfully", 
+      ...result 
+    });
 
   } catch (error) {
     logger.error(`Get courses error: ${error.message}`);
@@ -219,10 +225,66 @@ export const getUserDashboard = async (req, res) => {
 
     const dashboardData = await CourseService.getUserDashboard(userId);
 
-    return successResMsg(res, 200, "Dashboard data retrieved successfully", dashboardData);
+    return successResMsg(res, 200, { 
+      message: "Dashboard data retrieved successfully", 
+      ...dashboardData 
+    });
 
   } catch (error) {
     logger.error(`Get dashboard error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to retrieve dashboard data");
+  }
+};
+
+// Admin Controllers
+export const getAllCoursesAdmin = async (req, res) => {
+  try {
+    const { 
+      category, 
+      level, 
+      featured, 
+      status,
+      search, 
+      page = 1, 
+      limit = 10 
+    } = req.query;
+
+    const filters = {};
+    if (category) filters.category = category;
+    if (level) filters.level = level;
+    if (featured) filters.featured = featured === 'true';
+    if (status) filters.status = status;
+    if (search) filters.search = search;
+
+    const result = await CourseService.getAllCoursesAdmin(
+      filters, 
+      parseInt(page), 
+      parseInt(limit)
+    );
+
+    return successResMsg(res, 200, { 
+      message: "Courses retrieved successfully (Admin)", 
+      ...result 
+    });
+
+  } catch (error) {
+    logger.error(`Get courses admin error: ${error.message}`);
+    return errorResMsg(res, 500, "Failed to retrieve courses");
+  }
+};
+
+export const publishCourse = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const userId = req.user.userId;
+
+    const course = await CourseService.updateCourse(courseId, { status: "published" }, userId);
+
+    logger.info(`Course published: ${courseId} by ${userId}`);
+    return successResMsg(res, 200, { message: "Course published successfully", course });
+
+  } catch (error) {
+    logger.error(`Publish course error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
   }
 };

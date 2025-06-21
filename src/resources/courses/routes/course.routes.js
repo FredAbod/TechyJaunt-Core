@@ -8,6 +8,8 @@ import {
   addModule,
   addLesson,
   getAllCourses,
+  getAllCoursesAdmin,
+  publishCourse,
   getCourseById,
   enrollInCourse,
   getCourseProgress,
@@ -51,8 +53,10 @@ router.post("/complete-lesson", courseLimiter, isAuthenticated, validateRequest(
 router.get("/user/dashboard", courseLimiter, isAuthenticated, getUserDashboard);
 
 // Admin/Tutor routes
+router.get("/admin/all", adminLimiter, isAuthenticated, roleBasedAccess(["admin", "super admin", "tutor"]), getAllCoursesAdmin);
 router.post("/", adminLimiter, isAuthenticated, validateRequest(createCourseSchema), createCourse);
 router.put("/:courseId", adminLimiter, isAuthenticated, validateRequest(createCourseSchema), updateCourse);
+router.put("/:courseId/publish", adminLimiter, isAuthenticated, roleBasedAccess(["admin", "super admin", "tutor"]), publishCourse);
 router.delete("/:courseId", adminLimiter, isAuthenticated, deleteCourse);
 router.post("/:courseId/curriculum", adminLimiter, isAuthenticated, addCurriculum);
 router.post("/modules", adminLimiter, isAuthenticated, validateRequest(createModuleSchema), addModule);

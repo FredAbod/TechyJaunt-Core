@@ -79,12 +79,22 @@ POST   /api/v1/courses/:id/progress   # Update lesson progress
 GET    /api/v1/courses/:id/progress   # Get course progress
 
 # Admin/Tutor Course Endpoints (Protected)
-POST   /api/v1/courses                # Create new course
-PUT    /api/v1/courses/:id            # Update course
-DELETE /api/v1/courses/:id            # Delete course
-POST   /api/v1/courses/:id/curriculum # Add curriculum to course
-POST   /api/v1/courses/:id/modules    # Add module to course
-POST   /api/v1/courses/:courseId/modules/:moduleId/lessons # Add lesson
+GET    /api/v1/courses/admin/all       # Get all courses (including drafts)
+POST   /api/v1/courses                 # Create new course
+PUT    /api/v1/courses/:id             # Update course  
+PUT    /api/v1/courses/:id/publish     # Publish course (draft → published)
+DELETE /api/v1/courses/:id             # Delete course
+POST   /api/v1/courses/:id/curriculum  # Add curriculum to course
+/api/v1/courses/admin/all
+?status=draft          # Filter by specific status
+?status=published      # Filter by published only
+?category=programming  # Filter by category
+?search=python        # Search in course titles/descriptions
+?page=1&limit=10      # Pagination
+Publish Course
+Endpoint: PUT /api/v1/courses/:courseId/publish
+GET /api/v1/courses/admin/all?status=draft
+Authorization: Bearer YOUR_JWT_TOKEN
 ```
 
 ### **🎥 Pre-recorded Content Endpoints**

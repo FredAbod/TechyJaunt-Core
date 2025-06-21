@@ -58,10 +58,9 @@ const lessonSchema = new mongoose.Schema(
       fileUrl: {
         type: String,
         required: true,
-      },
-      fileType: {
+      },      fileType: {
         type: String,
-        enum: ["pdf", "doc", "ppt", "zip", "other"],
+        enum: ["pdf", "doc", "docx", "ppt", "pptx", "xls", "xlsx", "zip", "txt", "csv", "ipynb", "py", "js", "html", "css", "json", "other"],
         required: true,
       },
       fileSize: {

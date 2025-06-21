@@ -119,3 +119,62 @@ export const getDashboard = async (req, res) => {
     return errorResMsg(res, 500, "Failed to retrieve dashboard data");
   }
 };
+
+export const getUserDashboard = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Get user data
+    const user = await User.findById(userId);
+    if (!user) {
+      return errorResMsg(res, 404, "User not found");
+    }
+
+    // Get course dashboard data
+    const courseDashboard = await CourseService.getUserDashboard(userId);
+
+    const dashboardData = {
+      user: user.toJSON(),
+      ...courseDashboard,
+      notifications: [],
+      upcomingClasses: [],
+    };
+
+    return successResMsg(res, 200, {
+      message: "Dashboard data retrieved successfully",
+      ...dashboardData
+    });
+
+  } catch (error) {
+    logger.error(`Get dashboard error: ${error.message}`);
+    return errorResMsg(res, 500, "Failed to retrieve dashboard data");
+  }
+};
+
+// Development endpoint to promote user role (remove in production)
+export const promoteUserRole = async (req, res) => {
+  try {
+    const { role } = req.body;
+    const userId = req.user.userId;
+
+    if (!["admin", "super admin", "tutor"].includes(role)) {
+      return errorResMsg(res, 400, "Invalid role. Use: admin, super admin, or tutor");
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId, 
+      { role }, 
+      { new: true }
+    ).select('-password -__v');
+
+    logger.info(`User role updated: ${userId} to ${role}`);
+    return successResMsg(res, 200, { 
+      message: `Role updated to ${role} successfully`, 
+      user 
+    });
+
+  } catch (error) {
+    logger.error(`Promote user error: ${error.message}`);
+    return errorResMsg(res, 500, "Failed to update user role");
+  }
+};

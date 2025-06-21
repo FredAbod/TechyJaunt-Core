@@ -79,7 +79,6 @@ class CourseService {
       throw error;
     }
   }
-
   async addModuleToCourse(moduleData, userId) {
     try {
       const course = await Course.findById(moduleData.courseId);
@@ -94,6 +93,30 @@ class CourseService {
         }
       }
 
+      // Check if order already exists and auto-adjust if needed
+      if (moduleData.order) {
+        const existingModule = await Module.findOne({ 
+          courseId: moduleData.courseId, 
+          order: moduleData.order 
+        });
+        
+        if (existingModule) {
+          // Find the next available order number
+          const highestOrder = await Module.findOne({ 
+            courseId: moduleData.courseId 
+          }).sort({ order: -1 });
+          
+          moduleData.order = highestOrder ? highestOrder.order + 1 : 1;
+        }
+      } else {
+        // If no order specified, set to next available
+        const highestOrder = await Module.findOne({ 
+          courseId: moduleData.courseId 
+        }).sort({ order: -1 });
+        
+        moduleData.order = highestOrder ? highestOrder.order + 1 : 1;
+      }
+
       const module = new Module(moduleData);
       await module.save();
 
@@ -106,7 +129,6 @@ class CourseService {
       throw error;
     }
   }
-
   async addLessonToModule(lessonData, userId) {
     try {
       const module = await Module.findById(lessonData.moduleId);
@@ -124,6 +146,30 @@ class CourseService {
         if (course.instructor.toString() !== userId) {
           throw new Error("You can only add lessons to your own courses");
         }
+      }
+
+      // Check if lesson order already exists and auto-adjust if needed
+      if (lessonData.order) {
+        const existingLesson = await Lesson.findOne({ 
+          moduleId: lessonData.moduleId, 
+          order: lessonData.order 
+        });
+        
+        if (existingLesson) {
+          // Find the next available order number
+          const highestOrder = await Lesson.findOne({ 
+            moduleId: lessonData.moduleId 
+          }).sort({ order: -1 });
+          
+          lessonData.order = highestOrder ? highestOrder.order + 1 : 1;
+        }
+      } else {
+        // If no order specified, set to next available
+        const highestOrder = await Lesson.findOne({ 
+          moduleId: lessonData.moduleId 
+        }).sort({ order: -1 });
+        
+        lessonData.order = highestOrder ? highestOrder.order + 1 : 1;
       }
 
       const lesson = new Lesson(lessonData);
@@ -167,6 +213,45 @@ class CourseService {
         courses,
         pagination: {
           current: page,
+          total: Math.ceil(total / limit),
+          count: total,
+        },
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Admin method to get all courses (including drafts)
+  async getAllCoursesAdmin(filters = {}, page = 1, limit = 10) {
+    try {
+      const query = { isActive: true }; // Only filter by active status for admin
+
+      // Apply filters
+      if (filters.category) query.category = filters.category;
+      if (filters.level) query.level = filters.level;
+      if (filters.featured) query.featured = filters.featured;
+      if (filters.status) query.status = filters.status; // Allow status filtering for admin
+      if (filters.search) {
+        query.$text = { $search: filters.search };
+      }
+
+      const skip = (page - 1) * limit;
+
+      const courses = await Course.find(query)
+        .populate("instructor", "firstName lastName email")
+        .populate("modules", "title order")
+        .select("-__v")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit));
+
+      const total = await Course.countDocuments(query);
+
+      return {
+        courses,
+        pagination: {
+          current: parseInt(page),
           total: Math.ceil(total / limit),
           count: total,
         },

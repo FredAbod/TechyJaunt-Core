@@ -94,7 +94,8 @@ export const joinLiveClass = async (req, res) => {
     const joinData = await LiveClassService.joinLiveClass(classId, userId);
 
     logger.info(`User joined live class: ${classId} by ${userId}`);
-    return successResMsg(res, 200, joinData.message, { 
+    return successResMsg(res, 200, { 
+      message: joinData.message,
       joinUrl: joinData.joinUrl,
       password: joinData.password 
     });
@@ -113,7 +114,7 @@ export const leaveLiveClass = async (req, res) => {
 
     const result = await LiveClassService.leaveLiveClass(classId, userId);
 
-    return successResMsg(res, 200, result.message);
+    return successResMsg(res, 200, { message: result.message });
 
   } catch (error) {
     logger.error(`Leave live class error: ${error.message}`);

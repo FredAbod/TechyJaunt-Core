@@ -99,7 +99,7 @@ export const deleteVideoClass = async (req, res) => {
     const result = await PrerecordedContentService.deleteVideoClass(classId, instructorId);
 
     logger.info(`Video class deleted: ${classId} by ${instructorId}`);
-    return successResMsg(res, 200, result.message);
+    return successResMsg(res, 200, { message: result.message });
 
   } catch (error) {
     logger.error(`Delete video class error: ${error.message}`);
@@ -185,7 +185,7 @@ export const deleteClassResource = async (req, res) => {
     const result = await PrerecordedContentService.deleteClassResource(resourceId, userId);
 
     logger.info(`Class resource deleted: ${resourceId} by ${userId}`);
-    return successResMsg(res, 200, result.message);
+    return successResMsg(res, 200, { message: result.message });
 
   } catch (error) {
     logger.error(`Delete class resource error: ${error.message}`);

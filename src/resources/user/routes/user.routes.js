@@ -4,7 +4,8 @@ import {
   addProfile, 
   getProfile, 
   updateProfile, 
-  getDashboard 
+  getDashboard,
+  promoteUserRole
 } from "../controllers/user.controller.js";
 import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
@@ -28,5 +29,8 @@ router.post("/profile", profileLimiter, isAuthenticated, validateRequest(profile
 router.get("/profile", profileLimiter, isAuthenticated, getProfile);
 router.put("/profile", profileLimiter, isAuthenticated, validateRequest(profileSchema), updateProfile);
 router.get("/dashboard", profileLimiter, isAuthenticated, getDashboard);
+
+// Development endpoint to promote user role (remove in production)
+router.post("/promote-role", profileLimiter, isAuthenticated, promoteUserRole);
 
 export default router;
