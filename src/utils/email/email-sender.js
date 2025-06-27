@@ -1,6 +1,8 @@
 import nodemailer from "nodemailer";
 import otpVerificationTemplate from "../templates/otp-verification-template.js";
 import welcomeOnboardingTemplate from "../templates/welcome-onboarding-template.js";
+import FgPasswordTemplate from "../templates/FgPassword-template.js";
+import resetPasswordTemplate from "../templates/resetPassword-template.js";
 
 // Create a reusable transporter
 const createTransporter = () => {
@@ -58,6 +60,52 @@ const sendWelcomeOnboardingEmail = async (email, firstName) => {
   } catch (error) {
     console.log("Welcome Email error:", error.message);
     throw new Error("Couldn't send welcome email.");
+  }
+};
+
+// Send reset password email with token
+const sendResetPasswordEmail = async (email, firstName, resetToken) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+      to: email,
+      subject: "Reset Your Password - TechyJaunt",
+      html: FgPasswordTemplate(resetToken, firstName),
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(
+      `${new Date().toLocaleString()} - Reset password email sent successfully:`,
+      info.response
+    );
+  } catch (error) {
+    console.log("Reset password email error:", error.message);
+    throw new Error("Couldn't send reset password email.");
+  }
+};
+
+// Send password reset confirmation email
+const sendPasswordResetConfirmationEmail = async (email, firstName) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+      to: email,
+      subject: "Password Reset Successful - TechyJaunt",
+      html: resetPasswordTemplate(firstName),
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(
+      `${new Date().toLocaleString()} - Password reset confirmation email sent successfully:`,
+      info.response
+    );
+  } catch (error) {
+    console.log("Password reset confirmation email error:", error.message);
+    throw new Error("Couldn't send password reset confirmation email.");
   }
 };
 
@@ -162,4 +210,6 @@ export {
   sendMail,
   sendPasswordResetEmail,
   sendServerFailure,
+  sendResetPasswordEmail,
+  sendPasswordResetConfirmationEmail,
 };

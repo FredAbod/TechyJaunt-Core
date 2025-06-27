@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema(
       type: String,
     },
     profilePicPublicId: {
-      type: String, // Store Cloudinary public_id for deletion
+      type: String, 
     },
     phone: {
       type: String,
@@ -82,6 +82,12 @@ const userSchema = new mongoose.Schema(
       default: "pending",
     },
     lastLogin: {
+      type: Date,
+    },
+    resetPasswordToken: {
+      type: String,
+    },
+    resetPasswordExpiry: {
       type: Date,
     },
   },

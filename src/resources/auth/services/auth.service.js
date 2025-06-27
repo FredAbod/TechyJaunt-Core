@@ -1,7 +1,7 @@
 import User from "../../user/models/user.js";
-import bcrypt from "bcrypt";
+import bcrypt, { hash } from "bcrypt";
 import generateOtp from "../../../utils/OtpMessage.js";
-import { sendOtpEmail, sendWelcomeOnboardingEmail } from "../../../utils/email/email-sender.js";
+import { sendOtpEmail, sendWelcomeOnboardingEmail, sendResetPasswordEmail, sendPasswordResetConfirmationEmail } from "../../../utils/email/email-sender.js";
 import { createJwtToken } from "../../../middleware/isAuthenticated.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 
@@ -208,6 +208,80 @@ class AuthService {  async registerUser(email) {
 
       return {
         message: "Login successful",
+        user: user.toJSON(),
+        token
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async forgotPassword(email) {
+    try {
+      const user = await User.findOne({ email: email.toLowerCase() });
+      if (!user) {
+        throw new Error("User with this email does not exist");
+      }
+
+      if (user.status !== 'active') {
+        throw new Error("Please complete your email verification first");
+      }
+
+      // Generate reset token (6-digit code)
+      const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
+      const resetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      // Save reset token to user
+      user.resetPasswordToken = resetToken;
+      user.resetPasswordExpiry = resetTokenExpiry;
+      await user.save();
+
+      // Send reset password email
+      await sendResetPasswordEmail(user.email, user.firstName || "User", resetToken);
+
+      return {
+        message: "Password reset code sent to your email",
+        email: email
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async resetPassword(email, resetToken, newPassword) {
+    try {
+      const user = await User.findOne({ 
+        email: email.toLowerCase(),
+        resetPasswordToken: resetToken,
+        resetPasswordExpiry: { $gt: new Date() }
+      });
+
+      if (!user) {
+        throw new Error("Invalid or expired reset token");
+      }
+
+      // Hash new password
+      const hashedPassword = await hash(newPassword, 12);
+
+      // Update user password and clear reset token
+      user.password = hashedPassword;
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpiry = undefined;
+      user.lastLogin = new Date();
+      await user.save();
+
+      // Generate new JWT token
+      const token = createJwtToken({ 
+        userId: user._id, 
+        email: user.email, 
+        role: user.role 
+      });
+
+      // Send password reset confirmation email
+      await sendPasswordResetConfirmationEmail(user.email, user.firstName || "User");
+
+      return {
+        message: "Password reset successfully. You are now logged in.",
         user: user.toJSON(),
         token
       };

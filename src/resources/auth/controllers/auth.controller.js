@@ -72,3 +72,33 @@ export const loginUser = async (req, res) => {
     return errorResMsg(res, 401, error.message);
   }
 };
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const result = await AuthService.forgotPassword(email);
+    
+    logger.info(`Password reset requested for email: ${email}`);
+    return successResMsg(res, 200, { ...result });
+
+  } catch (error) {
+    logger.error(`Forgot password error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, resetToken, newPassword } = req.body;
+
+    const result = await AuthService.resetPassword(email, resetToken, newPassword);
+    
+    logger.info(`Password reset successfully for email: ${email}`);
+    return successResMsg(res, 200, { ...result });
+
+  } catch (error) {
+    logger.error(`Reset password error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
+  }
+};

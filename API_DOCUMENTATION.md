@@ -55,6 +55,8 @@ POST   /api/v1/auth/verify-otp        # Verify email OTP
 POST   /api/v1/auth/resend-otp        # Resend OTP
 POST   /api/v1/auth/set-password      # Set password after verification
 POST   /api/v1/auth/login             # User login
+POST   /api/v1/auth/forgot-password   # Request password reset
+POST   /api/v1/auth/reset-password    # Reset password with token
 ```
 
 ### **👤 User Profile Endpoints**

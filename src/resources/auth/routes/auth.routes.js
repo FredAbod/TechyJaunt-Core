@@ -5,14 +5,18 @@ import {
   verifyOtp, 
   resendOtp, 
   setPassword, 
-  loginUser 
+  loginUser,
+  forgotPassword,
+  resetPassword
 } from "../controllers/auth.controller.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
 import {
   registerSchema,
   verifyOtpSchema,
   setPasswordSchema,
-  loginSchema
+  loginSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema
 } from "../../../utils/validation/auth.validation.js";
 
 const router = express.Router();
@@ -44,5 +48,7 @@ router.post("/verify-otp", authLimiter, validateRequest(verifyOtpSchema), verify
 router.post("/resend-otp", otpLimiter, validateRequest(registerSchema), resendOtp);
 router.post("/set-password", authLimiter, validateRequest(setPasswordSchema), setPassword);
 router.post("/login", authLimiter, validateRequest(loginSchema), loginUser);
+router.post("/forgot-password", authLimiter, validateRequest(forgotPasswordSchema), forgotPassword);
+router.post("/reset-password", authLimiter, validateRequest(resetPasswordSchema), resetPassword);
 
 export default router;

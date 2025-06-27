@@ -133,3 +133,43 @@ export const profileSchema = Joi.object({
     }),
   }).required(),
 });
+
+// Forgot password validation schema
+export const forgotPasswordSchema = Joi.object({
+  email: Joi.string()
+    .email()
+    .required()
+    .messages({
+      "string.email": "Please provide a valid email address",
+      "any.required": "Email is required",
+    }),
+});
+
+// Reset password validation schema
+export const resetPasswordSchema = Joi.object({
+  email: Joi.string()
+    .email()
+    .required()
+    .messages({
+      "string.email": "Please provide a valid email address",
+      "any.required": "Email is required",
+    }),
+  resetToken: Joi.string()
+    .length(6)
+    .pattern(/^[0-9]+$/)
+    .required()
+    .messages({
+      "string.length": "Reset token must be exactly 6 digits",
+      "string.pattern.base": "Reset token must contain only numbers",
+      "any.required": "Reset token is required",
+    }),
+  newPassword: Joi.string()
+    .min(8)
+    .pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]'))
+    .required()
+    .messages({
+      "string.min": "Password must be at least 8 characters long",
+      "string.pattern.base": "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+      "any.required": "New password is required",
+    }),
+});

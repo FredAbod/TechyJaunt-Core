@@ -1,169 +1,173 @@
-const fgPasswordTemplate = (OTP)=>{
-    return`<!DOCTYPE html>
+const fgPasswordTemplate = (OTP, firstName = "") => {
+  return `
+    <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
-        <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Reset password</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Anek+Gurmukhi:wght@400;500;600;700&display=swap" rel="stylesheet">
+        <title>Reset Your Password - TechyJaunt</title>
         <style>
-            body{
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                line-height: 1.6;
                 margin: 0;
                 padding: 0;
-                box-sizing: border-box;
-                font-family: 'Anek Gurmukhi', sans-serif;
+                background-color: #f4f4f4;
             }
-            .reset{
-                width: 50%;
+            .container {
+                max-width: 600px;
                 margin: 0 auto;
+                background-color: #ffffff;
+                border-radius: 10px;
+                overflow: hidden;
+                box-shadow: 0 0 20px rgba(0,0,0,0.1);
             }
-            .reset h1{
-                font-weight: 500;
-                line-height: 32px;
-                font-size: 24px;
-                text-align: start;
-                margin-top: 15px;
-                margin-bottom: 44px;
+            .header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 40px 20px;
+                text-align: center;
             }
-            .hi{
-                font-size: 24px;
-                line-height: 28px;
-                font-weight: 400;
-                text-align: start;
-                margin-bottom: 63px;
+            .header h1 {
+                margin: 0;
+                font-size: 28px;
+                font-weight: 300;
             }
-            .reset h2{
-                font-size: 50px;
-                line-height: 62px;
-                font-weight: 600;
+            .content {
+                padding: 40px 30px;
+                text-align: center;
+            }
+            .greeting {
+                font-size: 20px;
+                margin-bottom: 20px;
                 color: #333;
-                text-align: center;
-                margin: 0 auto;
-                margin-bottom: 34px;
-                width: 489px;
             }
-            .get-app hr{
-                width: 125px;
-                margin: 0 auto;
-                border: 1px solid rgba(0,0,0,0.24);
-                margin-bottom: 16px;
-            }
-            .get-app h3{
-                font-weight: 400;
-                font-size: 24px;
-                line-height: 32px;
-                margin-bottom: 16px;
-                text-align: center;
-            }
-            .get-app p{
+            .message {
                 color: #666;
-                width: 512px;
-                margin: 0 auto;
-                margin-bottom: 17px;
-                text-align: center;
+                margin-bottom: 30px;
+                line-height: 1.6;
             }
-            .store{
-               display: flex;
-               justify-content: center;
-               align-items: center;
-               gap: 24px;
-               margin-bottom: 72px;
+            .otp-box {
+                background-color: #f8f9fa;
+                border: 2px dashed #667eea;
+                border-radius: 10px;
+                padding: 30px;
+                margin: 30px 0;
             }
-            .store img{
-                display: block;
-                cursor: pointer;
+            .otp-code {
+                font-size: 36px;
+                font-weight: bold;
+                color: #667eea;
+                letter-spacing: 8px;
+                margin: 10px 0;
             }
-    
-            .footer{
-                width: 100%;
-                height: 239px;
-                background-image: url('https://res.cloudinary.com/dhekqilcw/image/upload/v1687596415/mgjj1n02ixqc9frk8h2x.png');
-                background-size: cover;
+            .otp-label {
+                color: #666;
+                font-size: 14px;
+                margin-bottom: 10px;
             }
-            .footer-socials{
-                width: 100px;
-                padding-top: 64.69px;
-                margin:0 auto;
-                margin-bottom: 19.74px;
-                gap: 28px;
-                text-align: center;
-            }
-            .logo{
-               margin: 0 auto;
-               display: block;
-               margin-bottom: 10px; 
-            }
-            .footer p{
-                font-weight: 400;
-                line-height: 16px;
+            .otp-validity {
+                color: #999;
                 font-size: 12px;
+                margin-top: 10px;
+            }
+            .warning {
+                background-color: #fff3cd;
+                border: 1px solid #ffeaa7;
+                color: #856404;
+                padding: 15px;
+                border-radius: 5px;
+                margin: 20px 0;
+                font-size: 14px;
+            }
+            .footer {
+                background-color: #f8f9fa;
+                padding: 20px;
                 text-align: center;
+                color: #666;
+                font-size: 14px;
             }
+            .footer p {
+                margin: 5px 0;
+            }
+            
+            /* Mobile Responsive */
             @media screen and (max-width: 640px) {
-                .reset{
-                    width: 90%;
+                .container {
+                    margin: 10px;
+                    border-radius: 5px;
                 }
-                .reset h1{
-                    font-size: 14px;
+                .header {
+                    padding: 30px 20px;
                 }
-                .hi{
-                    font-size: 18px;
+                .header h1 {
+                    font-size: 24px;
                 }
-                .reset h2{
-                    font-size: 40px;
-                    width: 100%;
+                .content {
+                    padding: 30px 20px;
                 }
-                .reset button{
-                    width: 100%;
+                .otp-code {
+                    font-size: 28px;
+                    letter-spacing: 4px;
                 }
-                .get-app p{
-                    width: 90%;
-                }
-                .store{
-                    flex-direction: column;
+                .otp-box {
+                    padding: 20px;
                 }
             }
-            @media screen and (max-width: 1024px) {
-                .reset{
-                    width: 70%;
+            
+            @media screen and (max-width: 480px) {
+                .header h1 {
+                    font-size: 20px;
+                }
+                .content {
+                    padding: 20px 15px;
+                }
+                .otp-code {
+                    font-size: 24px;
+                    letter-spacing: 2px;
                 }
             }
         </style>
     </head>
     <body>
-        <div>
-            <div class='reset'>
-                <h1><span style='font-weight: 700'></span>Reset Your Password</h1>
-                <p>You’re receiving this email because you’ve requested to reset your password. To proceed with the password reset, please enter the following One-Time Password (OTP) within the next 10 minutes,If you did not send this request, You can safely delete this email</p>
-                <h2>${OTP}</h2>
-              </div>
-            <div class="get-app">
-                <hr/>
-                <h3>Get the Savey app!</h3>
-                <p>Get the most of Savey by installing the mobile app. You can log in by using your existing emails address and password.</p>
-                <div class='store'>
-                    <img src='https://res.cloudinary.com/dhekqilcw/image/upload/v1687788964/xg1xs3cexaebxvabynr8.png' alt='app store logo'  />
-                    <img src='https://res.cloudinary.com/dhekqilcw/image/upload/v1687788966/qnjqvcftrlqvztl6bqv1.png' alt='google store logo' />
-                </div>
+        <div class="container">
+            <div class="header">
+                <h1>🔐 Reset Your Password</h1>
+                <p>TechyJaunt Learning Platform</p>
             </div>
-            <div class='footer'>
-                <div class='footer-socials'>
-                  <img src="https://res.cloudinary.com/dhekqilcw/image/upload/v1687596407/fnvj5pmcywrosk1qogqy.svg" alt="twitter">
-                  <img src="https://res.cloudinary.com/dhekqilcw/image/upload/v1687596404/ploqnz1twz1nssfcpwem.svg" alt="facebook">
-                  <img src="https://res.cloudinary.com/dhekqilcw/image/upload/v1687596409/j11hogiyk7bz7cugv7i9.svg" alt="linkedin">
+            <div class="content">
+                ${firstName ? `<div class="greeting">Hello ${firstName}! 👋</div>` : ''}
+                <div class="message">
+                    You're receiving this email because you've requested to reset your password. 
+                    To proceed with the password reset, please enter the following One-Time Password (OTP) 
+                    within the next <strong>15 minutes</strong>.
                 </div>
-                <img src='https://res.cloudinary.com/dhekqilcw/image/upload/v1687596412/ivtj1tkeuavwky5sh2ih.svg' alt="savey logo" class='logo'/>
-                <p>Copyright &copy; 2023</p>
-                <p>Savey gives financial security.</p>
-                <p>Your journey into financial freedom and accountability is here.</p>
                 
+                <div class="otp-box">
+                    <div class="otp-label">Your Reset Code</div>
+                    <div class="otp-code">${OTP}</div>
+                    <div class="otp-validity">Valid for 15 minutes</div>
+                </div>
+
+                <div class="warning">
+                    <strong>⚠️ Security Notice:</strong><br>
+                    If you didn't request this password reset, please ignore this email and your password will remain unchanged.
+                    Never share this code with anyone.
+                </div>
+
+                <p style="color: #666; font-style: italic; margin-top: 30px;">
+                    Having trouble? Contact our support team at <strong>support@techyjaunt.com</strong>
+                </p>
             </div>
-        </div> 
+            <div class="footer">
+                <p>© 2025 TechyJaunt. All rights reserved.</p>
+                <p>TechyJaunt - Empowering Learning Through Technology</p>
+                <p>This is an automated email, please do not reply.</p>
+            </div>
+        </div>
     </body>
-    </html>`
+    </html>
+  `;
 };
 
 export default fgPasswordTemplate;

@@ -93,16 +93,16 @@ const welcomeTemplate = (firstName) => {
   <body>
       <div>
           <div class='welcome'>
-            <h1><span style="font-weight: 700;"></span>Welcome to Savey! Start your journey into becoming a Saver</h1>
+            <h1><span style="font-weight: 700;"></span>Welcome to TechyJaunt! Start your journey into becoming a Tech Expert</h1>
             <p>Hi ${firstName}, </p>
-            <p>I want to personally welcome you to our Savey Africa designed to help you achieve financial freedom. Our app is designed to help you manage their finances in a smart and unique way by offering tools for budgeting, investing, saving, spending, loans, and insurance. We believe that financial freedom is achievable for everyone, and our app is here to help you on that journey.</p>
-            <p>At Savey, we believe in staying accountable and taking control of your finances. Our app offers personalized recommendations and insights based on your financial data, helping you to make informed decisions about your money. We also offer a virtual account to pay with and cashback rewards to help you save even more.</p>
-            <p>Our team has worked tirelessly to create an app that is not only easy to use but also secure. We use advanced encryption and other security measures to protect your financial data and comply with all applicable data privacy and security regulations.</p>
-            <p>Thank you for choosing Savey as your financial management partner. We're excited to help you achieve your financial goals and look forward to serving you.</p>
+            <p>I want to personally welcome you to TechyJaunt, designed to help you achieve tech excellence. Our platform is designed to help you master technology skills in a smart and structured way by offering comprehensive courses, live classes, expert tutoring, and hands-on projects. We believe that tech mastery is achievable for everyone, and our platform is here to help you on that journey.</p>
+            <p>At TechyJaunt, we believe in practical learning and continuous growth. Our platform offers personalized learning paths and insights based on your progress, helping you to make informed decisions about your tech career. We also offer live sessions, expert mentorship, and real-world projects to help you excel even more.</p>
+            <p>Our team has worked tirelessly to create a platform that is not only easy to use but also secure. We use advanced encryption and other security measures to protect your learning data and comply with all applicable data privacy and security regulations.</p>
+            <p>Thank you for choosing TechyJaunt as your learning partner. We're excited to help you achieve your tech goals and look forward to serving you.</p>
             <p>Best regards,</p>
             <p>John Kent</p>
-            <p>Founder, Savey</p>
-            <small>For questions, you can reach out to us at <span style='color:#2230F6'>support@getsavey.com</span></small>
+            <p>Founder, TechyJaunt</p>
+            <small>For questions, you can reach out to us at <span style='color:#2230F6'>support@techyjaunt.com</span></small>
           </div>
           <div class='footer'>
               <div class='footer-socials'>
@@ -110,10 +110,10 @@ const welcomeTemplate = (firstName) => {
             <img src="https://res.cloudinary.com/dhekqilcw/image/upload/v1688986679/facebooklogo_iyntcg.png" alt="facebook">
             <img src="https://res.cloudinary.com/dhekqilcw/image/upload/v1688986662/linkedin_yzexwx.png" alt="linkedin">
             </div>
-             <img src='https://res.cloudinary.com/dhekqilcw/image/upload/v1688986634/saveylogo_fekkxc.png' alt="savey logo" class='logo'/>
+             <img src='https://res.cloudinary.com/dhekqilcw/image/upload/v1688986634/saveylogo_fekkxc.png' alt="TechyJaunt logo" class='logo'/>
               <p>Copyright &copy; 2023</p>
-              <p>Savey gives financial security.</p>
-              <p>Your journey into financial freedom and accountability is here.</p>
+              <p>TechyJaunt - Empowering Learning Through Technology.</p>
+              <p>Your journey into tech excellence and professional growth starts here.</p>
              
           </div>
       </div>

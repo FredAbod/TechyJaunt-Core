@@ -142,8 +142,8 @@ const verificationTemplate = (generateOtp, firstName) => {
           </div>
           <div class="get-app">
               <hr/>
-              <h3>Get the Savey app!</h3>
-              <p>Get the most of Savey by installing the mobile app. You can log in by using your existing emails address and password.</p>
+              <h3>Get the TechyJaunt app!</h3>
+              <p>Get the most of TechyJaunt by installing the mobile app. You can log in by using your existing emails address and password.</p>
               <div class='store'>
                   <img src='https://res.cloudinary.com/dhekqilcw/image/upload/v1690635292/Group_dvmkgi.png' alt='app store logo'  />
                   <img src='https://res.cloudinary.com/dhekqilcw/image/upload/v1690635312/googleplay_ymmdxj.png' alt='google store logo' />
@@ -156,10 +156,10 @@ const verificationTemplate = (generateOtp, firstName) => {
                 <img src="https://res.cloudinary.com/dhekqilcw/image/upload/v1688986679/facebooklogo_iyntcg.png" alt="facebook">
                 <img src="https://res.cloudinary.com/dhekqilcw/image/upload/v1688986662/linkedin_yzexwx.png" alt="linkedin">
               </div>
-              <img src='https://res.cloudinary.com/dhekqilcw/image/upload/v1688986634/saveylogo_fekkxc.png' alt="savey logo" class='logo'/>
+              <img src='https://res.cloudinary.com/dhekqilcw/image/upload/v1688986634/saveylogo_fekkxc.png' alt="TechyJaunt logo" class='logo'/>
               <p>Copyright &copy; 2023</p>
-              <p>Savey gives financial security.</p>
-              <p>Your journey into financial freedom and accountability is here.</p>
+              <p>TechyJaunt - Empowering Learning Through Technology.</p>
+              <p>Your journey into tech excellence and professional growth starts here.</p>
               
           </div>
       </div> 

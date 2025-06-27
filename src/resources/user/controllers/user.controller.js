@@ -266,6 +266,7 @@ export const updateProfileWithPicture = async (req, res) => {
     });
 
   } catch (error) {
+    console.log(error);
     logger.error(`Update profile with picture error: ${error.message}`);
     if (error.name === 'ValidationError') {
       return errorResMsg(res, 400, error.message);
