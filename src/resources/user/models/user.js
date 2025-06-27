@@ -20,6 +20,9 @@ const userSchema = new mongoose.Schema(
     profilePic: {
       type: String,
     },
+    profilePicPublicId: {
+      type: String, // Store Cloudinary public_id for deletion
+    },
     phone: {
       type: String,
     },

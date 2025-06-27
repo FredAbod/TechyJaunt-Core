@@ -59,10 +59,13 @@ POST   /api/v1/auth/login             # User login
 
 ### **👤 User Profile Endpoints**
 ```
-POST   /api/v1/user/profile           # Complete profile setup
-GET    /api/v1/user/profile           # Get user profile
-PUT    /api/v1/user/profile           # Update profile
-GET    /api/v1/user/dashboard         # User dashboard with progress
+POST   /api/v1/user/profile                # Complete profile setup
+GET    /api/v1/user/profile                # Get user profile
+PUT    /api/v1/user/profile                # Update profile
+PUT    /api/v1/user/profile/with-picture   # Update profile with picture
+POST   /api/v1/user/profile/picture        # Upload profile picture only
+GET    /api/v1/user/dashboard              # User dashboard with progress
+POST   /api/v1/user/promote-role           # Promote user role (dev only)
 ```
 
 ### **📚 Course Management Endpoints**

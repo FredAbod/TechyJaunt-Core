@@ -1,6 +1,7 @@
 import User from "../models/user.js";
 import CourseService from "../../courses/services/course.service.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
+import { uploadImage } from "../../../utils/image/cloudinary.js";
 import logger from "../../../utils/log/logger.js";
 
 export const addProfile = async (req, res) => {
@@ -176,5 +177,99 @@ export const promoteUserRole = async (req, res) => {
   } catch (error) {
     logger.error(`Promote user error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to update user role");
+  }
+};
+
+// Profile picture upload
+export const uploadProfilePicture = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    if (!req.file) {
+      return errorResMsg(res, 400, "No profile picture file provided");
+    }
+
+    // Upload image to Cloudinary
+    const uploadResult = await uploadImage(req.file.buffer, {
+      folder: "techyjaunt/profile-pictures",
+      transformation: [
+        { width: 400, height: 400, crop: "fill", gravity: "face" },
+        { quality: "auto:good" },
+        { fetch_format: "auto" }
+      ],
+      public_id: `profile_${userId}_${Date.now()}`
+    });
+
+    // Update user profile with new picture URL
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { 
+        profilePic: uploadResult.secure_url,
+        profilePicPublicId: uploadResult.public_id // Store for deletion if needed
+      },
+      { new: true }
+    ).select('-password -__v');
+
+    if (!user) {
+      return errorResMsg(res, 404, "User not found");
+    }
+
+    logger.info(`Profile picture uploaded for user: ${userId}`);
+    return successResMsg(res, 200, {
+      message: "Profile picture uploaded successfully",
+      profilePic: uploadResult.secure_url,
+      user: user
+    });
+
+  } catch (error) {
+    logger.error(`Upload profile picture error: ${error.message}`);
+    return errorResMsg(res, 500, "Failed to upload profile picture");
+  }
+};
+
+// Update profile with profile picture
+export const updateProfileWithPicture = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const profileData = req.body;
+
+    // If there's a file, upload it to Cloudinary
+    if (req.file) {
+      const uploadResult = await uploadImage(req.file.buffer, {
+        folder: "techyjaunt/profile-pictures",
+        transformation: [
+          { width: 400, height: 400, crop: "fill", gravity: "face" },
+          { quality: "auto:good" },
+          { fetch_format: "auto" }
+        ],
+        public_id: `profile_${userId}_${Date.now()}`
+      });
+
+      profileData.profilePic = uploadResult.secure_url;
+      profileData.profilePicPublicId = uploadResult.public_id;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      profileData,
+      { new: true, runValidators: true }
+    ).select('-password -__v');
+
+    if (!user) {
+      return errorResMsg(res, 404, "User not found");
+    }
+
+    logger.info(`Profile updated with picture for user: ${userId}`);
+    return successResMsg(res, 200, {
+      message: "Profile updated successfully",
+      user: user
+    });
+
+  } catch (error) {
+    logger.error(`Update profile with picture error: ${error.message}`);
+    if (error.name === 'ValidationError') {
+      return errorResMsg(res, 400, error.message);
+    }
+    return errorResMsg(res, 500, "Failed to update profile");
   }
 };
