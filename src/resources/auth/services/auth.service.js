@@ -5,6 +5,11 @@ import { sendOtpEmail, sendWelcomeOnboardingEmail, sendResetPasswordEmail, sendP
 import { createJwtToken } from "../../../middleware/isAuthenticated.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 
+// Helper function to check if profile is complete
+const isProfileComplete = (user) => {
+  return !!(user.firstName && user.lastName && user.phone);
+};
+
 class AuthService {  async registerUser(email) {
     try {
       // Check if user already exists
@@ -195,8 +200,9 @@ class AuthService {  async registerUser(email) {
         throw new Error("Invalid email or password");
       }
 
-      // Update last login
+      // Update last login and check profile completion
       user.lastLogin = new Date();
+      user.profileCompleted = isProfileComplete(user);
       await user.save();
 
       // Generate JWT token

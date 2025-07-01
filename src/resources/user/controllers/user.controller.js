@@ -4,6 +4,11 @@ import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 import { uploadImage } from "../../../utils/image/cloudinary.js";
 import logger from "../../../utils/log/logger.js";
 
+// Helper function to check if profile is complete
+const isProfileComplete = (user) => {
+  return !!(user.firstName && user.lastName && user.phone);
+};
+
 export const addProfile = async (req, res) => {
   try {
     const userId = req.user.userId;
@@ -25,7 +30,7 @@ export const addProfile = async (req, res) => {
       userId,
       {
         ...profileData,
-        profileCompleted: true
+        profileCompleted: isProfileComplete({ ...user.toObject(), ...profileData })
       },
       { new: true, runValidators: true }
     );    logger.info(`Profile completed for user: ${user.email}`);
@@ -70,6 +75,16 @@ export const updateProfile = async (req, res) => {
     delete updateData.emailVerified;
     delete updateData.status;
 
+    // Get current user data to check profile completion
+    const currentUser = await User.findById(userId);
+    if (!currentUser) {
+      return errorResMsg(res, 404, "User not found");
+    }
+
+    // Check if profile will be complete after update
+    const mergedData = { ...currentUser.toObject(), ...updateData };
+    updateData.profileCompleted = isProfileComplete(mergedData);
+
     const updatedUser = await User.findByIdAndUpdate(
       userId,
       updateData,
@@ -77,7 +92,7 @@ export const updateProfile = async (req, res) => {
     );
 
     if (!updatedUser) {
-      return errorResMsg(res, 404, "User not found");
+      return errorResMsg(res, 500, "Failed to update user");
     }    logger.info(`Profile updated for user: ${updatedUser.email}`);
     return successResMsg(res, 200, {
       message: "Profile updated successfully",
@@ -248,6 +263,16 @@ export const updateProfileWithPicture = async (req, res) => {
       profileData.profilePic = uploadResult.secure_url;
       profileData.profilePicPublicId = uploadResult.public_id;
     }
+
+    // Get current user data to check profile completion
+    const currentUser = await User.findById(userId);
+    if (!currentUser) {
+      return errorResMsg(res, 404, "User not found");
+    }
+
+    // Check if profile will be complete after update
+    const mergedData = { ...currentUser.toObject(), ...profileData };
+    profileData.profileCompleted = isProfileComplete(mergedData);
 
     const user = await User.findByIdAndUpdate(
       userId,
