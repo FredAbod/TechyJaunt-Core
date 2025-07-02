@@ -3,6 +3,7 @@ import morgan from "morgan";
 import rateLimit from "express-rate-limit";
 import xssClean from "xss-clean";
 import mongoSanitize from "express-mongo-sanitize";
+import cors from "cors";
 
 import userRoute from "./src/resources/user/routes/user.routes.js";
 import authRoute from "./src/resources/auth/routes/auth.routes.js";
@@ -13,6 +14,9 @@ import bookingRoute from "./src/resources/bookings/routes/booking.routes.js";
 const app = express();
 
 app.use(morgan("dev"));
+app.use(cors({
+  origin: "*", // Allow all origins, adjust as needed for production  
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

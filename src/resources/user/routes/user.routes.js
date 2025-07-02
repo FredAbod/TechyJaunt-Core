@@ -19,7 +19,7 @@ const router = express.Router();
 // Rate limiting for profile endpoints
 const profileLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 50, // limit each IP to 20 requests per windowMs
+  max: 50, // limit each IP to 50 requests per windowMs
   message: {
     error: "Too many profile requests, please try again later.",
   },
