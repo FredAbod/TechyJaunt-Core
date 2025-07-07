@@ -44,6 +44,14 @@
 - Session feedback and ratings
 - Booking statistics and analytics
 
+### ✅ **Phase 6: Payment System (Paystack Integration)**
+- Course payment processing with Paystack
+- Payment link generation
+- Payment verification and status tracking
+- Webhook handling for real-time updates
+- Course access control based on payment
+- Payment history and transaction tracking
+
 ---
 
 ## 📋 **Complete API Endpoints**
@@ -68,6 +76,9 @@ PUT    /api/v1/user/profile/with-picture   # Update profile with picture
 POST   /api/v1/user/profile/picture        # Upload profile picture only
 GET    /api/v1/user/dashboard              # User dashboard with progress
 POST   /api/v1/user/promote-role           # Promote user role (dev only)
+
+# Admin User Management
+GET    /api/v1/user/admin/students         # Get all students (admin only)
 ```
 
 ### **📚 Course Management Endpoints**
@@ -164,6 +175,15 @@ POST   /api/v1/bookings/sessions/:bookingId/feedback    # Submit session feedbac
 GET    /api/v1/bookings/stats                           # Get session statistics (tutor/admin)
 ```
 
+### **💳 Payment & Billing Endpoints**
+```
+# Course Payment
+POST   /api/v1/payments/initialize        # Initialize course payment (student)
+GET    /api/v1/payments/verify/:reference # Verify payment status (student)
+GET    /api/v1/payments/details/:reference # Get payment details (student)
+POST   /api/v1/payments/webhook           # Handle Paystack webhook (public)
+```
+
 ---
 
 ## 🛠 **Technical Features Implemented**
@@ -219,10 +239,18 @@ GET    /api/v1/bookings/stats                           # Get session statistics
 - `TutorAvailability` - Tutor availability slots and schedules
 - `BookingSession` - Session bookings with status tracking and feedback
 
+### **Payment System**
+- `CoursePayment` - Course payment transactions and status tracking
+
 ### **Booking & Availability**
 - `Booking` - Session bookings and availability
 - `TutorAvailability` - Tutor's available time slots
 - `SessionFeedback` - Feedback for completed sessions
+
+### **Payment & Billing**
+- `Payment` - Payment transactions and status
+- `PaymentReference` - Unique references for payment verification
+- `WebhookLog` - Logs for webhook events from Paystack
 
 ---
 
@@ -234,6 +262,8 @@ All phases have been successfully implemented:
 - ✅ Live Classes with Video Conferencing
 - ✅ Pre-recorded Content & File Upload
 - ✅ Booking & Availability System
+- ✅ Payment System (Paystack Integration)
+- ✅ Payment System Integration
 
 ---
 
@@ -248,6 +278,7 @@ All phases have been successfully implemented:
 - **Security**: Rate limiting, XSS protection, input sanitization
 - **File Upload**: Multer with memory storage
 - **Booking System**: Conflict detection, scheduling, feedback
+- **Payment Integration**: Paystack API for payment processing and webhooks
 
 ---
 
@@ -259,6 +290,7 @@ Your TechyJaunt Learning Management System is now fully functional with:
 - Live classes with video conferencing
 - Pre-recorded content with file upload
 - Tutor availability and session booking system
+- Payment processing with Paystack integration
 - Professional email notifications
 - Comprehensive API documentation
 - Rate limiting and security measures

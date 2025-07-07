@@ -1,5 +1,5 @@
 import PaymentService from "../services/payment.service.js";
-import { AppError } from "../../../utils/lib/appError.js";
+import AppError from "../../../utils/lib/appError.js";
 import { asyncHandler } from "../../../utils/helper/helper.js";
 import Course from "../../courses/models/course.js";
 

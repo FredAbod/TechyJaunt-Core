@@ -7,7 +7,8 @@ import {
   getDashboard,
   promoteUserRole,
   uploadProfilePicture,
-  updateProfileWithPicture
+  updateProfileWithPicture,
+  getAllStudents
 } from "../controllers/user.controller.js";
 import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
@@ -39,5 +40,8 @@ router.put("/profile/with-picture", profileLimiter, isAuthenticated, imageUpload
 
 // Development endpoint to promote user role (remove in production)
 router.post("/promote-role", profileLimiter, isAuthenticated, promoteUserRole);
+
+// Admin routes
+router.get("/admin/students", profileLimiter, isAuthenticated, getAllStudents);
 
 export default router;

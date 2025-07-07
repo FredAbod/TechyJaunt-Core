@@ -1,7 +1,7 @@
 import axios from "axios";
 import crypto from "crypto";
 import CoursePayment from "../models/coursePayment.js";
-import { AppError } from "../../../utils/lib/appError.js";
+import AppError from "../../../utils/lib/appError.js";
 import { PAYSTACK_SECRET_KEY } from "../../../utils/helper/config.js";
 import { generateRandomString } from "../../../utils/helper/helper.js";
 

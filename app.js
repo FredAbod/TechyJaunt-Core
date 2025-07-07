@@ -29,7 +29,17 @@ app.use(xssClean());
 app.use(mongoSanitize());
 
 app.get("/", (req, res) => {
-  res.send("Welcome to TechyJaunt Learning Platform 🎓�✨");
+  res.send("Welcome to TechyJaunt Learning Platform 🎓✨");
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "success",
+    message: "TechyJaunt API is running properly",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development"
+  });
 });
 
 // Define rate limiter options
@@ -53,10 +63,5 @@ app.use("/api/v1/content", prerecordedContentRoute);
 app.use("/api/v1/live-classes", liveClassRoute);
 app.use("/api/v1/bookings", bookingRoute);
 app.use("/api/v1/payments", paymentRoute);
-
-
-app.listen(8080, () => {
-  console.log("TechyJaunt Learning Platform server listening on port 8080");
-});
 
 export default app;

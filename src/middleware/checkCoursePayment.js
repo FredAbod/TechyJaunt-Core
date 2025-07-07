@@ -1,5 +1,5 @@
-import Course from "../../resources/courses/models/course.js";
-import PaymentService from "../../resources/payments/services/payment.service.js";
+import Course from "../resources/courses/models/course.js";
+import PaymentService from "../resources/payments/services/payment.service.js";
 
 /**
  * Middleware to check if a user has paid for a course before accessing it

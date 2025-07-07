@@ -299,3 +299,79 @@ export const updateProfileWithPicture = async (req, res) => {
     return errorResMsg(res, 500, "Failed to update profile");
   }
 };
+
+// Admin endpoint to get all students
+export const getAllStudents = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { page = 1, limit = 10, search, status } = req.query;
+
+    // Check if user is admin or super admin
+    const currentUser = await User.findById(userId);
+    if (!currentUser || !["admin", "super admin"].includes(currentUser.role)) {
+      return errorResMsg(res, 403, "Access denied. Admin privileges required.");
+    }
+
+    // Build query for students
+    const query = { role: "user" };
+    
+    // Add search functionality
+    if (search) {
+      query.$or = [
+        { firstName: { $regex: search, $options: "i" } },
+        { lastName: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } }
+      ];
+    }
+
+    // Add status filter
+    if (status) {
+      query.status = status;
+    }
+
+    // Execute query with pagination
+    const students = await User.find(query)
+      .select('-password -emailOtp -resetPasswordToken -resetPasswordExpiry')
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .sort({ createdAt: -1 });
+
+    // Get total count for pagination
+    const totalStudents = await User.countDocuments(query);
+
+    // Get enrollment statistics for each student
+    const studentsWithStats = await Promise.all(
+      students.map(async (student) => {
+        const enrolledCourses = await CourseService.getUserDashboard(student._id);
+        return {
+          ...student.toJSON(),
+          enrollmentStats: {
+            totalCourses: enrolledCourses.stats?.totalCourses || 0,
+            completedCourses: enrolledCourses.stats?.completedCourses || 0,
+            inProgressCourses: enrolledCourses.stats?.inProgressCourses || 0,
+            overallProgress: enrolledCourses.stats?.overallProgress || 0
+          }
+        };
+      })
+    );
+
+    const pagination = {
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(totalStudents / limit),
+      totalStudents,
+      hasNext: page < Math.ceil(totalStudents / limit),
+      hasPrev: page > 1
+    };
+
+    logger.info(`Admin ${userId} retrieved students list`);
+    return successResMsg(res, 200, {
+      message: "Students retrieved successfully",
+      students: studentsWithStats,
+      pagination
+    });
+
+  } catch (error) {
+    logger.error(`Get all students error: ${error.message}`);
+    return errorResMsg(res, 500, "Failed to retrieve students");
+  }
+};

@@ -53,8 +53,6 @@ const coursePaymentSchema = new mongoose.Schema(
 
 // Indexes for faster queries
 coursePaymentSchema.index({ user: 1, course: 1 });
-coursePaymentSchema.index({ transactionReference: 1 });
-coursePaymentSchema.index({ paystackReference: 1 });
 
 const CoursePayment = mongoose.model("CoursePayment", coursePaymentSchema);
 
