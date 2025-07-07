@@ -42,6 +42,98 @@ app.get("/health", (req, res) => {
   });
 });
 
+// Server IP endpoint for Paystack whitelisting
+app.get("/server-info", (req, res) => {
+  const serverInfo = {
+    status: "success",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development",
+    server: {
+      // Client IP (the IP making the request)
+      clientIP: req.ip || req.connection.remoteAddress || req.socket.remoteAddress || 
+                (req.headers['x-forwarded-for'] || '').split(',')[0].trim(),
+      
+      // Server headers that might contain the real IP
+      headers: {
+        'x-forwarded-for': req.headers['x-forwarded-for'],
+        'x-real-ip': req.headers['x-real-ip'],
+        'x-client-ip': req.headers['x-client-ip'],
+        'cf-connecting-ip': req.headers['cf-connecting-ip'], // Cloudflare
+        'true-client-ip': req.headers['true-client-ip'],
+        'user-agent': req.headers['user-agent'],
+        'host': req.headers.host,
+        'origin': req.headers.origin,
+        'referer': req.headers.referer
+      },
+      
+      // Server information
+      hostname: req.hostname,
+      protocol: req.protocol,
+      baseUrl: `${req.protocol}://${req.get('host')}`,
+      port: process.env.PORT || 4000,
+      
+      // Webhook URL for Paystack
+      webhookUrl: `${req.protocol}://${req.get('host')}/api/v1/payments/webhook`,
+      
+      // Instructions
+      instructions: {
+        paystack: "Use the 'publicIP' or 'clientIP' value to whitelist in Paystack dashboard",
+        webhook: "Use the 'webhookUrl' for Paystack webhook configuration",
+        note: "If deployed behind a proxy/load balancer, check x-forwarded-for header"
+      }
+    }
+  };
+
+  // Try to get public IP using external service
+  import('https').then(https => {
+    const options = {
+      hostname: 'api.ipify.org',
+      port: 443,
+      path: '/',
+      method: 'GET',
+      timeout: 5000
+    };
+
+    const req2 = https.request(options, (res2) => {
+      let data = '';
+      res2.on('data', (chunk) => data += chunk);
+      res2.on('end', () => {
+        serverInfo.server.publicIP = data.trim();
+        res.status(200).json(serverInfo);
+      });
+    });
+
+    req2.on('error', () => {
+      serverInfo.server.publicIP = 'Unable to fetch public IP';
+      res.status(200).json(serverInfo);
+    });
+
+    req2.on('timeout', () => {
+      req2.destroy();
+      serverInfo.server.publicIP = 'Timeout fetching public IP';
+      res.status(200).json(serverInfo);
+    });
+
+    req2.end();
+  }).catch(() => {
+    serverInfo.server.publicIP = 'Error fetching public IP';
+    res.status(200).json(serverInfo);
+  });
+});
+
+// Simple IP endpoint for quick IP checking
+app.get("/ip", (req, res) => {
+  const clientIP = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || 
+                   (req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  
+  res.status(200).json({
+    ip: clientIP,
+    forwarded: req.headers['x-forwarded-for'],
+    realIP: req.headers['x-real-ip'],
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Define rate limiter options
 const limiter = rateLimit({
   windowMs: 10 * 1000, // 10 seconds

@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "test:db": "node test-connection.js"
+    "test:db": "node test-connection.js",
+    "get-ip": "bash get-server-ip.sh"
   },
   "keywords": [],
   "author": "",

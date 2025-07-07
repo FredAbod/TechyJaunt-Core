@@ -329,7 +329,9 @@ bash test-admin-endpoint.sh
 
 ### **Health Check**
 ```
-GET /health  # Check server status and environment info
+GET /health       # Check server status and environment info
+GET /server-info  # Get server IP and configuration for Paystack whitelisting
+GET /ip          # Get simple IP address information
 ```
 
 ### **Recent Fixes Applied**
@@ -339,6 +341,82 @@ GET /health  # Check server status and environment info
 - ✅ Removed duplicate server logs and database connection messages
 - ✅ Enhanced query performance with aggregation pipelines
 - ✅ Added fallback mechanisms for failed operations
+
+---
+
+## 🌐 **Server Information Endpoints**
+
+### **Get Server IP for Paystack Whitelisting**
+```http
+GET /server-info
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "timestamp": "2025-01-07T15:30:00.000Z",
+  "environment": "production",
+  "server": {
+    "clientIP": "203.0.113.1",
+    "publicIP": "203.0.113.1",
+    "headers": {
+      "x-forwarded-for": "203.0.113.1",
+      "x-real-ip": "203.0.113.1",
+      "host": "api.techyjaunt.com",
+      "origin": "https://techyjaunt.com"
+    },
+    "hostname": "api.techyjaunt.com",
+    "protocol": "https",
+    "baseUrl": "https://api.techyjaunt.com",
+    "port": 4000,
+    "webhookUrl": "https://api.techyjaunt.com/api/v1/payments/webhook",
+    "instructions": {
+      "paystack": "Use the 'publicIP' or 'clientIP' value to whitelist in Paystack dashboard",
+      "webhook": "Use the 'webhookUrl' for Paystack webhook configuration",
+      "note": "If deployed behind a proxy/load balancer, check x-forwarded-for header"
+    }
+  }
+}
+```
+
+### **Get Simple IP Address**
+```http
+GET /ip
+```
+
+**Response:**
+```json
+{
+  "ip": "203.0.113.1",
+  "forwarded": "203.0.113.1",
+  "realIP": "203.0.113.1",
+  "timestamp": "2025-01-07T15:30:00.000Z"
+}
+```
+
+### **Paystack Whitelisting Instructions**
+
+1. **Get Your Server IP:**
+   ```bash
+   curl https://your-domain.com/server-info
+   # or
+   curl https://your-domain.com/ip
+   ```
+
+2. **Whitelist in Paystack:**
+   - Go to Paystack Dashboard → Settings → Webhooks
+   - Add your webhook URL: `https://your-domain.com/api/v1/payments/webhook`
+   - Whitelist the IP address returned from `/server-info`
+
+3. **Test Your Webhook:**
+   ```bash
+   # Test webhook endpoint
+   curl -X POST https://your-domain.com/api/v1/payments/webhook \
+     -H "Content-Type: application/json" \
+     -H "x-paystack-signature: test-signature" \
+     -d '{"event":"charge.success","data":{"reference":"test"}}'
+   ```
 
 ---
 
