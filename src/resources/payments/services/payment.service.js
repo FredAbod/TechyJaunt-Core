@@ -1,5 +1,6 @@
 import axios from "axios";
 import crypto from "crypto";
+import mongoose from "mongoose";
 import CoursePayment from "../models/coursePayment.js";
 import AppError from "../../../utils/lib/appError.js";
 import { PAYSTACK_SECRET_KEY } from "../../../utils/helper/config.js";
@@ -7,6 +8,15 @@ import { generateRandomString } from "../../../utils/helper/helper.js";
 
 class PaymentService {
   constructor() {
+    // Validate Paystack secret key
+    if (!PAYSTACK_SECRET_KEY) {
+      throw new Error("PAYSTACK_SECRET_KEY environment variable is required");
+    }
+
+    if (!PAYSTACK_SECRET_KEY.startsWith('sk_')) {
+      throw new Error("Invalid Paystack secret key format. Must start with 'sk_'");
+    }
+
     this.paystackApi = axios.create({
       baseURL: "https://api.paystack.co",
       headers: {
@@ -71,6 +81,30 @@ class PaymentService {
       if (error.name === 'ValidationError') {
         throw error;
       }
+      
+      // Handle Axios errors (API responses)
+      if (error.response) {
+        const status = error.response.status;
+        const message = error.response.data?.message || error.message;
+        
+        if (status === 401) {
+          if (message.includes('IP address') || message.includes('not allowed')) {
+            throw new AppError("Your IP address is not whitelisted in Paystack. Please visit /server-info to get your IP and whitelist it in Paystack dashboard.", 401);
+          } else {
+            throw new AppError("Invalid Paystack API key. Please check your PAYSTACK_SECRET_KEY environment variable.", 401);
+          }
+        } else if (status === 400) {
+          throw new AppError(`Paystack API error: ${message}`, 400);
+        } else {
+          throw new AppError(`Paystack API error (${status}): ${message}`, status);
+        }
+      }
+      
+      // Handle network errors
+      if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+        throw new AppError("Unable to connect to Paystack API. Check your internet connection.", 500);
+      }
+      
       throw new AppError(error.message || "Payment initialization failed", error.status || 500);
     }
   }
@@ -175,6 +209,130 @@ class PaymentService {
       return !!payment;
     } catch (error) {
       throw new AppError(error.message || "Failed to check payment status", error.status || 500);
+    }
+  }
+
+  /**
+   * Get all courses a user has paid for
+   */
+  async getUserPaidCourses(userId) {
+    try {
+      // Convert userId to ObjectId if it's a string
+      const userObjectId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
+      
+      const paidCourses = await CoursePayment.find({
+        user: userObjectId,
+        status: "success",
+      })
+        .populate("course", "title description thumbnail category level price duration")
+        .populate("user", "firstName lastName email")
+        .sort({ createdAt: -1 });
+
+      return paidCourses.map(payment => ({
+        paymentId: payment._id,
+        course: payment.course,
+        amount: payment.amount,
+        currency: payment.currency,
+        paymentMethod: payment.paymentMethod,
+        transactionReference: payment.transactionReference,
+        paidAt: payment.createdAt,
+        metadata: payment.metadata
+      }));
+    } catch (error) {
+      throw new AppError(error.message || "Failed to get paid courses", error.status || 500);
+    }
+  }
+
+  /**
+   * Get user's payment summary
+   */
+  async getUserPaymentSummary(userId) {
+    try {
+      // Convert userId to ObjectId if it's a string
+      const userObjectId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
+      
+      const summary = await CoursePayment.aggregate([
+        { $match: { user: userObjectId } },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 },
+            totalAmount: { $sum: "$amount" }
+          }
+        }
+      ]);
+
+      const result = {
+        totalPaid: 0,
+        totalAmount: 0,
+        successfulPayments: 0,
+        failedPayments: 0,
+        pendingPayments: 0
+      };
+
+      summary.forEach(item => {
+        if (item._id === "success") {
+          result.totalPaid = item.totalAmount;
+          result.successfulPayments = item.count;
+        } else if (item._id === "failed") {
+          result.failedPayments = item.count;
+        } else if (item._id === "pending") {
+          result.pendingPayments = item.count;
+        }
+        result.totalAmount += item.totalAmount;
+      });
+
+      return result;
+    } catch (error) {
+      throw new AppError(error.message || "Failed to get payment summary", error.status || 500);
+    }
+  }
+
+  /**
+   * Check if user has paid for any course and get payment status
+   */
+  async getUserPaymentStatus(userId) {
+    try {
+      // Convert userId to ObjectId if it's a string
+      const userObjectId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
+      
+      const paymentData = await CoursePayment.aggregate([
+        { $match: { user: userObjectId } },
+        {
+          $group: {
+            _id: null,
+            hasPaidCourses: { $sum: { $cond: [{ $eq: ["$status", "success"] }, 1, 0] } },
+            totalPayments: { $sum: 1 },
+            totalPaid: { $sum: { $cond: [{ $eq: ["$status", "success"] }, "$amount", 0] } },
+            paidCourseIds: { 
+              $push: { 
+                $cond: [
+                  { $eq: ["$status", "success"] }, 
+                  "$course", 
+                  null
+                ] 
+              } 
+            }
+          }
+        }
+      ]);
+
+      const result = paymentData.length > 0 ? paymentData[0] : {
+        hasPaidCourses: 0,
+        totalPayments: 0,
+        totalPaid: 0,
+        paidCourseIds: []
+      };
+
+      return {
+        hasPaidCourses: result.hasPaidCourses > 0,
+        totalPaidCourses: result.hasPaidCourses,
+        totalPayments: result.totalPayments,
+        totalAmountPaid: result.totalPaid,
+        paidCourseIds: result.paidCourseIds.filter(id => id !== null)
+      };
+    } catch (error) {
+      throw new AppError(error.message || "Failed to get payment status", error.status || 500);
     }
   }
 }

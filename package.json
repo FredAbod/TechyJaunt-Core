@@ -7,7 +7,9 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test:db": "node test-connection.js",
-    "get-ip": "bash get-server-ip.sh"
+    "get-ip": "bash get-server-ip.sh",
+    "test:paystack": "node test-paystack-key.js",
+    "check:whitelist": "bash check-paystack-whitelist.sh"
   },
   "keywords": [],
   "author": "",

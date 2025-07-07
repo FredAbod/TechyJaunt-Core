@@ -64,3 +64,39 @@ export const getPaymentDetails = asyncHandler(async (req, res) => {
     data: payment,
   });
 });
+
+export const getUserPaidCourses = asyncHandler(async (req, res) => {
+  const { userId } = req.user;
+
+  const paidCourses = await PaymentService.getUserPaidCourses(userId);
+
+  res.status(200).json({
+    status: "success",
+    data: {
+      paidCourses,
+      count: paidCourses.length,
+    },
+  });
+});
+
+export const getUserPaymentSummary = asyncHandler(async (req, res) => {
+  const { userId } = req.user;
+
+  const paymentSummary = await PaymentService.getUserPaymentSummary(userId);
+
+  res.status(200).json({
+    status: "success",
+    data: paymentSummary,
+  });
+});
+
+export const getUserPaymentStatus = asyncHandler(async (req, res) => {
+  const { userId } = req.user;
+
+  const paymentStatus = await PaymentService.getUserPaymentStatus(userId);
+
+  res.status(200).json({
+    status: "success",
+    data: paymentStatus,
+  });
+});

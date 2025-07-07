@@ -182,6 +182,11 @@ POST   /api/v1/payments/initialize        # Initialize course payment (student)
 GET    /api/v1/payments/verify/:reference # Verify payment status (student)
 GET    /api/v1/payments/details/:reference # Get payment details (student)
 POST   /api/v1/payments/webhook           # Handle Paystack webhook (public)
+
+# User Payments
+GET    /api/v1/payments/my-courses        # Get user's paid courses
+GET    /api/v1/payments/summary           # Get user's payment summary
+GET    /api/v1/payments/status            # Get user's payment status (for login integration)
 ```
 
 ---
@@ -522,7 +527,90 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-## 4. **Paystack Webhook (Public)**
+## 5. **Get User's Paid Courses**
+```http
+GET /api/v1/payments/my-courses
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "paymentId": "64a1b2c3d4e5f6789abcdef1",
+      "course": {
+        "_id": "68561f125f6bb4ec70d664c9",
+        "title": "Complete Full Stack Web Development with React & Node.js",
+        "description": "Learn modern web development with React and Node.js",
+        "thumbnail": "https://res.cloudinary.com/...",
+        "category": "programming",
+        "level": "intermediate",
+        "price": 150000,
+        "duration": "40 hours"
+      },
+      "amount": 15000000,
+      "currency": "NGN",
+      "paymentMethod": "card",
+      "transactionReference": "TJ_a1b2c3d4e5f6789abcdef12",
+      "paidAt": "2025-01-07T15:30:00.000Z",
+      "metadata": {
+        "authorization": {
+          "authorization_code": "AUTH_code",
+          "last4": "4081",
+          "card_type": "visa"
+        }
+      }
+    }
+  ]
+}
+```
+
+## 6. **Get User's Payment Summary**
+```http
+GET /api/v1/payments/summary
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "data": {
+    "totalPaid": 15000000,
+    "totalAmount": 15000000,
+    "successfulPayments": 1,
+    "failedPayments": 0,
+    "pendingPayments": 0
+  }
+}
+```
+
+## 7. **Get User's Payment Status (for Login Integration)**
+```http
+GET /api/v1/payments/status
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "data": {
+    "hasPaidCourses": true,
+    "totalPaidCourses": 2,
+    "totalPayments": 3,
+    "totalAmountPaid": 22500000,
+    "paidCourseIds": [
+      "68561f125f6bb4ec70d664c9",
+      "68561f245f6bb4ec70d664cd"
+    ]
+  }
+}
+```
+
+## 8. **Paystack Webhook (Public)**
 ```http
 POST /api/v1/payments/webhook
 Content-Type: application/json
@@ -613,6 +701,81 @@ curl -X POST http://localhost:4000/api/v1/payments/webhook \
   -H "Content-Type: application/json" \
   -H "x-paystack-signature: t=1578911700,v1=f6a30cffb4b7b6e8e2cb9b2ff1f3b6f9a8c8d9e0f1e2d3c4b5a6f7e8d9c0b1a2" \
   -d '{"event":"charge.success","data":{"reference":"TJ_a1b2c3d4e5f6789abcdef12","amount":15000000,"status":"success"}}'
+```
+
+### 5. Get User's Paid Courses
+```bash
+curl -X GET http://localhost:4000/api/v1/payments/my-courses \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### 6. Get User's Payment Summary
+```bash
+curl -X GET http://localhost:4000/api/v1/payments/summary \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### 7. Get User's Payment Status
+```bash
+curl -X GET http://localhost:4000/api/v1/payments/status \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+## **Enhanced Login Response with Payment Status**
+
+The login endpoint now includes user payment status for better frontend experience:
+
+### **Login Response Example:**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Login successful",
+    "user": {
+      "_id": "685ec527584981004042f25e",
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com",
+      "role": "student",
+      "profileCompleted": true,
+      "emailVerified": true,
+      "status": "active"
+    },
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "tokenExpiresAt": "2025-01-09T15:30:00.000Z",
+    "paymentStatus": {
+      "hasPaidCourses": true,
+      "totalPaidCourses": 2,
+      "totalPayments": 3,
+      "totalAmountPaid": 22500000,
+      "paidCourseIds": [
+        "68561f125f6bb4ec70d664c9",
+        "68561f245f6bb4ec70d664cd"
+      ]
+    }
+  }
+}
+```
+
+### **Frontend Integration:**
+```javascript
+// Example usage in your frontend
+const loginResponse = await loginUser(email, password);
+const { user, token, paymentStatus } = loginResponse.data;
+
+// Check if user has paid for courses
+if (paymentStatus.hasPaidCourses) {
+  // User has paid courses - show premium content
+  console.log(`User has paid for ${paymentStatus.totalPaidCourses} courses`);
+  console.log(`Total amount paid: ₦${paymentStatus.totalAmountPaid / 100}`);
+} else {
+  // User hasn't paid for any courses - show free content only
+  console.log('User has not purchased any courses yet');
+}
+
+// Check if user has paid for a specific course
+const courseId = "68561f125f6bb4ec70d664c9";
+const hasPaidForCourse = paymentStatus.paidCourseIds.includes(courseId);
 ```
 
 ## **Payment Flow:**

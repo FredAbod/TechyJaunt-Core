@@ -4,6 +4,7 @@ import generateOtp from "../../../utils/OtpMessage.js";
 import { sendOtpEmail, sendWelcomeOnboardingEmail, sendResetPasswordEmail, sendPasswordResetConfirmationEmail } from "../../../utils/email/email-sender.js";
 import { createJwtToken } from "../../../middleware/isAuthenticated.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
+import PaymentService from "../../payments/services/payment.service.js";
 
 // Helper function to check if profile is complete
 const isProfileComplete = (user) => {
@@ -217,11 +218,21 @@ class AuthService {  async registerUser(email) {
       const expiresIn = 48 * 60 * 60 * 1000; // 2 days in milliseconds
       const expiresAt = new Date(Date.now() + expiresIn).toISOString();
 
+      // Get user's payment status for better frontend experience
+      let paymentStatus = null;
+      try {
+        paymentStatus = await PaymentService.getUserPaymentStatus(user._id);
+      } catch (paymentError) {
+        // Don't fail login if payment status check fails
+        console.error('Payment status check failed during login:', paymentError);
+      }
+
       return {
         message: "Login successful",
         user: user.toJSON(),
         token,
-        tokenExpiresAt: expiresAt
+        tokenExpiresAt: expiresAt,
+        paymentStatus: paymentStatus
       };
     } catch (error) {
       throw error;
