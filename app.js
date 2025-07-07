@@ -11,6 +11,7 @@ import courseRoute from "./src/resources/courses/routes/course.routes.js";
 import prerecordedContentRoute from "./src/resources/courses/routes/prerecordedContent.routes.js";
 import liveClassRoute from "./src/resources/live-classes/routes/liveClass.routes.js";
 import bookingRoute from "./src/resources/bookings/routes/booking.routes.js";
+import paymentRoute from "./src/resources/payments/routes/payment.routes.js";
 const app = express();
 
 app.use(morgan("dev"));
@@ -51,6 +52,7 @@ app.use("/api/v1/courses", courseRoute);
 app.use("/api/v1/content", prerecordedContentRoute);
 app.use("/api/v1/live-classes", liveClassRoute);
 app.use("/api/v1/bookings", bookingRoute);
+app.use("/api/v1/payments", paymentRoute);
 
 
 app.listen(8080, () => {

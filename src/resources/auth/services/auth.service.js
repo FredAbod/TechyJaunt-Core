@@ -153,17 +153,20 @@ class AuthService {  async registerUser(email) {
       await user.save();      // Send welcome email
       await sendWelcomeOnboardingEmail(email, user.firstName || "");
 
-      // Generate JWT token
+      // Generate JWT token and calculate expiry
       const token = createJwtToken({ 
         userId: user._id, 
         email: user.email, 
         role: user.role 
       });
+      const expiresIn = 48 * 60 * 60 * 1000; // 2 days in milliseconds
+      const expiresAt = new Date(Date.now() + expiresIn).toISOString();
 
       return {
         message: "Password set successfully. Welcome to TechyJaunt!",
         user: user.toJSON(),
-        token
+        token,
+        tokenExpiresAt: expiresAt
       };
     } catch (error) {
       throw error;
@@ -205,17 +208,20 @@ class AuthService {  async registerUser(email) {
       user.profileCompleted = isProfileComplete(user);
       await user.save();
 
-      // Generate JWT token
+      // Generate JWT token and calculate expiry
       const token = createJwtToken({ 
         userId: user._id, 
         email: user.email, 
         role: user.role 
       });
+      const expiresIn = 48 * 60 * 60 * 1000; // 2 days in milliseconds
+      const expiresAt = new Date(Date.now() + expiresIn).toISOString();
 
       return {
         message: "Login successful",
         user: user.toJSON(),
-        token
+        token,
+        tokenExpiresAt: expiresAt
       };
     } catch (error) {
       throw error;
@@ -276,12 +282,14 @@ class AuthService {  async registerUser(email) {
       user.lastLogin = new Date();
       await user.save();
 
-      // Generate new JWT token
+      // Generate new JWT token and calculate expiry
       const token = createJwtToken({ 
         userId: user._id, 
         email: user.email, 
         role: user.role 
       });
+      const expiresIn = 48 * 60 * 60 * 1000; // 2 days in milliseconds
+      const expiresAt = new Date(Date.now() + expiresIn).toISOString();
 
       // Send password reset confirmation email
       await sendPasswordResetConfirmationEmail(user.email, user.firstName || "User");
@@ -289,7 +297,8 @@ class AuthService {  async registerUser(email) {
       return {
         message: "Password reset successfully. You are now logged in.",
         user: user.toJSON(),
-        token
+        token,
+        tokenExpiresAt: expiresAt
       };
     } catch (error) {
       throw error;

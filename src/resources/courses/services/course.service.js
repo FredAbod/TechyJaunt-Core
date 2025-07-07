@@ -3,6 +3,7 @@ import Module from "../models/module.js";
 import Lesson from "../models/lesson.js";
 import UserCourseProgress from "../models/userCourseProgress.js";
 import User from "../../user/models/user.js";
+import PaymentService from "../../payments/services/payment.service.js";
 
 class CourseService {
   // Admin/Tutor methods
@@ -290,46 +291,39 @@ class CourseService {
         throw new Error("Course not found");
       }
 
-      if (course.status !== "published") {
-        throw new Error("Course is not available for enrollment");
-      }
-
       // Check if user is already enrolled
-      const existingEnrollment = await UserCourseProgress.findOne({
+      const existingProgress = await UserCourseProgress.findOne({
         userId,
         courseId,
       });
 
-      if (existingEnrollment) {
+      if (existingProgress) {
         throw new Error("You are already enrolled in this course");
       }
 
-      // Check max students limit
-      if (course.maxStudents) {
-        const enrolledCount = await UserCourseProgress.countDocuments({ courseId });
-        if (enrolledCount >= course.maxStudents) {
-          throw new Error("Course is full");
+      // Check if course is paid and verify payment
+      if (course.price > 0) {
+        const hasPaid = await PaymentService.getCoursePaymentStatus(userId, courseId);
+        if (!hasPaid) {
+          throw new Error("Please purchase this course before enrolling");
         }
       }
 
-      // Get total lessons count
-      const totalLessons = await Lesson.countDocuments({ courseId });
-
-      const enrollment = new UserCourseProgress({
+      // Create progress tracking for user
+      const progress = new UserCourseProgress({
         userId,
         courseId,
-        progress: {
-          totalLessons,
-        },
+        startDate: new Date(),
+        status: "in_progress",
       });
 
-      await enrollment.save();
+      await progress.save();
 
-      // Update course total students count
+      // Increment total students count
       course.totalStudents += 1;
       await course.save();
 
-      return enrollment;
+      return progress;
     } catch (error) {
       throw error;
     }

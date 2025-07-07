@@ -26,6 +26,7 @@ import {
   completeLessonSchema,
 } from "../../../utils/validation/course.validation.js";
 import roleBasedAccess from "../../../middleware/rbac.js";
+import { checkCoursePayment } from "../../../middleware/checkCoursePayment.js";
 
 const router = express.Router();
 
@@ -47,7 +48,14 @@ router.get("/", courseLimiter, getAllCourses);
 router.get("/:courseId", courseLimiter, getCourseById);
 
 // Protected user routes
-router.post("/enroll", courseLimiter, isAuthenticated, validateRequest(enrollCourseSchema), enrollInCourse);
+router.post(
+  "/enroll",
+  courseLimiter,
+  isAuthenticated,
+  validateRequest(enrollCourseSchema),
+  checkCoursePayment,
+  enrollInCourse
+);
 router.get("/progress/:courseId", courseLimiter, isAuthenticated, getCourseProgress);
 router.post("/complete-lesson", courseLimiter, isAuthenticated, validateRequest(completeLessonSchema), markLessonComplete);
 router.get("/user/dashboard", courseLimiter, isAuthenticated, getUserDashboard);
