@@ -294,5 +294,48 @@ Your TechyJaunt Learning Management System is now fully functional with:
 - Professional email notifications
 - Comprehensive API documentation
 - Rate limiting and security measures
+- Optimized database connections and error handling
 
 The system is ready for frontend integration and production deployment!
+
+## 🔧 **Server Configuration & Troubleshooting**
+
+### **Database Connection Optimizations**
+- Enhanced MongoDB connection with proper timeout settings
+- Connection pooling for better performance
+- Automatic reconnection handling
+- Query timeouts to prevent hanging requests
+
+### **Performance Improvements**
+- Optimized admin endpoints with aggregation queries
+- Fallback mechanisms for database operations
+- Efficient pagination and search functionality
+- Proper error handling and logging
+
+### **Running the Server**
+```bash
+# Development mode with auto-restart
+npm run dev
+
+# Production mode
+npm start
+
+# Test database connection
+npm run test:db
+
+# Test admin endpoint
+bash test-admin-endpoint.sh
+```
+
+### **Health Check**
+```
+GET /health  # Check server status and environment info
+```
+
+### **Recent Fixes Applied**
+- ✅ Fixed MongoDB connection options for latest Mongoose version
+- ✅ Resolved ECONNRESET database connection errors
+- ✅ Optimized admin student queries with proper error handling
+- ✅ Removed duplicate server logs and database connection messages
+- ✅ Enhanced query performance with aggregation pipelines
+- ✅ Added fallback mechanisms for failed operations

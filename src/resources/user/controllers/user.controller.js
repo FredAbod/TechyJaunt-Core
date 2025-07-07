@@ -330,30 +330,86 @@ export const getAllStudents = async (req, res) => {
     }
 
     // Execute query with pagination
-    const students = await User.find(query)
+    const studentsPromise = User.find(query)
       .select('-password -emailOtp -resetPasswordToken -resetPasswordExpiry')
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
 
-    // Get total count for pagination
-    const totalStudents = await User.countDocuments(query);
+    const totalCountPromise = User.countDocuments(query);
 
-    // Get enrollment statistics for each student
-    const studentsWithStats = await Promise.all(
-      students.map(async (student) => {
-        const enrolledCourses = await CourseService.getUserDashboard(student._id);
-        return {
-          ...student.toJSON(),
-          enrollmentStats: {
-            totalCourses: enrolledCourses.stats?.totalCourses || 0,
-            completedCourses: enrolledCourses.stats?.completedCourses || 0,
-            inProgressCourses: enrolledCourses.stats?.inProgressCourses || 0,
-            overallProgress: enrolledCourses.stats?.overallProgress || 0
+    const [students, totalStudents] = await Promise.all([studentsPromise, totalCountPromise]);
+
+    // Get enrollment statistics for each student (optimized with fallback)
+    let studentsWithStats;
+    try {
+      studentsWithStats = await Promise.all(
+        students.map(async (student) => {
+          try {
+            // Use a more efficient query to get basic enrollment stats
+            const UserCourseProgress = (await import("../../courses/models/userCourseProgress.js")).default;
+            
+            const enrollmentStats = await UserCourseProgress.aggregate([
+              { $match: { userId: student._id } },
+              {
+                $group: {
+                  _id: null,
+                  totalCourses: { $sum: 1 },
+                  completedCourses: {
+                    $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] }
+                  },
+                  inProgressCourses: {
+                    $sum: { $cond: [{ $eq: ["$status", "in-progress"] }, 1, 0] }
+                  },
+                  avgProgress: { $avg: "$progress.progressPercentage" }
+                }
+              }
+            ]);
+
+            const stats = enrollmentStats[0] || {
+              totalCourses: 0,
+              completedCourses: 0,
+              inProgressCourses: 0,
+              avgProgress: 0
+            };
+
+            return {
+              ...student.toJSON(),
+              enrollmentStats: {
+                totalCourses: stats.totalCourses || 0,
+                completedCourses: stats.completedCourses || 0,
+                inProgressCourses: stats.inProgressCourses || 0,
+                overallProgress: Math.round(stats.avgProgress || 0)
+              }
+            };
+          } catch (error) {
+            // If stats retrieval fails for this student, return student without stats
+            logger.warn(`Failed to get stats for student ${student._id}: ${error.message}`);
+            return {
+              ...student.toJSON(),
+              enrollmentStats: {
+                totalCourses: 0,
+                completedCourses: 0,
+                inProgressCourses: 0,
+                overallProgress: 0
+              }
+            };
           }
-        };
-      })
-    );
+        })
+      );
+    } catch (error) {
+      // Fallback: if getting stats fails entirely, return students without stats
+      logger.warn(`Failed to get enrollment stats, returning students without stats: ${error.message}`);
+      studentsWithStats = students.map(student => ({
+        ...student.toJSON(),
+        enrollmentStats: {
+          totalCourses: 0,
+          completedCourses: 0,
+          inProgressCourses: 0,
+          overallProgress: 0
+        }
+      }));
+    }
 
     const pagination = {
       currentPage: parseInt(page),
