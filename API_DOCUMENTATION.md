@@ -339,3 +339,257 @@ GET /health  # Check server status and environment info
 - ✅ Removed duplicate server logs and database connection messages
 - ✅ Enhanced query performance with aggregation pipelines
 - ✅ Added fallback mechanisms for failed operations
+
+---
+
+## 💳 **Payment API Examples & Testing**
+
+### **Real Payment Examples with Working Data**
+
+## 1. **Initialize Course Payment**
+```http
+POST /api/v1/payments/initialize
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+{
+  "courseId": "68561f125f6bb4ec70d664c9",
+  "paymentMethod": "card"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "data": {
+    "authorizationUrl": "https://checkout.paystack.com/0peioxfhpn",
+    "reference": "TJ_a1b2c3d4e5f6789abcdef12"
+  }
+}
+```
+
+## 2. **Verify Payment Status**
+```http
+GET /api/v1/payments/verify/TJ_a1b2c3d4e5f6789abcdef12
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "data": {
+    "_id": "64a1b2c3d4e5f6789abcdef1",
+    "user": "685ec527584981004042f25e",
+    "course": "68561f125f6bb4ec70d664c9",
+    "amount": 15000000,
+    "currency": "NGN",
+    "status": "success",
+    "paymentMethod": "card",
+    "transactionReference": "TJ_a1b2c3d4e5f6789abcdef12",
+    "paystackReference": "1234567890",
+    "createdAt": "2025-01-07T15:30:00.000Z",
+    "updatedAt": "2025-01-07T15:35:00.000Z"
+  }
+}
+```
+
+## 3. **Get Payment Details**
+```http
+GET /api/v1/payments/details/TJ_a1b2c3d4e5f6789abcdef12
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "data": {
+    "_id": "64a1b2c3d4e5f6789abcdef1",
+    "user": {
+      "_id": "685ec527584981004042f25e",
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com"
+    },
+    "course": {
+      "_id": "68561f125f6bb4ec70d664c9",
+      "title": "Complete Full Stack Web Development with React & Node.js",
+      "price": 150000
+    },
+    "amount": 15000000,
+    "currency": "NGN",
+    "status": "success",
+    "paymentMethod": "card",
+    "transactionReference": "TJ_a1b2c3d4e5f6789abcdef12",
+    "paystackReference": "1234567890",
+    "metadata": {
+      "authorization": {
+        "authorization_code": "AUTH_code",
+        "bin": "408408",
+        "last4": "4081",
+        "exp_month": "12",
+        "exp_year": "2030",
+        "channel": "card",
+        "card_type": "visa",
+        "bank": "Test Bank",
+        "country_code": "NG",
+        "brand": "visa"
+      }
+    },
+    "createdAt": "2025-01-07T15:30:00.000Z",
+    "updatedAt": "2025-01-07T15:35:00.000Z"
+  }
+}
+```
+
+## 4. **Paystack Webhook (Public)**
+```http
+POST /api/v1/payments/webhook
+Content-Type: application/json
+x-paystack-signature: t=1578911700,v1=f6a30cffb4b7b6e8e2cb9b2ff1f3b6f9a8c8d9e0f1e2d3c4b5a6f7e8d9c0b1a2
+```
+
+**Request Body (sent by Paystack):**
+```json
+{
+  "event": "charge.success",
+  "data": {
+    "reference": "TJ_a1b2c3d4e5f6789abcdef12",
+    "amount": 15000000,
+    "currency": "NGN",
+    "transaction_date": "2025-01-07T15:35:00.000Z",
+    "status": "success",
+    "gateway_response": "Successful",
+    "customer": {
+      "email": "john.doe@example.com",
+      "first_name": "John",
+      "last_name": "Doe"
+    },
+    "authorization": {
+      "authorization_code": "AUTH_code",
+      "bin": "408408",
+      "last4": "4081",
+      "exp_month": "12",
+      "exp_year": "2030",
+      "channel": "card",
+      "card_type": "visa",
+      "bank": "Test Bank",
+      "country_code": "NG",
+      "brand": "visa"
+    },
+    "metadata": {
+      "custom_fields": [
+        {
+          "display_name": "Course Name",
+          "variable_name": "course_name",
+          "value": "Complete Full Stack Web Development with React & Node.js"
+        },
+        {
+          "display_name": "Student Name",
+          "variable_name": "student_name",
+          "value": "John Doe"
+        }
+      ]
+    }
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "status": "success"
+}
+```
+
+## **cURL Examples:**
+
+### 1. Initialize Payment
+```bash
+curl -X POST http://localhost:4000/api/v1/payments/initialize \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "courseId": "68561f125f6bb4ec70d664c9",
+    "paymentMethod": "card"
+  }'
+```
+
+### 2. Verify Payment
+```bash
+curl -X GET http://localhost:4000/api/v1/payments/verify/TJ_a1b2c3d4e5f6789abcdef12 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### 3. Get Payment Details
+```bash
+curl -X GET http://localhost:4000/api/v1/payments/details/TJ_a1b2c3d4e5f6789abcdef12 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### 4. Webhook (Usually sent by Paystack)
+```bash
+curl -X POST http://localhost:4000/api/v1/payments/webhook \
+  -H "Content-Type: application/json" \
+  -H "x-paystack-signature: t=1578911700,v1=f6a30cffb4b7b6e8e2cb9b2ff1f3b6f9a8c8d9e0f1e2d3c4b5a6f7e8d9c0b1a2" \
+  -d '{"event":"charge.success","data":{"reference":"TJ_a1b2c3d4e5f6789abcdef12","amount":15000000,"status":"success"}}'
+```
+
+## **Payment Flow:**
+
+1. **Student clicks "Buy Course"** → Frontend calls `/payments/initialize`
+2. **Backend creates payment record** → Returns Paystack authorization URL
+3. **Student redirects to Paystack** → Completes payment
+4. **Paystack sends webhook** → Backend updates payment status
+5. **Student returns to frontend** → Frontend calls `/payments/verify` to confirm
+6. **Student can now enroll** → Course enrollment is allowed
+
+## **Error Responses:**
+
+```json
+{
+  "status": "error",
+  "message": "Course not found"
+}
+```
+
+```json
+{
+  "status": "error",
+  "message": "You have already purchased this course"
+}
+```
+
+```json
+{
+  "status": "error",
+  "message": "Payment not found"
+}
+```
+
+## **Test Data:**
+
+Use these real course IDs from the database for testing:
+- `68561f125f6bb4ec70d664c9` - Complete Full Stack Web Development with React & Node.js (₦150,000)
+- `68561f245f6bb4ec70d664cd` - Introduction to Data Science with Python (₦75,000)
+
+**Note:** Amounts are stored in kobo (multiply by 100), so ₦150,000 = 15,000,000 kobo
+
+**Testing Scripts:**
+```bash
+# Test database connection
+npm run test:db
+
+# Test payment initialization
+bash test-payment-init.sh
+
+# Test payment service
+node test-payment-service.js
+
+# Check available courses
+node check-courses.js
+```
+
+---

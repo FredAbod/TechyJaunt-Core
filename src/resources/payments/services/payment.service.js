@@ -67,6 +67,10 @@ class PaymentService {
         reference: transactionReference,
       };
     } catch (error) {
+      // If it's a validation error, throw it as is
+      if (error.name === 'ValidationError') {
+        throw error;
+      }
       throw new AppError(error.message || "Payment initialization failed", error.status || 500);
     }
   }

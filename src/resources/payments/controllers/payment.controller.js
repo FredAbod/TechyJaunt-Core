@@ -2,10 +2,17 @@ import PaymentService from "../services/payment.service.js";
 import AppError from "../../../utils/lib/appError.js";
 import { asyncHandler } from "../../../utils/helper/helper.js";
 import Course from "../../courses/models/course.js";
+import User from "../../user/models/user.js";
 
 export const initializePayment = asyncHandler(async (req, res) => {
   const { courseId, paymentMethod } = req.body;
-  const user = req.user;
+  const { userId } = req.user;
+
+  // Find user
+  const user = await User.findById(userId);
+  if (!user) {
+    throw new AppError("User not found", 404);
+  }
 
   // Find course
   const course = await Course.findById(courseId);
@@ -14,7 +21,7 @@ export const initializePayment = asyncHandler(async (req, res) => {
   }
 
   // Check if user has already paid for this course
-  const isPaid = await PaymentService.getCoursePaymentStatus(user._id, courseId);
+  const isPaid = await PaymentService.getCoursePaymentStatus(userId, courseId);
   if (isPaid) {
     throw new AppError("You have already purchased this course", 400);
   }
