@@ -12,6 +12,9 @@ import prerecordedContentRoute from "./src/resources/courses/routes/prerecordedC
 import liveClassRoute from "./src/resources/live-classes/routes/liveClass.routes.js";
 import bookingRoute from "./src/resources/bookings/routes/booking.routes.js";
 import paymentRoute from "./src/resources/payments/routes/payment.routes.js";
+import subscriptionRoute from "./src/resources/payments/routes/subscription.routes.js";
+import webhookRoute from "./src/resources/payments/routes/webhook.routes.js";
+import aiTutorRoute from "./src/resources/ai-tutor/routes/aiTutor.routes.js";
 const app = express();
 
 app.use(morgan("dev"));
@@ -155,5 +158,8 @@ app.use("/api/v1/content", prerecordedContentRoute);
 app.use("/api/v1/live-classes", liveClassRoute);
 app.use("/api/v1/bookings", bookingRoute);
 app.use("/api/v1/payments", paymentRoute);
+app.use("/api/v1/subscriptions", subscriptionRoute);
+app.use("/api/v1/webhooks", webhookRoute);
+app.use("/api/v1/ai-tutor", aiTutorRoute);
 
 export default app;

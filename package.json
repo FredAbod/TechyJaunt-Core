@@ -7,9 +7,12 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test:db": "node test-connection.js",
-    "get-ip": "bash get-server-ip.sh",
-    "test:paystack": "node test-paystack-key.js",
-    "check:whitelist": "bash check-paystack-whitelist.sh"
+    "get-ip": "node get-server-ip.js",
+    "test:paystack": "node test-paystack-connection.js",
+    "check:whitelist": "bash check-paystack-whitelist.sh",
+    "seed:subscription-plans": "node seeders/subscription-plans-seeder.js",
+    "migrate:subscription-plans": "node migrations/migrate-subscription-plans.js",
+    "seed:all": "npm run seed:subscription-plans"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +27,7 @@
     "express": "^4.21.2",
     "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^7.5.0",
+    "groq-sdk": "^0.26.0",
     "joi": "^17.12.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.10.0",

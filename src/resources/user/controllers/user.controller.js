@@ -431,3 +431,99 @@ export const getAllStudents = async (req, res) => {
     return errorResMsg(res, 500, "Failed to retrieve students");
   }
 };
+
+// Admin endpoint to get specific student by ID
+export const getStudentById = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { studentId } = req.params;
+
+    // Check if user is admin or super admin
+    const currentUser = await User.findById(userId);
+    if (!currentUser || !["admin", "super admin"].includes(currentUser.role)) {
+      return errorResMsg(res, 403, "Access denied. Admin privileges required.");
+    }
+
+    // Find the student
+    const student = await User.findById(studentId)
+      .select('-password -emailOtp -resetPasswordToken -resetPasswordExpiry');
+
+    if (!student) {
+      return errorResMsg(res, 404, "Student not found");
+    }
+
+    // Only allow viewing students (users with role 'user')
+    if (student.role !== "user") {
+      return errorResMsg(res, 403, "Can only view student accounts");
+    }
+
+    // Get detailed enrollment statistics
+    let studentWithStats;
+    try {
+      const UserCourseProgress = (await import("../../courses/models/userCourseProgress.js")).default;
+      
+      const enrollmentStats = await UserCourseProgress.aggregate([
+        { $match: { userId: student._id } },
+        {
+          $group: {
+            _id: null,
+            totalCourses: { $sum: 1 },
+            completedCourses: { 
+              $sum: { $cond: [{ $eq: ["$completionStatus", "completed"] }, 1, 0] } 
+            },
+            inProgressCourses: { 
+              $sum: { $cond: [{ $eq: ["$completionStatus", "in-progress"] }, 1, 0] } 
+            },
+            averageProgress: { $avg: "$progressPercentage" }
+          }
+        }
+      ]);
+
+      const stats = enrollmentStats[0] || {
+        totalCourses: 0,
+        completedCourses: 0,
+        inProgressCourses: 0,
+        averageProgress: 0
+      };
+
+      // Get detailed course progress
+      const courseProgress = await UserCourseProgress.find({ userId: student._id })
+        .populate('courseId', 'title description thumbnail category level')
+        .sort({ updatedAt: -1 });
+
+      studentWithStats = {
+        ...student.toJSON(),
+        enrollmentStats: {
+          totalCourses: stats.totalCourses,
+          completedCourses: stats.completedCourses,
+          inProgressCourses: stats.inProgressCourses,
+          overallProgress: Math.round(stats.averageProgress || 0)
+        },
+        courseProgress: courseProgress
+      };
+
+    } catch (error) {
+      logger.warn(`Failed to get enrollment stats for student ${studentId}: ${error.message}`);
+      studentWithStats = {
+        ...student.toJSON(),
+        enrollmentStats: {
+          totalCourses: 0,
+          completedCourses: 0,
+          inProgressCourses: 0,
+          overallProgress: 0
+        },
+        courseProgress: []
+      };
+    }
+
+    logger.info(`Admin ${userId} retrieved student details for ${studentId}`);
+    return successResMsg(res, 200, {
+      message: "Student details retrieved successfully",
+      student: studentWithStats
+    });
+
+  } catch (error) {
+    logger.error(`Get student by ID error: ${error.message}`);
+    return errorResMsg(res, 500, "Failed to retrieve student details");
+  }
+};

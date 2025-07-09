@@ -8,7 +8,8 @@ import {
   promoteUserRole,
   uploadProfilePicture,
   updateProfileWithPicture,
-  getAllStudents
+  getAllStudents,
+  getStudentById
 } from "../controllers/user.controller.js";
 import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
@@ -43,5 +44,6 @@ router.post("/promote-role", profileLimiter, isAuthenticated, promoteUserRole);
 
 // Admin routes
 router.get("/admin/students", profileLimiter, isAuthenticated, getAllStudents);
+router.get("/admin/students/:studentId", profileLimiter, isAuthenticated, getStudentById);
 
 export default router;

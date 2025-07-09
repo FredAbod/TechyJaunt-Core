@@ -9,7 +9,7 @@ export const validateRequest = (schema) => {
     
     if (error) {
       const errorMessages = error.details.map(detail => detail.message);
-      return errorResMsg(res, 400, "Validation failed", errorMessages);
+      return errorResMsg(res, 400, `Validation failed: ${errorMessages.join(', ')}`);
     }
     
     next();

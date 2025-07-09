@@ -3,7 +3,6 @@ import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import {
   initializePayment,
   verifyPayment,
-  handleWebhook,
   getPaymentDetails,
   getUserPaidCourses,
   getUserPaymentSummary,
@@ -49,9 +48,6 @@ router.get("/status",
   getUserPaymentStatus
 );
 
-// Webhook route (no authentication required)
-router.post("/webhook",
-  handleWebhook
-);
+// Note: Webhook handling is now centralized at /api/v1/webhooks/paystack
 
 export default router;

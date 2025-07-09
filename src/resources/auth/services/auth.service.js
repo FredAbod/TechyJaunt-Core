@@ -5,6 +5,7 @@ import { sendOtpEmail, sendWelcomeOnboardingEmail, sendResetPasswordEmail, sendP
 import { createJwtToken } from "../../../middleware/isAuthenticated.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 import PaymentService from "../../payments/services/payment.service.js";
+import SubscriptionService from "../../payments/services/subscription.service.js";
 
 // Helper function to check if profile is complete
 const isProfileComplete = (user) => {
@@ -220,11 +221,13 @@ class AuthService {  async registerUser(email) {
 
       // Get user's payment status for better frontend experience
       let paymentStatus = null;
+      let subscriptionStatus = null;
       try {
         paymentStatus = await PaymentService.getUserPaymentStatus(user._id);
+        subscriptionStatus = await SubscriptionService.getUserSubscriptionStatus(user._id);
       } catch (paymentError) {
         // Don't fail login if payment status check fails
-        console.error('Payment status check failed during login:', paymentError);
+        console.error('Payment/subscription status check failed during login:', paymentError);
       }
 
       return {
@@ -232,7 +235,8 @@ class AuthService {  async registerUser(email) {
         user: user.toJSON(),
         token,
         tokenExpiresAt: expiresAt,
-        paymentStatus: paymentStatus
+        paymentStatus: paymentStatus,
+        subscriptionStatus: subscriptionStatus
       };
     } catch (error) {
       throw error;
