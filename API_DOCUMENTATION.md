@@ -1565,3 +1565,11 @@ Plans can be dynamically managed through:
 ```
 
 ---
+
+## TODO
+1. it is when tutors confirm that you should send the meeting details (send mails with the status update)
+2. Send a mail for reschedules
+3. send mail for completed session(sessions in the future can't be mark as completed)
+4. a session that has been marked completed can't be cancelled(send mail when session is also cancelled)
+5. Mail for live classes
+6. Reminder For Live Classes
