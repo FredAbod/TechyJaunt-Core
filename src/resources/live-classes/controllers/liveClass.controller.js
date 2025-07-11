@@ -39,9 +39,13 @@ export const getInstructorClasses = async (req, res) => {
 export const getStudentClasses = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { status } = req.query;
+    const { status, limit, page } = req.query;
+
+    logger.info(`Getting student classes for user: ${userId}, status: ${status}, limit: ${limit}, page: ${page}`);
 
     const classes = await LiveClassService.getStudentClasses(userId, status);
+
+    logger.info(`Found ${classes.length} classes for student ${userId}`);
 
     return successResMsg(res, 200, { message: "Student classes retrieved successfully", classes });
 

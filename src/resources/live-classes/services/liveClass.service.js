@@ -5,6 +5,7 @@ import Course from "../../courses/models/course.js";
 import UserCourseProgress from "../../courses/models/userCourseProgress.js";
 import User from "../../user/models/user.js";
 import { v4 as uuidv4 } from "uuid";
+import logger from "../../../utils/log/logger.js";
 
 class LiveClassService {
   // Generate a unique meeting room ID
@@ -121,11 +122,16 @@ class LiveClassService {
   // Get live classes for student
   async getStudentClasses(userId, status = null) {
     try {
+      logger.info(`Getting student classes for user: ${userId}, status: ${status}`);
+      
       // Get user's enrolled courses
       const enrolledCourses = await UserCourseProgress.find({ userId })
         .select('courseId');
       
+      logger.info(`Found ${enrolledCourses.length} enrolled courses for user ${userId}`);
+      
       const courseIds = enrolledCourses.map(course => course.courseId);
+      logger.info(`Course IDs: ${courseIds.map(id => id.toString())}`);
 
       const query = { 
         courseId: { $in: courseIds },
@@ -136,13 +142,18 @@ class LiveClassService {
         query.status = status;
       }
 
+      logger.info(`Query: ${JSON.stringify(query)}`);
+
       const classes = await LiveClass.find(query)
         .populate('courseId', 'title category')
         .populate('instructor', 'firstName lastName')
         .sort({ scheduledDate: -1 });
 
+      logger.info(`Found ${classes.length} classes matching query`);
+
       return classes;
     } catch (error) {
+      logger.error(`getStudentClasses error: ${error.message}`);
       throw error;
     }
   }

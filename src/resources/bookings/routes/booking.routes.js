@@ -6,8 +6,10 @@ import { validateRequest } from '../../../middleware/validation.middleware.js';
 import {
   setAvailabilitySchema,
   bookSessionSchema,
+  bookSessionBySlotSchema,
   updateBookingSchema,
-  sessionFeedbackSchema
+  sessionFeedbackSchema,
+  rescheduleBookingSchema
 } from '../../../utils/validation/booking.validation.js';
 import rateLimit from 'express-rate-limit';
 
@@ -20,7 +22,7 @@ const bookingLimiter = rateLimit({
 
 const strictBookingLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5, // limit each IP to 5 booking attempts per hour
+  max: 10, // increased limit to allow multiple students to book the same session
   message: 'Too many booking attempts, please try again later.'
 });
 
@@ -30,7 +32,7 @@ const router = express.Router();
 router.post('/availability',
   bookingLimiter,
   isAuthenticated,
-  roleBasedAccess(['tutor', 'admin']),
+  roleBasedAccess(['tutor', 'admin', 'super admin']),
   validateRequest(setAvailabilitySchema),
   bookingController.setAvailability
 );
@@ -41,13 +43,30 @@ router.get('/availability/:tutorId',
   bookingController.getAvailability
 );
 
+// Get available session slots for easy booking
+router.get('/slots/available',
+  bookingLimiter,
+  isAuthenticated,
+  roleBasedAccess(['tutor', 'admin', 'super admin']),
+  bookingController.getAvailableSessionSlots
+);
+
 // Session booking routes
 router.post('/sessions',
   strictBookingLimiter,
   isAuthenticated,
-  roleBasedAccess(['student', 'admin']),
+  roleBasedAccess(['student', 'admin', 'user']),
   validateRequest(bookSessionSchema),
   bookingController.bookSession
+);
+
+// Book session by slot (easier method)
+router.post('/sessions/by-slot',
+  strictBookingLimiter,
+  isAuthenticated,
+  roleBasedAccess(['student', 'admin', 'user']),
+  validateRequest(bookSessionBySlotSchema),
+  bookingController.bookSessionBySlot
 );
 
 router.get('/sessions',
@@ -79,14 +98,14 @@ router.post('/sessions/:bookingId/cancel',
 router.patch('/sessions/:bookingId/reschedule',
   bookingLimiter,
   isAuthenticated,
-  validateRequest(bookSessionSchema),
+  validateRequest(rescheduleBookingSchema),
   bookingController.rescheduleBooking
 );
 
 router.post('/sessions/:bookingId/complete',
   bookingLimiter,
   isAuthenticated,
-  roleBasedAccess(['tutor', 'admin']),
+  roleBasedAccess(['tutor', 'admin', 'super admin']),
   bookingController.completeSession
 );
 
@@ -102,8 +121,16 @@ router.post('/sessions/:bookingId/feedback',
 router.get('/stats',
   bookingLimiter,
   isAuthenticated,
-  roleBasedAccess(['tutor', 'admin']),
+  roleBasedAccess(['tutor', 'admin', 'super admin']),
   bookingController.getSessionStats
+);
+
+// Get session participants (for group sessions)
+router.get('/sessions/participants',
+  bookingLimiter,
+  isAuthenticated,
+  roleBasedAccess(['tutor', 'admin']),
+  bookingController.getSessionParticipants
 );
 
 export default router;

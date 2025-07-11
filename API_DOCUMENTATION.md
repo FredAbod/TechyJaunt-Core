@@ -753,6 +753,14 @@ POST   /api/v1/bookings/sessions/:bookingId/complete    # Complete session (tuto
 # Feedback & Analytics
 POST   /api/v1/bookings/sessions/:bookingId/feedback    # Submit session feedback
 GET    /api/v1/bookings/stats                           # Get session statistics (tutor/admin)
+GET    /api/v1/bookings/sessions/participants           # Get session participants (tutor/admin)
+
+### **Group Booking Features**
+- **Maximum Participants:** Up to 5 students can book the same session slot
+- **Session Type:** Automatically changes to "group" when multiple students book
+- **Availability:** Tutors can set `maxBookings` per time slot (defaults to 5)  
+- **Meeting URL:** All participants in the same session share the same meeting URL
+- **Pricing:** Each student pays individually for their booking
 ```
 
 ### **💳 Payment & Billing Endpoints**

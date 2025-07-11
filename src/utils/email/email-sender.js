@@ -3,6 +3,9 @@ import otpVerificationTemplate from "../templates/otp-verification-template.js";
 import welcomeOnboardingTemplate from "../templates/welcome-onboarding-template.js";
 import FgPasswordTemplate from "../templates/FgPassword-template.js";
 import resetPasswordTemplate from "../templates/resetPassword-template.js";
+import sessionBookingStudentTemplate from "../templates/session-booking-student-template.js";
+import sessionBookingTutorTemplate from "../templates/session-booking-tutor-template.js";
+import sessionBookingAdminTemplate from "../templates/session-booking-admin-template.js";
 
 // Create a reusable transporter
 const createTransporter = () => {
@@ -204,6 +207,75 @@ const sendServerFailure = async (email, errorMessage) => {
   }
 };
 
+// Send session booking confirmation email to student
+const sendSessionBookingStudentEmail = async (studentEmail, studentName, tutorName, sessionDetails) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+      to: studentEmail,
+      subject: "Session Booking Confirmed - TechyJaunt",
+      html: sessionBookingStudentTemplate(studentName, tutorName, sessionDetails),
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(
+      `${new Date().toLocaleString()} - Session booking student email sent successfully:`,
+      info.response
+    );
+  } catch (error) {
+    console.log("Session booking student email error:", error.message);
+    throw new Error("Couldn't send session booking confirmation email to student.");
+  }
+};
+
+// Send session booking notification email to tutor
+const sendSessionBookingTutorEmail = async (tutorEmail, tutorName, studentName, sessionDetails) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+      to: tutorEmail,
+      subject: "New Session Booking - TechyJaunt",
+      html: sessionBookingTutorTemplate(tutorName, studentName, sessionDetails),
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(
+      `${new Date().toLocaleString()} - Session booking tutor email sent successfully:`,
+      info.response
+    );
+  } catch (error) {
+    console.log("Session booking tutor email error:", error.message);
+    throw new Error("Couldn't send session booking notification email to tutor.");
+  }
+};
+
+// Send session booking notification email to admin
+const sendSessionBookingAdminEmail = async (adminEmail, studentName, tutorName, sessionDetails) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+      to: adminEmail,
+      subject: "New Session Booking - Admin Notification",
+      html: sessionBookingAdminTemplate(studentName, tutorName, sessionDetails),
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(
+      `${new Date().toLocaleString()} - Session booking admin email sent successfully:`,
+      info.response
+    );
+  } catch (error) {
+    console.log("Session booking admin email error:", error.message);
+    // Don't throw error for admin notifications to avoid blocking booking process
+  }
+};
+
 export {
   sendOtpEmail,
   sendWelcomeOnboardingEmail,
@@ -212,4 +284,7 @@ export {
   sendServerFailure,
   sendResetPasswordEmail,
   sendPasswordResetConfirmationEmail,
+  sendSessionBookingStudentEmail,
+  sendSessionBookingTutorEmail,
+  sendSessionBookingAdminEmail,
 };

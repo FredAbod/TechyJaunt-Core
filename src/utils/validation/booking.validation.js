@@ -93,7 +93,7 @@ export const setAvailabilitySchema = Joi.object({
 export const bookSessionSchema = Joi.object({
   tutorId: Joi.string()
     .pattern(/^[0-9a-fA-F]{24}$/)
-    .required()
+    .optional()
     .messages({
       "string.pattern.base": "Invalid tutor ID format",
       "any.required": "Tutor ID is required",
@@ -191,6 +191,77 @@ export const sessionFeedbackSchema = Joi.object({
     .messages({
       "string.max": "Comment cannot exceed 1000 characters",
     }),
+});
+
+// Book session by slot ID validation (easier for users)
+export const bookSessionBySlotSchema = Joi.object({
+  sessionId: Joi.string()
+    .required()
+    .messages({
+      "any.required": "Session ID is required",
+    }),
+  courseId: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .optional()
+    .messages({
+      "string.pattern.base": "Invalid course ID format",
+    }),
+  topics: Joi.array()
+    .items(Joi.string().max(100))
+    .max(10)
+    .optional()
+    .messages({
+      "array.max": "Maximum 10 topics allowed",
+      "string.max": "Topic cannot exceed 100 characters",
+    }),
+  studentNotes: Joi.string()
+    .max(500)
+    .optional()
+    .messages({
+      "string.max": "Student notes cannot exceed 500 characters",
+    }),
+});
+
+// Reschedule booking validation
+export const rescheduleBookingSchema = Joi.object({
+  sessionDate: Joi.date()
+    .min('now')
+    .required()
+    .messages({
+      "date.min": "Session date cannot be in the past",
+      "any.required": "Session date is required",
+    }),
+  startTime: Joi.string()
+    .pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .required()
+    .messages({
+      "string.pattern.base": "Start time must be in HH:MM format (24-hour)",
+      "any.required": "Start time is required",
+    }),
+  endTime: Joi.string()
+    .pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .optional()
+    .messages({
+      "string.pattern.base": "End time must be in HH:MM format (24-hour)",
+    }),
+  duration: Joi.number()
+    .integer()
+    .min(15)
+    .max(480)
+    .optional()
+    .messages({
+      "number.min": "Session duration must be at least 15 minutes",
+      "number.max": "Session duration cannot exceed 8 hours",
+    }),
+  reason: Joi.string()
+    .max(500)
+    .optional()
+    .messages({
+      "string.max": "Reason cannot exceed 500 characters",
+    }),
+  timezone: Joi.string()
+    .optional()
+    .default("UTC"),
 });
 
 // Get availability validation
