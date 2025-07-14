@@ -82,20 +82,33 @@ class SubscriptionService {
   /**
    * Initialize subscription payment
    */
-  async initializeSubscription(userId, planType, userEmail, userName) {
+  async initializeSubscription(userId, planType, userEmail, userName, courseId) {
     try {
       // Convert userId to ObjectId if it's a string
       const userObjectId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
       
-      // Check if user already has an active subscription for this plan
+      // Validate courseId and check if course exists
+      if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
+        throw new AppError("Invalid course ID", 400);
+      }
+
+      // Import Course model dynamically to avoid circular dependencies
+      const Course = (await import("../../courses/models/course.js")).default;
+      const course = await Course.findById(courseId);
+      if (!course) {
+        throw new AppError("Course not found", 404);
+      }
+
+      // Check if user already has an active subscription for this plan and course
       const existingSubscription = await Subscription.findOne({
         user: userObjectId,
         plan: planType,
+        courseId: new mongoose.Types.ObjectId(courseId),
         status: { $in: ['active', 'pending'] }
       });
 
       if (existingSubscription && existingSubscription.status === 'active' && existingSubscription.endDate > new Date()) {
-        throw new AppError("You already have an active subscription for this plan", 400);
+        throw new AppError("You already have an active subscription for this plan and course", 400);
       }
 
       // Get plan details from database
@@ -143,6 +156,16 @@ class SubscriptionService {
               display_name: "Billing Type",
               variable_name: "billing_type",
               value: planDetails.billing
+            },
+            {
+              display_name: "Course",
+              variable_name: "course_title",
+              value: course.title
+            },
+            {
+              display_name: "Course ID",
+              variable_name: "course_id",
+              value: courseId
             }
           ]
         }
@@ -166,6 +189,7 @@ class SubscriptionService {
       const subscription = new Subscription({
         user: userObjectId,
         plan: planType,
+        courseId: new mongoose.Types.ObjectId(courseId),
         planDetails,
         amount: planDetails.price,
         currency: planDetails.currency,
@@ -313,12 +337,22 @@ class SubscriptionService {
       
       const subscriptions = await Subscription.find({
         user: userObjectId
-      }).sort({ createdAt: -1 });
+      })
+      .populate('courseId', 'title category level image thumbnail')
+      .sort({ createdAt: -1 });
 
       return subscriptions.map(sub => ({
         id: sub._id,
         plan: sub.plan,
         planName: sub.planDetails.name,
+        course: sub.courseId ? {
+          id: sub.courseId._id,
+          title: sub.courseId.title,
+          category: sub.courseId.category,
+          level: sub.courseId.level,
+          image: sub.courseId.image,
+          thumbnail: sub.courseId.thumbnail
+        } : null,
         status: sub.status,
         startDate: sub.startDate,
         endDate: sub.endDate,
@@ -346,7 +380,8 @@ class SubscriptionService {
         user: userObjectId,
         status: 'active',
         endDate: { $gt: new Date() }
-      });
+      })
+      .populate('courseId', 'title category level image thumbnail');
 
       const hasActiveSubscription = activeSubscriptions.length > 0;
       const activePlans = activeSubscriptions.map(sub => sub.plan);
@@ -378,6 +413,14 @@ class SubscriptionService {
         featureAccess: aggregatedFeatures,
         subscriptions: activeSubscriptions.map(sub => ({
           plan: sub.plan,
+          course: sub.courseId ? {
+            id: sub.courseId._id,
+            title: sub.courseId.title,
+            category: sub.courseId.category,
+            level: sub.courseId.level,
+            image: sub.courseId.image,
+            thumbnail: sub.courseId.thumbnail
+          } : null,
           endDate: sub.endDate,
           isRecurring: sub.isRecurring
         }))

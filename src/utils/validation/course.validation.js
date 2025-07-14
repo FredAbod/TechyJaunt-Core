@@ -68,6 +68,19 @@ export const createCourseSchema = Joi.object({
   originalPrice: Joi.number()
     .min(0)
     .optional(),
+  image: Joi.string()
+    .uri()
+    .required()
+    .messages({
+      "string.uri": "Image must be a valid URL",
+      "any.required": "Course image is required",
+    }),
+  thumbnail: Joi.string()
+    .uri()
+    .optional()
+    .messages({
+      "string.uri": "Thumbnail must be a valid URL",
+    }),
   prerequisites: Joi.array()
     .items(Joi.string())
     .optional(),

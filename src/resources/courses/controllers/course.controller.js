@@ -1,6 +1,7 @@
 import CourseService from "../services/course.service.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 import logger from "../../../utils/log/logger.js";
+import { uploadDocument } from "../../../utils/image/cloudinary.js";
 
 // Admin/Tutor Controllers
 export const createCourse = async (req, res) => {
@@ -285,6 +286,72 @@ export const publishCourse = async (req, res) => {
 
   } catch (error) {
     logger.error(`Publish course error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
+  }
+};
+
+// Upload course brochure
+export const uploadCourseBrochure = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const userId = req.user.userId;
+    
+    if (!req.file) {
+      return errorResMsg(res, 400, "No brochure file uploaded");
+    }
+
+    // Upload to Cloudinary
+    const uploadResult = await uploadDocument(req.file.buffer, {
+      folder: "techyjaunt/brochures",
+      public_id: `brochure_${courseId}_${Date.now()}`
+    });
+
+    const brochureData = {
+      filename: req.file.originalname,
+      url: uploadResult.secure_url,
+      size: req.file.size,
+    };
+
+    const course = await CourseService.uploadBrochure(courseId, brochureData, userId);
+
+    logger.info(`Brochure uploaded for course: ${courseId} by ${userId}`);
+    return successResMsg(res, 200, { 
+      message: "Brochure uploaded successfully", 
+      brochure: course.brochure 
+    });
+
+  } catch (error) {
+    logger.error(`Upload brochure error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
+  }
+};
+
+// Download course brochure
+export const downloadCourseBrochure = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+
+    const brochureData = await CourseService.getBrochure(courseId);
+
+    if (!brochureData || !brochureData.url) {
+      return errorResMsg(res, 404, "Brochure not found for this course");
+    }
+
+    logger.info(`Brochure downloaded for course: ${courseId}`);
+    
+    // For Cloudinary URLs, redirect to the URL
+    if (brochureData.url.includes('cloudinary.com')) {
+      return res.redirect(brochureData.url);
+    }
+    
+    // For local files, you might want to serve them differently
+    return successResMsg(res, 200, { 
+      message: "Brochure retrieved successfully", 
+      brochure: brochureData 
+    });
+
+  } catch (error) {
+    logger.error(`Download brochure error: ${error.message}`);
     return errorResMsg(res, 400, error.message);
   }
 };

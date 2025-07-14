@@ -52,6 +52,25 @@ const courseSchema = new mongoose.Schema(
     thumbnail: {
       type: String, // Cloudinary URL
     },
+    image: {
+      type: String, // Course main image - Cloudinary URL
+      required: true,
+    },
+    brochure: {
+      filename: {
+        type: String,
+      },
+      url: {
+        type: String, // Cloudinary URL or file path
+      },
+      uploadedAt: {
+        type: Date,
+        default: Date.now,
+      },
+      size: {
+        type: Number, // File size in bytes
+      },
+    },
     prerequisites: [{
       type: String,
     }],

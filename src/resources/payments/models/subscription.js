@@ -7,6 +7,11 @@ const subscriptionSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
+    courseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+      required: true,
+    },
     plan: {
       type: String,
       enum: ["bronze", "silver", "gold"],

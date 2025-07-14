@@ -426,6 +426,51 @@ class CourseService {
       throw error;
     }
   }
+
+  // Brochure management methods
+  async uploadBrochure(courseId, brochureData, userId) {
+    try {
+      const course = await Course.findById(courseId);
+      if (!course) {
+        throw new Error("Course not found");
+      }
+
+      const user = await User.findById(userId);
+      if (!user || !["admin", "super admin"].includes(user.role)) {
+        if (course.instructor.toString() !== userId) {
+          throw new Error("You can only upload brochure for your own courses");
+        }
+      }
+
+      const updatedCourse = await Course.findByIdAndUpdate(
+        courseId,
+        { 
+          brochure: {
+            ...brochureData,
+            uploadedAt: new Date()
+          }
+        },
+        { new: true, runValidators: true }
+      ).populate('instructor', 'firstName lastName email');
+
+      return updatedCourse;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getBrochure(courseId) {
+    try {
+      const course = await Course.findById(courseId).select('brochure title');
+      if (!course) {
+        throw new Error("Course not found");
+      }
+
+      return course.brochure;
+    } catch (error) {
+      throw error;
+    }
+  }
 }
 
 export default new CourseService();

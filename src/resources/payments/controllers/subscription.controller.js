@@ -19,7 +19,7 @@ export const getSubscriptionPlans = async (req, res) => {
 export const initializeSubscription = async (req, res) => {
   try {
     const { userId, email, firstName, lastName } = req.user;
-    const { planType } = req.body;
+    const { planType, courseId } = req.body;
 
     const userName = `${firstName || ''} ${lastName || ''}`.trim() || email;
 
@@ -27,7 +27,8 @@ export const initializeSubscription = async (req, res) => {
       userId,
       planType,
       email,
-      userName
+      userName,
+      courseId
     );
 
     return successResMsg(res, 200, {

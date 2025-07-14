@@ -208,9 +208,14 @@ Content-Type: application/json
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 {
-  "planType": "gold"
+  "planType": "gold",
+  "courseId": "68561f125f6bb4ec70d664c9"
 }
 ```
+
+**Request Body:**
+- `planType` (required): One of "bronze", "silver", "gold"
+- `courseId` (required): Valid MongoDB ObjectId of the course to subscribe to
 
 **Response:**
 ```json
@@ -222,6 +227,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
     "subscription": {
       "_id": "64a1b2c3d4e5f6789abcdef1",
       "user": "685ec527584981004042f25e",
+      "courseId": "68561f125f6bb4ec70d664c9",
       "plan": "gold",
       "amount": 4080000,
       "currency": "NGN",
@@ -664,277 +670,147 @@ GET    /api/v1/user/admin/students/:studentId # Get specific student by ID (admi
 ### **📚 Course Management Endpoints**
 ```
 # Public Course Endpoints
-GET    /api/v1/courses                # Get all published courses
-GET    /api/v1/courses/:id            # Get course details
-GET    /api/v1/courses/:id/curriculum # Get course curriculum
+GET    /api/v1/courses                       # Get all published courses
+GET    /api/v1/courses/:id                   # Get course details
+GET    /api/v1/courses/:id/curriculum        # Get course curriculum
+GET    /api/v1/courses/:courseId/brochure/download # Download course brochure
 
 # Student Course Endpoints (Protected)
-POST   /api/v1/courses/enroll         # Enroll in course
-GET    /api/v1/courses/my-courses     # Get user's enrolled courses
-POST   /api/v1/courses/:id/progress   # Update lesson progress
-GET    /api/v1/courses/:id/progress   # Get course progress
+POST   /api/v1/courses/enroll                # Enroll in course
+GET    /api/v1/courses/my-courses            # Get user's enrolled courses
+POST   /api/v1/courses/:id/progress          # Update lesson progress
+GET    /api/v1/courses/:id/progress          # Get course progress
 
 # Admin/Tutor Course Endpoints (Protected)
-GET    /api/v1/courses/admin/all       # Get all courses (including drafts)
-POST   /api/v1/courses                 # Create new course
-PUT    /api/v1/courses/:id             # Update course  
-PUT    /api/v1/courses/:id/publish     # Publish course (draft → published)
-DELETE /api/v1/courses/:id             # Delete course
-POST   /api/v1/courses/:id/curriculum  # Add curriculum to course
-/api/v1/courses/admin/all
-?status=draft          # Filter by specific status
-?status=published      # Filter by published only
-?category=programming  # Filter by category
-?search=python        # Search in course titles/descriptions
-?page=1&limit=10      # Pagination
-Publish Course
-Endpoint: PUT /api/v1/courses/:courseId/publish
-GET /api/v1/courses/admin/all?status=draft
-Authorization: Bearer YOUR_JWT_TOKEN
+GET    /api/v1/courses/admin/all                      # Get all courses (including drafts)
+POST   /api/v1/courses                                # Create new course
+PUT    /api/v1/courses/:id                            # Update course  
+PUT    /api/v1/courses/:id/publish                    # Publish course (draft → published)
+DELETE /api/v1/courses/:id                            # Delete course
+POST   /api/v1/courses/:id/curriculum                 # Add curriculum to course
+POST   /api/v1/courses/:courseId/brochure/upload      # Upload course brochure
 ```
 
-### **🎥 Pre-recorded Content Endpoints**
-```
-# Video Class Management (Admin/Tutor)
-POST   /api/v1/content/video-classes               # Upload video class
-GET    /api/v1/content/instructor/video-classes    # Get instructor's videos
-PUT    /api/v1/content/video-classes/:classId      # Update video class
-DELETE /api/v1/content/video-classes/:classId      # Delete video class
+### **📄 Course Brochure Management**
 
-# Student Video Access
-GET    /api/v1/content/courses/:courseId/video-classes # Get course videos
-GET    /api/v1/content/video-classes/:classId           # Get single video
-GET    /api/v1/content/public/courses/:courseId/video-classes # Public access
+#### **Upload Course Brochure**
+```http
+POST /api/v1/courses/:courseId/brochure/upload
+Content-Type: multipart/form-data
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
-# Class Resources
-POST   /api/v1/content/resources                    # Upload class resource
-GET    /api/v1/content/classes/:classId/resources   # Get class resources
-GET    /api/v1/content/resources/:resourceId/download # Download resource
-DELETE /api/v1/content/resources/:resourceId        # Delete resource
+Body (form-data):
+- brochure: [PDF file]
 ```
 
-### **🔴 Live Classes Endpoints**
-```
-# Admin/Tutor Live Class Management
-POST   /api/v1/live-classes                # Schedule live class
-GET    /api/v1/live-classes/instructor     # Get instructor's classes
-PUT    /api/v1/live-classes/:classId/start # Start live class
-PUT    /api/v1/live-classes/:classId/end   # End live class
-PUT    /api/v1/live-classes/:classId       # Update live class
-DELETE /api/v1/live-classes/:classId       # Cancel live class
-
-# Student Live Class Participation
-GET    /api/v1/live-classes                # Get scheduled classes
-POST   /api/v1/live-classes/:classId/join  # Join live class
-POST   /api/v1/live-classes/:classId/leave # Leave live class
-
-# Live Class Communication
-POST   /api/v1/live-classes/:classId/comments # Add comment during class
-GET    /api/v1/live-classes/:classId/comments # Get class comments
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Brochure uploaded successfully",
+  "data": {
+    "brochure": {
+      "filename": "course-brochure.pdf",
+      "url": "https://res.cloudinary.com/your-cloud/raw/upload/v1234567890/brochures/course-brochure.pdf",
+      "uploadedAt": "2025-07-14T17:30:00.000Z",
+      "size": 1024000
+    }
+  }
+}
 ```
 
-### **📅 Booking & Availability Endpoints**
-```
-# Tutor Availability
-POST   /api/v1/bookings/availability          # Set tutor availability (tutor/admin)
-GET    /api/v1/bookings/availability/:tutorId # Get tutor availability
-
-# Session Booking
-POST   /api/v1/bookings/sessions              # Book a session (student/admin)
-GET    /api/v1/bookings/sessions              # Get user bookings
-GET    /api/v1/bookings/sessions/:bookingId   # Get booking details
-
-# Session Management
-PATCH  /api/v1/bookings/sessions/:bookingId/status      # Update booking status
-POST   /api/v1/bookings/sessions/:bookingId/cancel      # Cancel booking
-PATCH  /api/v1/bookings/sessions/:bookingId/reschedule  # Reschedule booking
-POST   /api/v1/bookings/sessions/:bookingId/complete    # Complete session (tutor/admin)
-
-# Feedback & Analytics
-POST   /api/v1/bookings/sessions/:bookingId/feedback    # Submit session feedback
-GET    /api/v1/bookings/stats                           # Get session statistics (tutor/admin)
-GET    /api/v1/bookings/sessions/participants           # Get session participants (tutor/admin)
-
-### **Group Booking Features**
-- **Maximum Participants:** Up to 5 students can book the same session slot
-- **Session Type:** Automatically changes to "group" when multiple students book
-- **Availability:** Tutors can set `maxBookings` per time slot (defaults to 5)  
-- **Meeting URL:** All participants in the same session share the same meeting URL
-- **Pricing:** Each student pays individually for their booking
+#### **Download Course Brochure**
+```http
+GET /api/v1/courses/:courseId/brochure/download
 ```
 
-### **💳 Payment & Billing Endpoints**
+**Response:** Redirects to the brochure file URL or returns brochure details.
+
+### **📝 Course Creation Example**
+
+#### **Create New Course**
+```http
+POST /api/v1/courses
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+{
+  "title": "Complete Full Stack Web Development with React & Node.js",
+  "description": "Master full-stack web development with React.js frontend and Node.js backend. Learn modern web development practices, database integration, API development, and deployment strategies. This comprehensive course covers everything from HTML/CSS basics to advanced full-stack application development.",
+  "shortDescription": "Learn full-stack web development with React and Node.js from beginner to advanced level.",
+  "category": "Web Development",
+  "level": "Intermediate",
+  "duration": "12 weeks",
+  "price": 25000,
+  "originalPrice": 35000,
+  "image": "https://res.cloudinary.com/your-cloud/image/upload/v1234567890/courses/fullstack-course.jpg",
+  "thumbnail": "https://res.cloudinary.com/your-cloud/image/upload/v1234567890/courses/fullstack-thumb.jpg",
+  "prerequisites": [
+    "Basic HTML and CSS knowledge",
+    "JavaScript fundamentals",
+    "Understanding of programming concepts"
+  ],
+  "learningOutcomes": [
+    "Build complete full-stack web applications",
+    "Master React.js frontend development",
+    "Develop REST APIs with Node.js and Express",
+    "Integrate databases with MongoDB",
+    "Deploy applications to production",
+    "Implement user authentication and authorization"
+  ],
+  "tags": ["React", "Node.js", "JavaScript", "MongoDB", "Express", "Full Stack"],
+  "startDate": "2025-08-01T00:00:00.000Z",
+  "endDate": "2025-10-31T23:59:59.000Z",
+  "maxStudents": 50
+}
 ```
-# Course Payment
-POST   /api/v1/payments/initialize        # Initialize course payment (student)
-GET    /api/v1/payments/verify/:reference # Verify payment status (student)
-GET    /api/v1/payments/details/:reference # Get payment details (student)
-POST   /api/v1/payments/webhook           # Handle Paystack webhook (public)
 
-# User Payments
-GET    /api/v1/payments/my-courses        # Get user's paid courses
-GET    /api/v1/payments/summary           # Get user's payment summary
-GET    /api/v1/payments/status            # Get user's payment status (for login integration)
-```
-
-### **🔑 Subscription Management Endpoints**
-```
-# Subscription Plans
-GET    /api/v1/subscriptions/plans        # Get all subscription plans (public)
-
-# Subscription Management
-POST   /api/v1/subscriptions/initialize   # Initialize subscription payment (student)
-GET    /api/v1/subscriptions/verify/:reference # Verify subscription payment (student)
-GET    /api/v1/subscriptions/details/:reference # Get subscription details (student)
-POST   /api/v1/subscriptions/webhook      # Handle subscription webhook (public)
-
-# User Subscriptions
-GET    /api/v1/subscriptions/my-subscriptions # Get user's subscriptions
-GET    /api/v1/subscriptions/status       # Get user's subscription status
-```
-
-### **🤖 AI Tutor Endpoints (Subscription Required)**
-```
-# AI Tutor Access & Status
-GET    /api/v1/ai-tutor/access            # Get user's AI Tutor access information
-GET    /api/v1/ai-tutor/status            # Get AI Tutor service status
-
-# AI Learning Features
-POST   /api/v1/ai-tutor/explain           # Get AI explanation of a topic
-POST   /api/v1/ai-tutor/study-plan        # Generate AI study plan for a topic
-POST   /api/v1/ai-tutor/question          # Ask AI Tutor a specific question
-POST   /api/v1/ai-tutor/exercises         # Generate practice exercises for a topic
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Course created successfully",
+  "data": {
+    "course": {
+      "_id": "68561f125f6bb4ec70d664c9",
+      "title": "Complete Full Stack Web Development with React & Node.js",
+      "description": "Master full-stack web development...",
+      "shortDescription": "Learn full-stack web development...",
+      "category": "Web Development",
+      "level": "Intermediate",
+      "duration": "12 weeks",
+      "price": 25000,
+      "originalPrice": 35000,
+      "image": "https://res.cloudinary.com/your-cloud/image/upload/v1234567890/courses/fullstack-course.jpg",
+      "thumbnail": "https://res.cloudinary.com/your-cloud/image/upload/v1234567890/courses/fullstack-thumb.jpg",
+      "prerequisites": ["Basic HTML and CSS knowledge", "JavaScript fundamentals"],
+      "learningOutcomes": ["Build complete full-stack web applications", "Master React.js frontend development"],
+      "tags": ["React", "Node.js", "JavaScript", "MongoDB"],
+      "instructor": {
+        "_id": "685ec527584981004042f25e",
+        "firstName": "John",
+        "lastName": "Doe",
+        "email": "john.doe@example.com"
+      },
+      "totalStudents": 0,
+      "rating": {
+        "average": 0,
+        "count": 0
+      },
+      "status": "draft",
+      "isActive": true,
+      "featured": false,
+      "startDate": "2025-08-01T00:00:00.000Z",
+      "endDate": "2025-10-31T23:59:59.000Z",
+      "maxStudents": 50,
+      "createdAt": "2025-07-14T17:30:00.000Z",
+      "updatedAt": "2025-07-14T17:30:00.000Z"
+    }
+  }
+}
 ```
 
 ---
-
-## 🛠 **Technical Features Implemented**
-
-### **Security & Performance**
-- **Rate Limiting**: Different limits for auth, uploads, comments
-- **JWT Authentication**: Secure token-based authentication
-- **Input Validation**: Joi schema validation for all endpoints
-- **File Upload Security**: Type and size validation
-- **XSS Protection**: Clean malicious input
-- **MongoDB Injection Protection**: Sanitize database queries
-
-### **File Upload & Storage**
-- **Cloudinary Integration**: Video, image, and document storage
-- **Multi-format Support**: Videos (MP4, AVI, MOV), Images (JPG, PNG), Documents (PDF, DOC, PPT)
-- **Automatic Processing**: Video compression and thumbnail generation
-- **Progress Tracking**: Upload and processing status
-- **Access Control**: Free, premium, and enrolled-only resources
-
-### **Real-time Features**
-- **Live Video Conferencing**: Jitsi Meet integration (no API keys needed)
-- **Live Chat**: Real-time comments during classes
-- **Notifications**: Class scheduling, reminders, and status updates
-- **Participant Management**: Join/leave tracking
-
-### **Email System**
-- **Professional Templates**: Modern HTML email designs
-- **OTP Verification**: Secure 6-digit codes with expiration
-- **Welcome Emails**: Onboarding email sequences
-- **Class Notifications**: Automated email alerts
-
-### **AI-Powered Learning**
-- **Groq API Integration**: Advanced AI tutoring with Llama 3 8B model
-- **Topic Explanations**: AI-generated educational content and explanations
-- **Study Plan Generation**: Personalized learning roadmaps and schedules
-- **Interactive Q&A**: AI-powered question answering system
-- **Practice Exercises**: Automatically generated coding challenges and problems
-- **Subscription-Based Access**: Feature access control tied to subscription plans
-- **Rate Limiting**: Specialized limits for AI generation endpoints
-
----
-
-## 📊 **Database Models**
-
-### **User Management**
-- `User` - User accounts with profiles and authentication
-- `UserCourseProgress` - Detailed progress tracking
-
-### **Course Structure**
-- `Course` - Main course information and metadata
-- `Module` - Course modules/chapters
-- `Lesson` - Individual lessons within modules
-- `PrerecordedClass` - Video lessons with Cloudinary integration
-- `ClassResource` - Downloadable resources and materials
-
-### **Live Learning**
-- `LiveClass` - Live class sessions with Jitsi Meet
-- `ClassComment` - Real-time chat during live classes
-- `ClassNotification` - Automated notification system
-
-### **Booking System**
-- `TutorAvailability` - Tutor availability slots and schedules
-- `BookingSession` - Session bookings with status tracking and feedback
-
-### **Payment System**
-- `CoursePayment` - Course payment transactions and status tracking
-
-### **Booking & Availability**
-- `Booking` - Session bookings and availability
-- `TutorAvailability` - Tutor's available time slots
-- `SessionFeedback` - Feedback for completed sessions
-
-### **Subscription System**
-- `Subscription` - User subscription records with feature access tracking
-
-### **Payment & Billing**
-- `Payment` - Payment transactions and status
-- `PaymentReference` - Unique references for payment verification
-- `WebhookLog` - Logs for webhook events from Paystack
-
----
-
-## 🎯 **Completed: Full LMS Backend System**
-
-All phases have been successfully implemented:
-- ✅ Authentication & User Management
-- ✅ Course Management System
-- ✅ Live Classes with Video Conferencing
-- ✅ Pre-recorded Content & File Upload
-- ✅ Booking & Availability System
-- ✅ Payment System (Paystack Integration)
-- ✅ Subscription Management System
-- ✅ AI-Powered Learning System (Groq Integration)
-
----
-
-## 💡 **Key Technologies Used**
-
-- **Backend**: Node.js, Express.js, MongoDB, Mongoose
-- **Authentication**: JWT tokens, bcrypt hashing
-- **Validation**: Joi schema validation
-- **File Storage**: Cloudinary (videos, images, documents)
-- **Email**: Nodemailer with HTML templates
-- **Video Conferencing**: Jitsi Meet (free, no API keys)
-- **AI Integration**: Groq SDK with Llama 3 8B model for AI tutoring
-- **Security**: Rate limiting, XSS protection, input sanitization
-- **File Upload**: Multer with memory storage
-- **Booking System**: Conflict detection, scheduling, feedback
-- **Payment Integration**: Paystack API for payment processing and webhooks
-
----
-
-## 🚀 **Complete & Ready to Use!**
-
-Your TechyJaunt Learning Management System is now fully functional with:
-- Complete user authentication flow with OTP verification
-- Course management with progress tracking
-- Live classes with video conferencing
-- Pre-recorded content with file upload
-- Tutor availability and session booking system
-- Payment processing with Paystack integration
-- Subscription management with feature-based access control
-- AI-powered tutoring system with Groq integration
-- Professional email notifications
-- Comprehensive API documentation
-- Rate limiting and security measures
-- Optimized database connections and error handling
-
-The system is ready for frontend integration and production deployment!
 
 ## 🔧 **Server Configuration & Troubleshooting**
 
@@ -1052,8 +928,8 @@ GET /ip
    # Test webhook endpoint
    curl -X POST https://your-domain.com/api/v1/payments/webhook \
      -H "Content-Type: application/json" \
-     -H "x-paystack-signature: test-signature" \
-     -d '{"event":"charge.success","data":{"reference":"test"}}'
+     -H "x-paystack-signature: t=1578911700,v1=f6a30cffb4b7b6e8e2cb9b2ff1f3b6f9a8c8d9e0f1e2d3c4b5a6f7e8d9c0b1a2" \
+     -d '{"event":"charge.success","data":{"reference":"TJ_a1b2c3d4e5f6789abcdef12","amount":15000000,"status":"success"}}'
    ```
 
 ---

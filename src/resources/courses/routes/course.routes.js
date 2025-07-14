@@ -15,6 +15,8 @@ import {
   getCourseProgress,
   markLessonComplete,
   getUserDashboard,
+  uploadCourseBrochure,
+  downloadCourseBrochure,
 } from "../controllers/course.controller.js";
 import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
@@ -27,6 +29,7 @@ import {
 } from "../../../utils/validation/course.validation.js";
 import roleBasedAccess from "../../../middleware/rbac.js";
 import { checkCoursePayment } from "../../../middleware/checkCoursePayment.js";
+import { documentUpload, handleMulterError } from "../../../middleware/upload.middleware.js";
 
 const router = express.Router();
 
@@ -46,6 +49,7 @@ const adminLimiter = rateLimit({
 // Public routes
 router.get("/", courseLimiter, getAllCourses);
 router.get("/:courseId", courseLimiter, getCourseById);
+router.get("/:courseId/brochure/download", courseLimiter, downloadCourseBrochure);
 
 // Protected user routes
 router.post(
@@ -69,5 +73,13 @@ router.delete("/:courseId", adminLimiter, isAuthenticated, deleteCourse);
 router.post("/:courseId/curriculum", adminLimiter, isAuthenticated, addCurriculum);
 router.post("/modules", adminLimiter, isAuthenticated, validateRequest(createModuleSchema), addModule);
 router.post("/lessons", adminLimiter, isAuthenticated, validateRequest(createLessonSchema), addLesson);
+router.post("/:courseId/brochure/upload", 
+  adminLimiter, 
+  isAuthenticated, 
+  roleBasedAccess(["admin", "super admin", "tutor"]),
+  documentUpload.single('brochure'),
+  handleMulterError,
+  uploadCourseBrochure
+);
 
 export default router;
