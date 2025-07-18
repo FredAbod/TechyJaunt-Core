@@ -1,13 +1,37 @@
 import CourseService from "../services/course.service.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 import logger from "../../../utils/log/logger.js";
-import { uploadDocument } from "../../../utils/image/cloudinary.js";
+import { uploadDocument, uploadImage } from "../../../utils/image/cloudinary.js";
 
 // Admin/Tutor Controllers
 export const createCourse = async (req, res) => {
   try {
     const courseData = req.body;
     const instructorId = req.user.userId;
+
+    // Handle image upload if provided
+    if (req.files) {
+      if (req.files.image && req.files.image.length > 0) {
+        const imageUploadResult = await uploadImage(req.files.image[0].buffer, {
+          folder: "techyjaunt/courses/images",
+          public_id: `course_image_${Date.now()}`
+        });
+        courseData.image = imageUploadResult.secure_url;
+      }
+
+      if (req.files.thumbnail && req.files.thumbnail.length > 0) {
+        const thumbnailUploadResult = await uploadImage(req.files.thumbnail[0].buffer, {
+          folder: "techyjaunt/courses/thumbnails",
+          public_id: `course_thumbnail_${Date.now()}`
+        });
+        courseData.thumbnail = thumbnailUploadResult.secure_url;
+      }
+    }
+
+    // Validate that image is provided either via file upload or URL
+    if (!courseData.image) {
+      return errorResMsg(res, 400, "Course image is required. Please provide an image file or image URL.");
+    }
 
     const course = await CourseService.createCourse(courseData, instructorId);
 
@@ -25,6 +49,25 @@ export const updateCourse = async (req, res) => {
     const { courseId } = req.params;
     const updateData = req.body;
     const userId = req.user.userId;
+
+    // Handle image upload if provided
+    if (req.files) {
+      if (req.files.image && req.files.image.length > 0) {
+        const imageUploadResult = await uploadImage(req.files.image[0].buffer, {
+          folder: "techyjaunt/courses/images",
+          public_id: `course_image_${courseId}_${Date.now()}`
+        });
+        updateData.image = imageUploadResult.secure_url;
+      }
+
+      if (req.files.thumbnail && req.files.thumbnail.length > 0) {
+        const thumbnailUploadResult = await uploadImage(req.files.thumbnail[0].buffer, {
+          folder: "techyjaunt/courses/thumbnails",
+          public_id: `course_thumbnail_${courseId}_${Date.now()}`
+        });
+        updateData.thumbnail = thumbnailUploadResult.secure_url;
+      }
+    }
 
     const course = await CourseService.updateCourse(courseId, updateData, userId);
 

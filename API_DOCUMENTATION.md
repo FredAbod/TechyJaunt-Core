@@ -731,39 +731,29 @@ GET /api/v1/courses/:courseId/brochure/download
 #### **Create New Course**
 ```http
 POST /api/v1/courses
-Content-Type: application/json
+Content-Type: multipart/form-data
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
-{
-  "title": "Complete Full Stack Web Development with React & Node.js",
-  "description": "Master full-stack web development with React.js frontend and Node.js backend. Learn modern web development practices, database integration, API development, and deployment strategies. This comprehensive course covers everything from HTML/CSS basics to advanced full-stack application development.",
-  "shortDescription": "Learn full-stack web development with React and Node.js from beginner to advanced level.",
-  "category": "Web Development",
-  "level": "Intermediate",
-  "duration": "12 weeks",
-  "price": 25000,
-  "originalPrice": 35000,
-  "image": "https://res.cloudinary.com/your-cloud/image/upload/v1234567890/courses/fullstack-course.jpg",
-  "thumbnail": "https://res.cloudinary.com/your-cloud/image/upload/v1234567890/courses/fullstack-thumb.jpg",
-  "prerequisites": [
-    "Basic HTML and CSS knowledge",
-    "JavaScript fundamentals",
-    "Understanding of programming concepts"
-  ],
-  "learningOutcomes": [
-    "Build complete full-stack web applications",
-    "Master React.js frontend development",
-    "Develop REST APIs with Node.js and Express",
-    "Integrate databases with MongoDB",
-    "Deploy applications to production",
-    "Implement user authentication and authorization"
-  ],
-  "tags": ["React", "Node.js", "JavaScript", "MongoDB", "Express", "Full Stack"],
-  "startDate": "2025-08-01T00:00:00.000Z",
-  "endDate": "2025-10-31T23:59:59.000Z",
-  "maxStudents": 50
-}
+Body (form-data):
+- title: "Complete Full Stack Web Development with React & Node.js"
+- description: "Master full-stack web development with React.js frontend and Node.js backend..."
+- shortDescription: "Learn full-stack web development with React and Node.js from beginner to advanced level."
+- category: "Web Development"
+- level: "Intermediate"
+- duration: "12 weeks"
+- price: 25000
+- originalPrice: 35000
+- image: [Image file - JPG/PNG] (required)
+- thumbnail: [Image file - JPG/PNG] (optional)
+- prerequisites: ["Basic HTML and CSS knowledge", "JavaScript fundamentals"]
+- learningOutcomes: ["Build complete full-stack web applications", "Master React.js frontend development"]
+- tags: ["React", "Node.js", "JavaScript", "MongoDB", "Express", "Full Stack"]
+- startDate: "2025-08-01T00:00:00.000Z"
+- endDate: "2025-10-31T23:59:59.000Z"
+- maxStudents: 50
 ```
+
+**Note:** Arrays like `prerequisites`, `learningOutcomes`, and `tags` should be sent as JSON strings in form-data.
 
 **Response:**
 ```json

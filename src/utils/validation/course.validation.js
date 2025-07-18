@@ -1,5 +1,126 @@
 import Joi from "joi";
 
+// Course creation validation for multipart/form-data
+export const createCourseMultipartSchema = Joi.object({
+  title: Joi.string()
+    .min(5)
+    .max(100)
+    .required()
+    .messages({
+      "string.min": "Course title must be at least 5 characters",
+      "string.max": "Course title cannot exceed 100 characters",
+      "any.required": "Course title is required",
+    }),
+  description: Joi.string()
+    .min(20)
+    .max(2000)
+    .required()
+    .messages({
+      "string.min": "Description must be at least 20 characters",
+      "string.max": "Description cannot exceed 2000 characters",
+      "any.required": "Course description is required",
+    }),
+  shortDescription: Joi.string()
+    .min(10)
+    .max(200)
+    .required()
+    .messages({
+      "string.min": "Short description must be at least 10 characters",
+      "string.max": "Short description cannot exceed 200 characters",
+      "any.required": "Short description is required",
+    }),
+  category: Joi.string()
+    .valid(
+      "Web Development",
+      "Mobile Development", 
+      "Data Science",
+      "AI/Machine Learning",
+      "DevOps",
+      "Cybersecurity",
+      "UI/UX Design",
+      "Digital Marketing",
+      "Other"
+    )
+    .required()
+    .messages({
+      "any.only": "Please select a valid category",
+      "any.required": "Course category is required",
+    }),
+  level: Joi.string()
+    .valid("Beginner", "Intermediate", "Advanced")
+    .required()
+    .messages({
+      "any.only": "Please select a valid level",
+      "any.required": "Course level is required",
+    }),
+  duration: Joi.string()
+    .required()
+    .messages({
+      "any.required": "Course duration is required",
+    }),
+  price: Joi.number()
+    .min(0)
+    .required()
+    .messages({
+      "number.min": "Price cannot be negative",
+      "any.required": "Course price is required",
+    }),
+  originalPrice: Joi.number()
+    .min(0)
+    .optional(),
+  prerequisites: Joi.alternatives()
+    .try(
+      Joi.array().items(Joi.string()),
+      Joi.string().custom((value, helpers) => {
+        try {
+          return JSON.parse(value);
+        } catch (error) {
+          return helpers.error('any.invalid');
+        }
+      })
+    )
+    .optional(),
+  learningOutcomes: Joi.alternatives()
+    .try(
+      Joi.array().items(Joi.string()),
+      Joi.string().custom((value, helpers) => {
+        try {
+          const parsed = JSON.parse(value);
+          if (!Array.isArray(parsed) || parsed.length === 0) {
+            return helpers.error('array.min');
+          }
+          return parsed;
+        } catch (error) {
+          return helpers.error('any.invalid');
+        }
+      })
+    )
+    .required()
+    .messages({
+      "array.min": "At least one learning outcome is required",
+      "any.required": "Learning outcomes are required",
+    }),
+  tags: Joi.alternatives()
+    .try(
+      Joi.array().items(Joi.string()),
+      Joi.string().custom((value, helpers) => {
+        try {
+          return JSON.parse(value);
+        } catch (error) {
+          return helpers.error('any.invalid');
+        }
+      })
+    )
+    .optional(),
+  startDate: Joi.date()
+    .optional(),
+  endDate: Joi.date()
+    .optional(),
+  maxStudents: Joi.number()
+    .min(1)
+    .optional(),
+});
+
 // Course creation validation
 export const createCourseSchema = Joi.object({
   title: Joi.string()

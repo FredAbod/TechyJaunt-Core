@@ -134,7 +134,7 @@ class SubscriptionService {
         amount: planDetails.price,
         currency: planDetails.currency,
         reference: transactionReference,
-        callback_url: `${process.env.FRONTEND_URL}/subscription/verify`,
+        callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/${courseId}/subscription/confirmation`,
         metadata: {
           custom_fields: [
             {

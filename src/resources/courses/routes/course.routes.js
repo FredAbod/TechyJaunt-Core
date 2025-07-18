@@ -29,7 +29,8 @@ import {
 } from "../../../utils/validation/course.validation.js";
 import roleBasedAccess from "../../../middleware/rbac.js";
 import { checkCoursePayment } from "../../../middleware/checkCoursePayment.js";
-import { documentUpload, handleMulterError } from "../../../middleware/upload.middleware.js";
+import { documentUpload, imageUpload, handleMulterError } from "../../../middleware/upload.middleware.js";
+import { validateMultipartCourse } from "../../../middleware/validateMultipartCourse.js";
 
 const router = express.Router();
 
@@ -66,8 +67,28 @@ router.get("/user/dashboard", courseLimiter, isAuthenticated, getUserDashboard);
 
 // Admin/Tutor routes
 router.get("/admin/all", adminLimiter, isAuthenticated, roleBasedAccess(["admin", "super admin", "tutor"]), getAllCoursesAdmin);
-router.post("/", adminLimiter, isAuthenticated, validateRequest(createCourseSchema), createCourse);
-router.put("/:courseId", adminLimiter, isAuthenticated, validateRequest(createCourseSchema), updateCourse);
+router.post("/", 
+  adminLimiter, 
+  isAuthenticated, 
+  imageUpload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'thumbnail', maxCount: 1 }
+  ]),
+  handleMulterError,
+  validateMultipartCourse,
+  createCourse
+);
+router.put("/:courseId", 
+  adminLimiter, 
+  isAuthenticated, 
+  imageUpload.fields([
+    { name: 'image', maxCount: 1 },
+    { name: 'thumbnail', maxCount: 1 }
+  ]),
+  handleMulterError,
+  validateMultipartCourse,
+  updateCourse
+);
 router.put("/:courseId/publish", adminLimiter, isAuthenticated, roleBasedAccess(["admin", "super admin", "tutor"]), publishCourse);
 router.delete("/:courseId", adminLimiter, isAuthenticated, deleteCourse);
 router.post("/:courseId/curriculum", adminLimiter, isAuthenticated, addCurriculum);
