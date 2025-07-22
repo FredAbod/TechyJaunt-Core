@@ -2,7 +2,7 @@ import express from "express";
 import progressController from "../controllers/progress.controller.js";
 import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
-import { checkRole } from "../../../middleware/rbac.js";
+import roleBasedAccess from "../../../middleware/rbac.js";
 import {
   updateVideoProgressSchema,
   initializeProgressSchema
@@ -47,14 +47,14 @@ router.get(
 router.get(
   "/courses/:courseId/stats",
   isAuthenticated,
-  checkRole(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor"]),
   progressController.getCourseProgressStats
 );
 
 router.put(
   "/courses/:courseId/users/:userId/reset",
   isAuthenticated,
-  checkRole(["admin"]),
+  roleBasedAccess(["admin"]),
   progressController.resetUserProgress
 );
 

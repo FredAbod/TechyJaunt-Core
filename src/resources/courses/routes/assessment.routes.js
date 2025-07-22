@@ -2,7 +2,7 @@ import express from "express";
 import assessmentController from "../controllers/assessment.controller.js";
 import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
-import { checkRole } from "../../../middleware/rbac.js";
+import roleBasedAccess from "../../../middleware/rbac.js";
 import {
   createAssessmentSchema,
   updateAssessmentSchema,
@@ -35,7 +35,7 @@ router.get(
 router.post(
   "/assessments",
   isAuthenticated,
-  checkRole(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor"]),
   validateRequest(createAssessmentSchema),
   assessmentController.createAssessment
 );
@@ -43,21 +43,21 @@ router.post(
 router.get(
   "/courses/:courseId/assessments",
   isAuthenticated,
-  checkRole(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor"]),
   assessmentController.getCourseAssessments
 );
 
 router.get(
   "/assessments/:assessmentId/details",
   isAuthenticated,
-  checkRole(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor"]),
   assessmentController.getAssessmentDetails
 );
 
 router.put(
   "/assessments/:assessmentId",
   isAuthenticated,
-  checkRole(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor"]),
   validateRequest(updateAssessmentSchema),
   assessmentController.updateAssessment
 );
@@ -65,7 +65,7 @@ router.put(
 router.delete(
   "/assessments/:assessmentId",
   isAuthenticated,
-  checkRole(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor"]),
   assessmentController.deleteAssessment
 );
 

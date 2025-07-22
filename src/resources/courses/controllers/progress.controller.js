@@ -1,6 +1,14 @@
 import progressService from "../services/progress.service.js";
-import { sendResponse } from "../../../utils/lib/response.js";
+import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 import logger from "../../../utils/log/logger.js";
+
+// Helper function to maintain backward compatibility
+const sendResponse = (res, statusCode, data) => {
+  if (statusCode >= 400) {
+    return errorResMsg(res, statusCode, data.message || "An error occurred");
+  }
+  return successResMsg(res, statusCode, data);
+};
 
 class ProgressController {
 
