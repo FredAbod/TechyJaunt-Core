@@ -6,6 +6,7 @@ import SubscriptionPlan from "../models/subscriptionPlan.js";
 import AppError from "../../../utils/lib/appError.js";
 import { PAYSTACK_SECRET_KEY } from "../../../utils/helper/config.js";
 import { generateRandomString } from "../../../utils/helper/helper.js";
+import logger from "../../../utils/log/logger.js";
 
 class SubscriptionService {
   constructor() {
@@ -107,8 +108,16 @@ class SubscriptionService {
         status: { $in: ['active', 'pending'] }
       });
 
-      if (existingSubscription && existingSubscription.status === 'active' && existingSubscription.endDate > new Date()) {
-        throw new AppError("You already have an active subscription for this plan and course", 400);
+      if (existingSubscription) {
+        // Check if subscription is active and not expired
+        if (existingSubscription.status === 'active' && existingSubscription.endDate > new Date()) {
+          throw new AppError(`You already have an active ${planType} subscription for this course. Your subscription expires on ${existingSubscription.endDate.toLocaleDateString()}.`, 400);
+        }
+        
+        // Check if subscription is pending (payment not completed)
+        if (existingSubscription.status === 'pending') {
+          throw new AppError("You have a pending subscription payment for this plan and course. Please complete the payment or wait for it to expire before creating a new subscription.", 400);
+        }
       }
 
       // Get plan details from database
@@ -456,6 +465,23 @@ class SubscriptionService {
           subscription.paymentMethod = data.channel;
           subscription.metadata = data;
           await subscription.save();
+
+          // Initialize progress tracking for the user
+          try {
+            // Import progress service dynamically to avoid circular dependencies
+            const progressService = (await import("../../courses/services/progress.service.js")).default;
+            
+            await progressService.initializeProgress(
+              subscription.user,
+              subscription.courseId,
+              subscription._id
+            );
+            
+            logger.info(`Progress initialized for user ${subscription.user} in course ${subscription.courseId}`);
+          } catch (progressError) {
+            // Log error but don't fail the webhook - subscription is still valid
+            logger.error(`Failed to initialize progress for subscription ${subscription._id}: ${progressError.message}`);
+          }
         }
       }
 

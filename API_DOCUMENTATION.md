@@ -1432,6 +1432,308 @@ Plans can be dynamically managed through:
 
 ---
 
+## 📝 **Assessment Management API**
+
+### **Features:**
+- ✅ Module-based assessments (5-20 questions each)
+- ✅ Multiple choice questions with explanations
+- ✅ Attempt limits and time restrictions
+- ✅ Automatic grading and progress tracking
+- ✅ Module progression control (must pass to continue)
+
+### 1. **Create Assessment (Admin/Tutor)**
+```bash
+curl -X POST http://localhost:4000/api/v1/assessments/assessments \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "title": "JavaScript Fundamentals Assessment",
+    "description": "Test your understanding of JavaScript basics",
+    "moduleId": "MODULE_ID_HERE",
+    "courseId": "COURSE_ID_HERE",
+    "questions": [
+      {
+        "question": "What is a variable in JavaScript?",
+        "options": [
+          {"text": "A container for storing data", "isCorrect": true},
+          {"text": "A function", "isCorrect": false},
+          {"text": "A loop", "isCorrect": false},
+          {"text": "An object", "isCorrect": false}
+        ],
+        "explanation": "Variables are containers for storing data values."
+      },
+      {
+        "question": "Which keyword is used to declare a variable?",
+        "options": [
+          {"text": "var", "isCorrect": true},
+          {"text": "function", "isCorrect": false},
+          {"text": "if", "isCorrect": false}
+        ]
+      }
+    ],
+    "passingScore": 70,
+    "timeLimit": 30,
+    "attemptsAllowed": 3
+  }'
+```
+
+### 2. **Get Assessment for Module (Student)**
+```bash
+curl -X GET http://localhost:4000/api/v1/assessments/modules/MODULE_ID/assessment \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### 3. **Submit Assessment (Student)**
+```bash
+curl -X POST http://localhost:4000/api/v1/assessments/assessments/ASSESSMENT_ID/submit \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "answers": [
+      {
+        "questionId": "QUESTION_ID_1",
+        "selectedOptionId": "OPTION_ID_1"
+      },
+      {
+        "questionId": "QUESTION_ID_2", 
+        "selectedOptionId": "OPTION_ID_2"
+      }
+    ]
+  }'
+```
+
+### 4. **Get Assessment Attempts (Student)**
+```bash
+curl -X GET http://localhost:4000/api/v1/assessments/assessments/ASSESSMENT_ID/attempts \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### 5. **Get Course Assessments (Admin/Tutor)**
+```bash
+curl -X GET http://localhost:4000/api/v1/assessments/courses/COURSE_ID/assessments \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### 6. **Update Assessment (Admin/Tutor)**
+```bash
+curl -X PUT http://localhost:4000/api/v1/assessments/assessments/ASSESSMENT_ID \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "title": "Updated Assessment Title",
+    "passingScore": 75,
+    "timeLimit": 45
+  }'
+```
+
+### 7. **Delete Assessment (Admin/Tutor)**
+```bash
+curl -X DELETE http://localhost:4000/api/v1/assessments/assessments/ASSESSMENT_ID \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+---
+
+## 📊 **Progress Tracking API**
+
+### **Features:**
+- ✅ Automatic progress initialization on subscription
+- ✅ Video watch time tracking
+- ✅ Module progression control (sequential unlocking)
+- ✅ Overall course progress calculation
+- ✅ Dashboard analytics for students and instructors
+
+### 1. **Initialize Progress (Automatic after subscription)**
+```bash
+curl -X POST http://localhost:4000/api/v1/progress/courses/COURSE_ID/initialize \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "subscriptionId": "SUBSCRIPTION_ID_HERE"
+  }'
+```
+
+### 2. **Update Video Progress (Student)**
+```bash
+curl -X PUT http://localhost:4000/api/v1/progress/courses/COURSE_ID/lessons/LESSON_ID/progress \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "watchTime": 240,
+    "totalDuration": 600
+  }'
+```
+
+### 3. **Get User Progress (Student)**
+```bash
+curl -X GET http://localhost:4000/api/v1/progress/courses/COURSE_ID/progress \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "User progress fetched successfully",
+  "progress": {
+    "course": {
+      "_id": "COURSE_ID",
+      "title": "JavaScript Fundamentals"
+    },
+    "overallProgress": 35,
+    "currentModuleIndex": 1,
+    "isCompleted": false,
+    "totalWatchTime": 1800,
+    "modules": [
+      {
+        "moduleId": "MODULE_ID",
+        "title": "Introduction to JavaScript",
+        "isCompleted": true,
+        "canAccess": true,
+        "lessons": [
+          {
+            "lessonId": "LESSON_ID",
+            "title": "Variables and Data Types",
+            "watchTime": 600,
+            "totalDuration": 600,
+            "isCompleted": true,
+            "progressPercentage": 100
+          }
+        ],
+        "assessmentAttempts": [
+          {
+            "assessmentId": "ASSESSMENT_ID",
+            "score": 85,
+            "passed": true,
+            "attemptedAt": "2025-01-15T10:30:00Z"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 4. **Check Module Access (Student)**
+```bash
+curl -X GET http://localhost:4000/api/v1/progress/courses/COURSE_ID/modules/MODULE_ID/access \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### 5. **Get User Dashboard (Student)**
+```bash
+curl -X GET http://localhost:4000/api/v1/progress/dashboard \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Dashboard data fetched successfully",
+  "courses": [
+    {
+      "courseId": "COURSE_ID",
+      "courseTitle": "JavaScript Fundamentals",
+      "courseDescription": "Learn the basics of JavaScript",
+      "courseThumbnail": "https://cloudinary.com/image.jpg",
+      "courseCategory": "Web Development",
+      "courseLevel": "Beginner",
+      "overallProgress": 35,
+      "currentModuleIndex": 1,
+      "totalModules": 5,
+      "isCompleted": false,
+      "lastActivityAt": "2025-01-15T10:30:00Z",
+      "subscriptionPlan": "bronze",
+      "subscriptionEndDate": "2025-12-31T23:59:59Z"
+    }
+  ],
+  "totalActiveCourses": 1
+}
+```
+
+### 6. **Get Course Progress Statistics (Admin/Tutor)**
+```bash
+curl -X GET http://localhost:4000/api/v1/progress/courses/COURSE_ID/stats \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "status": "success",
+  "message": "Course progress statistics fetched successfully",
+  "stats": {
+    "totalStudents": 25,
+    "completedStudents": 5,
+    "completionRate": 20,
+    "averageProgress": 45,
+    "averageWatchTime": 12,
+    "moduleStats": [
+      {
+        "moduleId": "MODULE_ID",
+        "title": "Introduction to JavaScript",
+        "order": 1,
+        "completedStudents": 20,
+        "completionRate": 80,
+        "averageProgress": 85
+      }
+    ]
+  }
+}
+```
+
+### 7. **Reset User Progress (Admin Only)**
+```bash
+curl -X PUT http://localhost:4000/api/v1/progress/courses/COURSE_ID/users/USER_ID/reset \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+---
+
+## 🔐 **Enhanced Access Control**
+
+### **Module Progression Rules:**
+1. **First Module**: Automatically unlocked upon subscription
+2. **Subsequent Modules**: Unlocked only after completing previous module
+3. **Module Completion**: Requires:
+   - Watching 80% of all video lessons
+   - Passing the module assessment (if exists)
+4. **Assessment Requirements**:
+   - Minimum 70% score to pass (configurable)
+   - Maximum 3 attempts per assessment (configurable)
+   - Must complete before accessing next module
+
+### **Video Access Control:**
+- Students can only watch videos in unlocked modules
+- Progress automatically tracked when videos are played
+- Watch time must reach 80% for lesson completion
+
+### **Subscription Validation:**
+- Users cannot subscribe to the same plan twice for the same course
+- Only expired subscriptions can be renewed
+- Progress automatically initialized upon successful payment
+
+---
+
+## 🎯 **Learning Path Flow**
+
+### **For Students:**
+1. **Subscribe** to a course plan
+2. **Progress automatically initialized** with first module unlocked
+3. **Watch videos** in sequence (progress tracked automatically)
+4. **Take assessment** when module content is completed
+5. **Pass assessment** to unlock next module
+6. **Repeat** until course completion
+
+### **For Instructors/Admins:**
+1. **Create assessments** for each module
+2. **Monitor student progress** via statistics dashboard
+3. **Manage course content** and progression rules
+4. **Reset student progress** if needed
+
+---
+
 ## TODO
 1. it is when tutors confirm that you should send the meeting details (send mails with the status update)
 2. Send a mail for reschedules

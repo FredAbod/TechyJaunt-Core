@@ -503,3 +503,273 @@ export const uploadResourceSchema = Joi.object({
     .items(Joi.string())
     .optional(),
 });
+
+// Assessment validation schemas
+export const createAssessmentSchema = Joi.object({
+  title: Joi.string()
+    .min(5)
+    .max(100)
+    .required()
+    .messages({
+      "string.min": "Assessment title must be at least 5 characters",
+      "string.max": "Assessment title cannot exceed 100 characters",
+      "any.required": "Assessment title is required",
+    }),
+  description: Joi.string()
+    .min(10)
+    .max(500)
+    .optional()
+    .messages({
+      "string.min": "Description must be at least 10 characters",
+      "string.max": "Description cannot exceed 500 characters",
+    }),
+  moduleId: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .required()
+    .messages({
+      "string.pattern.base": "Invalid module ID format",
+      "any.required": "Module ID is required",
+    }),
+  courseId: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .required()
+    .messages({
+      "string.pattern.base": "Invalid course ID format",
+      "any.required": "Course ID is required",
+    }),
+  questions: Joi.array()
+    .items(
+      Joi.object({
+        question: Joi.string()
+          .min(10)
+          .max(500)
+          .required()
+          .messages({
+            "string.min": "Question must be at least 10 characters",
+            "string.max": "Question cannot exceed 500 characters",
+            "any.required": "Question text is required",
+          }),
+        options: Joi.array()
+          .items(
+            Joi.object({
+              text: Joi.string()
+                .min(1)
+                .max(200)
+                .required()
+                .messages({
+                  "string.min": "Option text cannot be empty",
+                  "string.max": "Option text cannot exceed 200 characters",
+                  "any.required": "Option text is required",
+                }),
+              isCorrect: Joi.boolean()
+                .required()
+                .messages({
+                  "any.required": "Option correctness must be specified",
+                }),
+            })
+          )
+          .min(2)
+          .max(6)
+          .required()
+          .messages({
+            "array.min": "Each question must have at least 2 options",
+            "array.max": "Each question cannot have more than 6 options",
+            "any.required": "Question options are required",
+          }),
+        explanation: Joi.string()
+          .max(300)
+          .optional()
+          .messages({
+            "string.max": "Explanation cannot exceed 300 characters",
+          }),
+      })
+    )
+    .min(5)
+    .max(20)
+    .required()
+    .messages({
+      "array.min": "Assessment must have at least 5 questions",
+      "array.max": "Assessment cannot have more than 20 questions",
+      "any.required": "Questions are required",
+    }),
+  passingScore: Joi.number()
+    .min(0)
+    .max(100)
+    .optional()
+    .default(70)
+    .messages({
+      "number.min": "Passing score cannot be negative",
+      "number.max": "Passing score cannot exceed 100",
+    }),
+  timeLimit: Joi.number()
+    .min(5)
+    .max(180)
+    .optional()
+    .default(30)
+    .messages({
+      "number.min": "Time limit must be at least 5 minutes",
+      "number.max": "Time limit cannot exceed 180 minutes",
+    }),
+  attemptsAllowed: Joi.number()
+    .min(1)
+    .max(10)
+    .optional()
+    .default(3)
+    .messages({
+      "number.min": "At least 1 attempt must be allowed",
+      "number.max": "Cannot allow more than 10 attempts",
+    }),
+});
+
+export const updateAssessmentSchema = Joi.object({
+  title: Joi.string()
+    .min(5)
+    .max(100)
+    .optional()
+    .messages({
+      "string.min": "Assessment title must be at least 5 characters",
+      "string.max": "Assessment title cannot exceed 100 characters",
+    }),
+  description: Joi.string()
+    .min(10)
+    .max(500)
+    .optional()
+    .messages({
+      "string.min": "Description must be at least 10 characters",
+      "string.max": "Description cannot exceed 500 characters",
+    }),
+  questions: Joi.array()
+    .items(
+      Joi.object({
+        question: Joi.string()
+          .min(10)
+          .max(500)
+          .required()
+          .messages({
+            "string.min": "Question must be at least 10 characters",
+            "string.max": "Question cannot exceed 500 characters",
+            "any.required": "Question text is required",
+          }),
+        options: Joi.array()
+          .items(
+            Joi.object({
+              text: Joi.string()
+                .min(1)
+                .max(200)
+                .required()
+                .messages({
+                  "string.min": "Option text cannot be empty",
+                  "string.max": "Option text cannot exceed 200 characters",
+                  "any.required": "Option text is required",
+                }),
+              isCorrect: Joi.boolean()
+                .required()
+                .messages({
+                  "any.required": "Option correctness must be specified",
+                }),
+            })
+          )
+          .min(2)
+          .max(6)
+          .required()
+          .messages({
+            "array.min": "Each question must have at least 2 options",
+            "array.max": "Each question cannot have more than 6 options",
+            "any.required": "Question options are required",
+          }),
+        explanation: Joi.string()
+          .max(300)
+          .optional()
+          .messages({
+            "string.max": "Explanation cannot exceed 300 characters",
+          }),
+      })
+    )
+    .min(5)
+    .max(20)
+    .optional()
+    .messages({
+      "array.min": "Assessment must have at least 5 questions",
+      "array.max": "Assessment cannot have more than 20 questions",
+    }),
+  passingScore: Joi.number()
+    .min(0)
+    .max(100)
+    .optional()
+    .messages({
+      "number.min": "Passing score cannot be negative",
+      "number.max": "Passing score cannot exceed 100",
+    }),
+  timeLimit: Joi.number()
+    .min(5)
+    .max(180)
+    .optional()
+    .messages({
+      "number.min": "Time limit must be at least 5 minutes",
+      "number.max": "Time limit cannot exceed 180 minutes",
+    }),
+  attemptsAllowed: Joi.number()
+    .min(1)
+    .max(10)
+    .optional()
+    .messages({
+      "number.min": "At least 1 attempt must be allowed",
+      "number.max": "Cannot allow more than 10 attempts",
+    }),
+});
+
+export const submitAssessmentSchema = Joi.object({
+  answers: Joi.array()
+    .items(
+      Joi.object({
+        questionId: Joi.string()
+          .pattern(/^[0-9a-fA-F]{24}$/)
+          .required()
+          .messages({
+            "string.pattern.base": "Invalid question ID format",
+            "any.required": "Question ID is required",
+          }),
+        selectedOptionId: Joi.string()
+          .pattern(/^[0-9a-fA-F]{24}$/)
+          .required()
+          .messages({
+            "string.pattern.base": "Invalid option ID format",
+            "any.required": "Selected option ID is required",
+          }),
+      })
+    )
+    .min(1)
+    .required()
+    .messages({
+      "array.min": "At least one answer is required",
+      "any.required": "Answers are required",
+    }),
+});
+
+// Progress validation schemas
+export const updateVideoProgressSchema = Joi.object({
+  watchTime: Joi.number()
+    .min(0)
+    .required()
+    .messages({
+      "number.min": "Watch time cannot be negative",
+      "any.required": "Watch time is required",
+    }),
+  totalDuration: Joi.number()
+    .min(1)
+    .required()
+    .messages({
+      "number.min": "Total duration must be at least 1 second",
+      "any.required": "Total duration is required",
+    }),
+});
+
+export const initializeProgressSchema = Joi.object({
+  subscriptionId: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .required()
+    .messages({
+      "string.pattern.base": "Invalid subscription ID format",
+      "any.required": "Subscription ID is required",
+    }),
+});

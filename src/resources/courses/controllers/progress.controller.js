@@ -1,0 +1,217 @@
+import progressService from "../services/progress.service.js";
+import { sendResponse } from "../../../utils/lib/response.js";
+import logger from "../../../utils/log/logger.js";
+
+class ProgressController {
+
+  // Update video watch progress
+  async updateVideoProgress(req, res) {
+    try {
+      const { courseId, lessonId } = req.params;
+      const { watchTime, totalDuration } = req.body;
+      const userId = req.user.id;
+
+      if (!watchTime || !totalDuration) {
+        return sendResponse(res, 400, {
+          message: "Watch time and total duration are required"
+        });
+      }
+
+      if (watchTime < 0 || totalDuration <= 0 || watchTime > totalDuration) {
+        return sendResponse(res, 400, {
+          message: "Invalid watch time or duration values"
+        });
+      }
+
+      logger.info(`Updating video progress for user ${userId}, course ${courseId}, lesson ${lessonId}`);
+
+      const result = await progressService.updateVideoProgress(
+        userId, 
+        courseId, 
+        lessonId, 
+        watchTime, 
+        totalDuration
+      );
+
+      logger.info(`Video progress updated successfully`);
+
+      return sendResponse(res, 200, {
+        message: "Video progress updated successfully",
+        progress: result
+      });
+    } catch (error) {
+      logger.error("Error updating video progress:", error);
+      return sendResponse(res, error.statusCode || 500, {
+        message: error.message || "Failed to update video progress"
+      });
+    }
+  }
+
+  // Get user's progress for a course
+  async getUserProgress(req, res) {
+    try {
+      const { courseId } = req.params;
+      const userId = req.user.id;
+
+      logger.info(`Fetching progress for user ${userId}, course ${courseId}`);
+
+      const progress = await progressService.getUserProgress(userId, courseId);
+
+      return sendResponse(res, 200, {
+        message: "User progress fetched successfully",
+        progress
+      });
+    } catch (error) {
+      logger.error("Error fetching user progress:", error);
+      return sendResponse(res, error.statusCode || 500, {
+        message: error.message || "Failed to fetch user progress"
+      });
+    }
+  }
+
+  // Get progress statistics for admin/tutor
+  async getCourseProgressStats(req, res) {
+    try {
+      const { courseId } = req.params;
+
+      logger.info(`Fetching progress statistics for course ${courseId}`);
+
+      const stats = await progressService.getCourseProgressStats(courseId);
+
+      return sendResponse(res, 200, {
+        message: "Course progress statistics fetched successfully",
+        stats
+      });
+    } catch (error) {
+      logger.error("Error fetching course progress statistics:", error);
+      return sendResponse(res, error.statusCode || 500, {
+        message: error.message || "Failed to fetch course progress statistics"
+      });
+    }
+  }
+
+  // Reset user progress (Admin only)
+  async resetUserProgress(req, res) {
+    try {
+      const { courseId, userId } = req.params;
+
+      logger.info(`Resetting progress for user ${userId}, course ${courseId}`);
+
+      const result = await progressService.resetUserProgress(userId, courseId);
+
+      logger.info(`User progress reset successfully`);
+
+      return sendResponse(res, 200, result);
+    } catch (error) {
+      logger.error("Error resetting user progress:", error);
+      return sendResponse(res, error.statusCode || 500, {
+        message: error.message || "Failed to reset user progress"
+      });
+    }
+  }
+
+  // Get module access status
+  async getModuleAccess(req, res) {
+    try {
+      const { courseId, moduleId } = req.params;
+      const userId = req.user.id;
+
+      logger.info(`Checking module access for user ${userId}, course ${courseId}, module ${moduleId}`);
+
+      const access = await progressService.getModuleAccess(userId, courseId, moduleId);
+
+      return sendResponse(res, 200, {
+        message: "Module access status fetched successfully",
+        access
+      });
+    } catch (error) {
+      logger.error("Error checking module access:", error);
+      return sendResponse(res, error.statusCode || 500, {
+        message: error.message || "Failed to check module access"
+      });
+    }
+  }
+
+  // Initialize progress for a user (usually called after subscription)
+  async initializeProgress(req, res) {
+    try {
+      const { courseId } = req.params;
+      const { subscriptionId } = req.body;
+      const userId = req.user.id;
+
+      if (!subscriptionId) {
+        return sendResponse(res, 400, {
+          message: "Subscription ID is required"
+        });
+      }
+
+      logger.info(`Initializing progress for user ${userId}, course ${courseId}, subscription ${subscriptionId}`);
+
+      const progress = await progressService.initializeProgress(userId, courseId, subscriptionId);
+
+      logger.info(`Progress initialized successfully`);
+
+      return sendResponse(res, 201, {
+        message: "Progress initialized successfully",
+        progress
+      });
+    } catch (error) {
+      logger.error("Error initializing progress:", error);
+      return sendResponse(res, error.statusCode || 500, {
+        message: error.message || "Failed to initialize progress"
+      });
+    }
+  }
+
+  // Get dashboard data (user's active courses and progress)
+  async getDashboard(req, res) {
+    try {
+      const userId = req.user.id;
+
+      logger.info(`Fetching dashboard data for user ${userId}`);
+
+      // Import Progress model to get user's active progresses
+      const Progress = (await import("../models/progress.js")).default;
+      const progresses = await Progress.find({ userId })
+        .populate('courseId', 'title description thumbnail category level')
+        .populate('subscriptionId', 'status endDate plan')
+        .sort({ lastActivityAt: -1 });
+
+      const activeProgresses = progresses.filter(progress => 
+        progress.subscriptionId && 
+        progress.subscriptionId.status === 'active' &&
+        progress.subscriptionId.endDate > new Date()
+      );
+
+      const dashboardData = activeProgresses.map(progress => ({
+        courseId: progress.courseId._id,
+        courseTitle: progress.courseId.title,
+        courseDescription: progress.courseId.description,
+        courseThumbnail: progress.courseId.thumbnail,
+        courseCategory: progress.courseId.category,
+        courseLevel: progress.courseId.level,
+        overallProgress: progress.overallProgress,
+        currentModuleIndex: progress.currentModuleIndex,
+        totalModules: progress.modules.length,
+        isCompleted: progress.isCompleted,
+        completedAt: progress.completedAt,
+        lastActivityAt: progress.lastActivityAt,
+        subscriptionPlan: progress.subscriptionId.plan,
+        subscriptionEndDate: progress.subscriptionId.endDate
+      }));
+
+      return sendResponse(res, 200, {
+        message: "Dashboard data fetched successfully",
+        courses: dashboardData,
+        totalActiveCourses: dashboardData.length
+      });
+    } catch (error) {
+      logger.error("Error fetching dashboard data:", error);
+      return sendResponse(res, error.statusCode || 500, {
+        message: error.message || "Failed to fetch dashboard data"
+      });
+    }
+  }
+}
+
+export default new ProgressController();

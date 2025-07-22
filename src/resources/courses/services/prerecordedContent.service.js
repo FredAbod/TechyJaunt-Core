@@ -145,6 +145,7 @@ class PrerecordedContentService {
     try {
       const videoClass = await PrerecordedClass.findById(classId)
         .populate('courseId', 'title category')
+        .populate('moduleId', 'title order')
         .populate('instructor', 'firstName lastName');
 
       if (!videoClass) {
@@ -156,6 +157,35 @@ class PrerecordedContentService {
         const instructor = await User.findById(userId);
         if (!instructor || !["admin", "tutor", "super admin"].includes(instructor.role)) {
           throw new Error("Video class not available");
+        }
+      }
+
+      // If video is part of a module, check module access for students
+      if (userId && videoClass.moduleId) {
+        const user = await User.findById(userId);
+        
+        // Skip access check for admins and tutors
+        if (!user || !["admin", "tutor", "super admin"].includes(user.role)) {
+          try {
+            // Import progress service dynamically to avoid circular dependencies
+            const progressService = (await import("./progress.service.js")).default;
+            
+            const moduleAccess = await progressService.getModuleAccess(
+              userId, 
+              videoClass.courseId._id, 
+              videoClass.moduleId._id
+            );
+
+            if (!moduleAccess.canAccess) {
+              throw new Error("You don't have access to this module yet. Complete the previous module first.");
+            }
+          } catch (accessError) {
+            // If there's no progress record, user might not have an active subscription
+            if (accessError.message.includes("Progress not found")) {
+              throw new Error("You need an active subscription to access this content.");
+            }
+            throw accessError;
+          }
         }
       }
 
