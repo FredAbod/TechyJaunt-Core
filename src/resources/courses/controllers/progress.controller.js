@@ -17,7 +17,7 @@ class ProgressController {
     try {
       const { courseId, lessonId } = req.params;
       const { watchTime, totalDuration } = req.body;
-      const userId = req.user.id;
+      const userId = req.user.userId;
 
       if (!watchTime || !totalDuration) {
         return sendResponse(res, 400, {
@@ -59,7 +59,7 @@ class ProgressController {
   async getUserProgress(req, res) {
     try {
       const { courseId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId;
 
       logger.info(`Fetching progress for user ${userId}, course ${courseId}`);
 
@@ -122,7 +122,7 @@ class ProgressController {
   async getModuleAccess(req, res) {
     try {
       const { courseId, moduleId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId;
 
       logger.info(`Checking module access for user ${userId}, course ${courseId}, module ${moduleId}`);
 
@@ -145,7 +145,7 @@ class ProgressController {
     try {
       const { courseId } = req.params;
       const { subscriptionId } = req.body;
-      const userId = req.user.id;
+      const userId = req.user.userId;
 
       if (!subscriptionId) {
         return sendResponse(res, 400, {
@@ -174,7 +174,7 @@ class ProgressController {
   // Get dashboard data (user's active courses and progress)
   async getDashboard(req, res) {
     try {
-      const userId = req.user.id;
+      const userId = req.user.userId;
 
       logger.info(`Fetching dashboard data for user ${userId}`);
 
@@ -217,6 +217,110 @@ class ProgressController {
       logger.error("Error fetching dashboard data:", error);
       return sendResponse(res, error.statusCode || 500, {
         message: error.message || "Failed to fetch dashboard data"
+      });
+    }
+  }
+
+  // Add missing lessons to user progress
+  async addMissingLessons(req, res) {
+    try {
+      const { courseId } = req.params;
+      const { moduleId } = req.body; // Optional: specific module
+      const userId = req.user.userId;
+
+      logger.info(`Adding missing lessons for user ${userId}, course ${courseId}${moduleId ? `, module ${moduleId}` : ''}`);
+
+      const result = await progressService.addMissingLessonsToProgress(userId, courseId, moduleId);
+
+      return sendResponse(res, 200, {
+        message: result.message,
+        lessonsAdded: result.lessonsAdded
+      });
+    } catch (error) {
+      logger.error("Error adding missing lessons:", {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user?.userId,
+        courseId: req.params?.courseId,
+        moduleId: req.body?.moduleId
+      });
+      return sendResponse(res, error.statusCode || 500, {
+        message: error.message || "Failed to add missing lessons"
+      });
+    }
+  }
+
+  // Sync user progress with current course structure
+  async syncProgress(req, res) {
+    try {
+      const { courseId } = req.params;
+      const userId = req.user.userId;
+
+      logger.info(`Syncing progress for user ${userId}, course ${courseId}`);
+
+      const result = await progressService.syncUserProgressWithCourse(userId, courseId);
+
+      return sendResponse(res, 200, {
+        message: result.message,
+        lessonsAdded: result.lessonsAdded
+      });
+    } catch (error) {
+      logger.error("Error syncing progress:", error);
+      return sendResponse(res, error.statusCode || 500, {
+        message: error.message || "Failed to sync progress"
+      });
+    }
+  }
+
+  // Debug endpoint to list all lessons for a course
+  async getCourseLessons(req, res) {
+    try {
+      const { courseId } = req.params;
+
+      logger.info(`Fetching all lessons for course ${courseId}`);
+
+      // Import models
+      const Module = (await import("../models/module.js")).default;
+      const PrerecordedClass = (await import("../models/prerecordedClass.js")).default;
+
+      // Get all modules for the course
+      const modules = await Module.find({ courseId, isActive: true }).sort({ order: 1 });
+      
+      const courseData = {
+        courseId,
+        totalModules: modules.length,
+        modules: []
+      };
+
+      for (const module of modules) {
+        const lessons = await PrerecordedClass.find({ 
+          moduleId: module._id,
+          isActive: true 
+        }).select('_id title description duration order');
+
+        courseData.modules.push({
+          moduleId: module._id,
+          moduleTitle: module.title,
+          moduleOrder: module.order,
+          totalLessons: lessons.length,
+          lessons: lessons.map(lesson => ({
+            lessonId: lesson._id,
+            title: lesson.title,
+            description: lesson.description,
+            duration: lesson.duration,
+            order: lesson.order
+          }))
+        });
+      }
+
+      return sendResponse(res, 200, {
+        message: "Course lessons fetched successfully",
+        data: courseData
+      });
+    } catch (error) {
+      logger.error("Error fetching course lessons:", error);
+      return sendResponse(res, error.statusCode || 500, {
+        message: error.message || "Failed to fetch course lessons"
       });
     }
   }

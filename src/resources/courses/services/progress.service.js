@@ -97,7 +97,45 @@ class ProgressService {
       }
 
       if (!lessonFound) {
-        throw new AppError("Lesson not found in your progress", 404);
+        // Try to find the lesson in the database and add it to progress
+        console.log(`Lesson ${lessonId} not found in progress, searching in database...`);
+        const lesson = await PrerecordedClass.findById(lessonId);
+        if (!lesson) {
+          console.log(`Lesson ${lessonId} not found in database`);
+          
+          // Let's check if the lesson exists with different criteria
+          const allLessons = await PrerecordedClass.find({ courseId }).select('_id title moduleId');
+          console.log(`Found ${allLessons.length} lessons for course ${courseId}:`);
+          allLessons.forEach(l => console.log(`- ${l._id}: ${l.title} (module: ${l.moduleId})`));
+          
+          throw new AppError("Lesson not found", 404);
+        }
+
+        console.log(`Found lesson ${lesson.title} in database, belongs to module ${lesson.moduleId}`);
+
+        // Find the module this lesson belongs to
+        const moduleProgressIndex = progress.modules.findIndex(m => 
+          m.moduleId.toString() === lesson.moduleId.toString()
+        );
+
+        if (moduleProgressIndex === -1) {
+          console.log(`Module ${lesson.moduleId} not found in user progress`);
+          throw new AppError("Module not found in your progress. Please sync your progress.", 404);
+        }
+
+        // Add the missing lesson to the module
+        progress.modules[moduleProgressIndex].lessons.push({
+          lessonId: lesson._id,
+          watchTime: 0,
+          totalDuration: lesson.duration || totalDuration,
+          isCompleted: false,
+          lastWatchedAt: new Date()
+        });
+
+        moduleIndex = moduleProgressIndex;
+        lessonFound = true;
+        
+        console.log(`Added missing lesson ${lessonId} to user ${userId} progress for course ${courseId}`);
       }
 
       // Check if user can access this module
@@ -166,65 +204,99 @@ class ProgressService {
   // Get user's progress for a course
   async getUserProgress(userId, courseId) {
     try {
-      const progress = await Progress.findOne({ userId, courseId })
-        .populate({
-          path: 'modules.moduleId',
-          select: 'title description order',
-          options: { sort: { order: 1 } }
-        })
-        .populate({
-          path: 'modules.lessons.lessonId',
-          select: 'title description duration order'
-        });
+      console.log("Fetching user progress for:", { userId, courseId });
+      
+      // First get the progress without population to check if it exists
+      const progress = await Progress.findOne({ userId, courseId });
 
       if (!progress) {
         throw new AppError("Progress not found", 404);
       }
+      
+      console.log("Progress found, now populating references...");
+      
+      // Populate the progress with related data
+      const populatedProgress = await Progress.findOne({ userId, courseId })
+        .populate({
+          path: 'modules.moduleId',
+          select: 'title description order'
+        })
+        .lean(); // Use lean for better performance
+      
+      if (!populatedProgress) {
+        throw new AppError("Failed to populate progress data", 500);
+      }
 
+      // Manually populate lesson data since nested array population can be problematic
+      for (let i = 0; i < populatedProgress.modules.length; i++) {
+        const module = populatedProgress.modules[i];
+        for (let j = 0; j < module.lessons.length; j++) {
+          const lesson = module.lessons[j];
+          try {
+            const lessonData = await PrerecordedClass.findById(lesson.lessonId)
+              .select('title description duration order');
+            if (lessonData) {
+              lesson.lessonData = lessonData;
+            }
+          } catch (lessonError) {
+            console.warn(`Failed to populate lesson ${lesson.lessonId}:`, lessonError.message);
+            // Continue with other lessons even if one fails
+          }
+        }
+      }
+      
+      console.log("Progress populated successfully");
+      
       // Get course details
       const course = await Course.findById(courseId).select('title description');
 
       return {
         course,
-        overallProgress: progress.overallProgress,
-        currentModuleIndex: progress.currentModuleIndex,
-        isCompleted: progress.isCompleted,
-        completedAt: progress.completedAt,
-        totalWatchTime: progress.totalWatchTime,
-        lastActivityAt: progress.lastActivityAt,
-        modules: progress.modules.map((module, index) => ({
-          moduleId: module.moduleId._id,
-          title: module.moduleId.title,
-          description: module.moduleId.description,
-          order: module.moduleId.order,
-          isCompleted: module.isCompleted,
-          completedAt: module.completedAt,
-          unlockedAt: module.unlockedAt,
-          canAccess: progress.canAccessModule(index),
-          lessons: module.lessons.map(lesson => ({
-            lessonId: lesson.lessonId._id,
-            title: lesson.lessonId.title,
-            description: lesson.lessonId.description,
-            duration: lesson.lessonId.duration,
-            watchTime: lesson.watchTime,
-            totalDuration: lesson.totalDuration,
-            isCompleted: lesson.isCompleted,
-            completedAt: lesson.completedAt,
-            progressPercentage: lesson.totalDuration > 0 
-              ? Math.round((lesson.watchTime / lesson.totalDuration) * 100) 
-              : 0
-          })),
-          assessmentAttempts: module.assessmentAttempts.map(attempt => ({
-            assessmentId: attempt.assessmentId,
-            score: attempt.score,
-            passed: attempt.passed,
-            attemptedAt: attempt.attemptedAt
-          }))
-        }))
+        overallProgress: populatedProgress.overallProgress,
+        currentModuleIndex: populatedProgress.currentModuleIndex,
+        isCompleted: populatedProgress.isCompleted,
+        completedAt: populatedProgress.completedAt,
+        totalWatchTime: populatedProgress.totalWatchTime,
+        lastActivityAt: populatedProgress.lastActivityAt,
+        modules: populatedProgress.modules.map((module, index) => {
+          // Check module access - user can access module 0 by default, or if index <= currentModuleIndex
+          const canAccess = index === 0 || index <= populatedProgress.currentModuleIndex;
+          
+          return {
+            moduleId: module.moduleId._id,
+            title: module.moduleId.title,
+            description: module.moduleId.description,
+            order: module.moduleId.order,
+            isCompleted: module.isCompleted,
+            completedAt: module.completedAt,
+            unlockedAt: module.unlockedAt,
+            canAccess: canAccess,
+            lessons: module.lessons.map(lesson => ({
+              lessonId: lesson.lessonId,
+              title: lesson.lessonData?.title || 'Unknown Lesson',
+              description: lesson.lessonData?.description || '',
+              duration: lesson.lessonData?.duration || lesson.totalDuration,
+              watchTime: lesson.watchTime,
+              totalDuration: lesson.totalDuration,
+              isCompleted: lesson.isCompleted,
+              completedAt: lesson.completedAt,
+              progressPercentage: lesson.totalDuration > 0 
+                ? Math.round((lesson.watchTime / lesson.totalDuration) * 100) 
+                : 0
+            })),
+            assessmentAttempts: module.assessmentAttempts.map(attempt => ({
+              assessmentId: attempt.assessmentId,
+              score: attempt.score,
+              passed: attempt.passed,
+              attemptedAt: attempt.attemptedAt
+            }))
+          };
+        })
       };
     } catch (error) {
+      console.error("Error in getUserProgress:", error);
       if (error instanceof AppError) throw error;
-      throw new AppError("Failed to fetch user progress", 500);
+      throw new AppError(`Failed to fetch user progress: ${error.message}`, 500);
     }
   }
 
@@ -388,6 +460,172 @@ class ProgressService {
     } catch (error) {
       if (error instanceof AppError) throw error;
       throw new AppError("Failed to check module access", 500);
+    }
+  }
+
+  // Add missing lessons to user progress
+  async addMissingLessonsToProgress(userId, courseId, moduleId = null) {
+    try {
+      console.log(`Starting addMissingLessonsToProgress for user: ${userId}, course: ${courseId}, module: ${moduleId}`);
+      
+      // Validate ObjectIds
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        throw new AppError("Invalid user ID", 400);
+      }
+      if (!mongoose.Types.ObjectId.isValid(courseId)) {
+        throw new AppError("Invalid course ID", 400);
+      }
+      if (moduleId && !mongoose.Types.ObjectId.isValid(moduleId)) {
+        throw new AppError("Invalid module ID", 400);
+      }
+      
+      const progress = await Progress.findOne({ userId, courseId });
+      if (!progress) {
+        throw new AppError("Progress not found", 404);
+      }
+
+      console.log(`Found progress document with ${progress.modules.length} modules`);
+
+      let modulesToUpdate = [];
+      
+      if (moduleId) {
+        // Update specific module
+        console.log(`Looking for specific module: ${moduleId}`);
+        const module = await Module.findById(moduleId);
+        if (!module) {
+          throw new AppError("Module not found", 404);
+        }
+        console.log(`Found module: ${module.title}, courseId: ${module.courseId}`);
+        
+        if (module.courseId.toString() !== courseId.toString()) {
+          throw new AppError("Module does not belong to this course", 400);
+        }
+        modulesToUpdate.push(module);
+      } else {
+        // Update all modules for the course
+        console.log(`Getting all modules for course: ${courseId}`);
+        modulesToUpdate = await Module.find({ courseId, isActive: true }).sort({ order: 1 });
+        console.log(`Found ${modulesToUpdate.length} active modules for course`);
+      }
+
+      if (modulesToUpdate.length === 0) {
+        return {
+          message: "No modules found to update",
+          lessonsAdded: 0
+        };
+      }
+
+      let lessonsAdded = 0;
+
+      for (const module of modulesToUpdate) {
+        console.log(`Processing module: ${module._id} - ${module.title}`);
+        
+        // Find the module in progress
+        const moduleProgressIndex = progress.modules.findIndex(m => 
+          m.moduleId.toString() === module._id.toString()
+        );
+
+        console.log(`Module progress index: ${moduleProgressIndex}`);
+
+        if (moduleProgressIndex === -1) {
+          // Module not in progress, add it
+          console.log(`Module not found in progress, adding new module progress`);
+          
+          const lessons = await PrerecordedClass.find({ 
+            moduleId: module._id,
+            isActive: true 
+          }).select('_id duration');
+
+          console.log(`Found ${lessons.length} lessons for module ${module._id}`);
+
+          const moduleData = {
+            moduleId: module._id,
+            lessons: lessons.map(lesson => ({
+              lessonId: lesson._id,
+              watchTime: 0,
+              totalDuration: lesson.duration || 0,
+              isCompleted: false,
+              lastWatchedAt: new Date()
+            })),
+            assessmentAttempts: [],
+            isCompleted: false,
+            unlockedAt: null
+          };
+
+          progress.modules.push(moduleData);
+          lessonsAdded += lessons.length;
+          console.log(`Added ${lessons.length} lessons for new module`);
+        } else {
+          // Module exists, check for missing lessons
+          console.log(`Module exists in progress, checking for missing lessons`);
+          
+          const moduleProgress = progress.modules[moduleProgressIndex];
+          const existingLessonIds = moduleProgress.lessons.map(l => l.lessonId.toString());
+          
+          console.log(`Existing lessons in progress: ${existingLessonIds.length}`);
+          
+          const allLessons = await PrerecordedClass.find({ 
+            moduleId: module._id,
+            isActive: true 
+          }).select('_id duration');
+
+          console.log(`All active lessons in database: ${allLessons.length}`);
+
+          for (const lesson of allLessons) {
+            if (!existingLessonIds.includes(lesson._id.toString())) {
+              // Add missing lesson
+              console.log(`Adding missing lesson: ${lesson._id}`);
+              moduleProgress.lessons.push({
+                lessonId: lesson._id,
+                watchTime: 0,
+                totalDuration: lesson.duration || 0,
+                isCompleted: false,
+                lastWatchedAt: new Date()
+              });
+              lessonsAdded++;
+            }
+          }
+          
+          console.log(`Added ${lessonsAdded} missing lessons to existing module`);
+        }
+      }
+
+      console.log(`Total lessons added: ${lessonsAdded}`);
+
+      if (lessonsAdded > 0) {
+        progress.lastActivityAt = new Date();
+        await progress.save();
+        console.log(`Progress saved successfully`);
+      }
+
+      return {
+        message: `Successfully added ${lessonsAdded} missing lessons to progress`,
+        lessonsAdded
+      };
+    } catch (error) {
+      console.error("Error in addMissingLessonsToProgress:", error);
+      if (error instanceof AppError) throw error;
+      throw new AppError(`Failed to add missing lessons to progress: ${error.message}`, 500);
+    }
+  }
+
+  // Sync all user progress with current course structure
+  async syncUserProgressWithCourse(userId, courseId) {
+    try {
+      // Add missing lessons
+      const result = await this.addMissingLessonsToProgress(userId, courseId);
+      
+      // Recalculate overall progress
+      const progress = await Progress.findOne({ userId, courseId });
+      if (progress) {
+        progress.calculateOverallProgress();
+        await progress.save();
+      }
+
+      return result;
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      throw new AppError("Failed to sync user progress with course", 500);
     }
   }
 }

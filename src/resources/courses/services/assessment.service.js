@@ -81,7 +81,7 @@ class AssessmentService {
 
       return assessment;
     } catch (error) {
-      if (error instanceof AppError) throw error;
+        if (error instanceof AppError) throw error;
       throw new AppError("Failed to create assessment", 500);
     }
   }

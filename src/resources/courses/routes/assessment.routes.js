@@ -35,7 +35,7 @@ router.get(
 router.post(
   "/assessments",
   isAuthenticated,
-  roleBasedAccess(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor", "super admin"]),
   validateRequest(createAssessmentSchema),
   assessmentController.createAssessment
 );
@@ -43,21 +43,21 @@ router.post(
 router.get(
   "/courses/:courseId/assessments",
   isAuthenticated,
-  roleBasedAccess(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor", "super admin"]),
   assessmentController.getCourseAssessments
 );
 
 router.get(
   "/assessments/:assessmentId/details",
   isAuthenticated,
-  roleBasedAccess(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor", "super admin"]),
   assessmentController.getAssessmentDetails
 );
 
 router.put(
   "/assessments/:assessmentId",
   isAuthenticated,
-  roleBasedAccess(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor", "super admin"]),
   validateRequest(updateAssessmentSchema),
   assessmentController.updateAssessment
 );
@@ -65,7 +65,7 @@ router.put(
 router.delete(
   "/assessments/:assessmentId",
   isAuthenticated,
-  roleBasedAccess(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor", "super admin"]),
   assessmentController.deleteAssessment
 );
 

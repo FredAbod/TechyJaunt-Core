@@ -1543,7 +1543,9 @@ curl -X DELETE http://localhost:4000/api/v1/assessments/assessments/ASSESSMENT_I
 - ✅ Overall course progress calculation
 - ✅ Dashboard analytics for students and instructors
 
-### 1. **Initialize Progress (Automatic after subscription)**
+### 1. **Initialize Progress (🤖 Automatic after subscription)**
+> **Note:** Progress is automatically initialized when a user successfully subscribes to a course via the Paystack webhook. This endpoint is primarily for manual initialization in edge cases.
+
 ```bash
 curl -X POST http://localhost:4000/api/v1/progress/courses/COURSE_ID/initialize \
   -H "Content-Type: application/json" \
@@ -1552,6 +1554,17 @@ curl -X POST http://localhost:4000/api/v1/progress/courses/COURSE_ID/initialize 
     "subscriptionId": "SUBSCRIPTION_ID_HERE"
   }'
 ```
+
+**Automatic Flow:**
+1. User subscribes to course → Payment completed
+2. Paystack webhook → `POST /api/v1/payments/webhook/paystack`
+3. System automatically calls `initializeProgress()` 
+4. User progress is ready for tracking
+
+**Manual Use Cases:**
+- Webhook failed but payment succeeded
+- Admin manually creates subscription
+- Testing/debugging scenarios
 
 ### 2. **Update Video Progress (Student)**
 ```bash

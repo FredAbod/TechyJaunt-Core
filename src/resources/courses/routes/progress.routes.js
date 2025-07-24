@@ -47,15 +47,35 @@ router.get(
 router.get(
   "/courses/:courseId/stats",
   isAuthenticated,
-  roleBasedAccess(["admin", "tutor"]),
+  roleBasedAccess(["admin", "tutor", "super admin"]),
   progressController.getCourseProgressStats
 );
 
 router.put(
   "/courses/:courseId/users/:userId/reset",
   isAuthenticated,
-  roleBasedAccess(["admin"]),
+  roleBasedAccess(["admin", "super admin"]),
   progressController.resetUserProgress
+);
+
+// Sync progress with course structure
+router.post(
+  "/courses/:courseId/sync",
+  isAuthenticated,
+  progressController.syncProgress
+);
+
+router.post(
+  "/courses/:courseId/add-lessons",
+  isAuthenticated,
+  progressController.addMissingLessons
+);
+
+// Debug endpoint to list all lessons for a course
+router.get(
+  "/courses/:courseId/lessons",
+  isAuthenticated,
+  progressController.getCourseLessons
 );
 
 export default router;

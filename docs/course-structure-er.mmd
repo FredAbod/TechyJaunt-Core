@@ -1,0 +1,57 @@
+---
+title: TechyJaunt Course Structure
+---
+erDiagram
+    USER ||--o{ SUBSCRIPTION : subscribes
+    USER ||--o{ PROGRESS : tracks
+    COURSE ||--o{ MODULE : contains
+    COURSE ||--o{ LESSON : has
+    COURSE ||--o{ PRERECORDEDCLASS : has
+    COURSE ||--o{ ASSESSMENT : has
+    COURSE ||--o{ SUBSCRIPTION : enrolls
+    COURSE ||--o{ PROGRESS : progress
+    MODULE ||--o{ LESSON : contains
+    MODULE ||--o{ PRERECORDEDCLASS : contains
+    MODULE ||--o{ ASSESSMENT : has
+    LESSON ||--o{ PRERECORDEDCLASS : uses
+    PROGRESS ||--o{ MODULEPROGRESS : tracks
+    MODULEPROGRESS ||--o{ LESSONPROGRESS : tracks
+    PROGRESS {
+        string userId FK
+        string courseId FK
+    }
+    SUBSCRIPTION {
+        string user FK
+        string courseId FK
+    }
+    COURSE {
+        string title
+        string description
+    }
+    MODULE {
+        string title
+        string courseId FK
+    }
+    LESSON {
+        string title
+        string moduleId FK
+        string courseId FK
+    }
+    PRERECORDEDCLASS {
+        string title
+        string moduleId FK
+        string courseId FK
+    }
+    ASSESSMENT {
+        string title
+        string moduleId FK
+        string courseId FK
+    }
+    MODULEPROGRESS {
+        string moduleId FK
+        string progressId FK
+    }
+    LESSONPROGRESS {
+        string lessonId FK
+        string moduleProgressId FK
+    }

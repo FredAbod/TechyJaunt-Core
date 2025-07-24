@@ -116,8 +116,25 @@ class SubscriptionService {
         
         // Check if subscription is pending (payment not completed)
         if (existingSubscription.status === 'pending') {
-          throw new AppError("You have a pending subscription payment for this plan and course. Please complete the payment or wait for it to expire before creating a new subscription.", 400);
+          // Check if pending subscription is recent (within last 1 hour)
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+          if (existingSubscription.createdAt > oneHourAgo) {
+            throw new AppError("You have a recent pending subscription payment for this plan and course. Please complete the payment or wait for it to expire before creating a new subscription.", 400);
+          }
+          // If pending subscription is old, we can allow a new one (old one likely failed)
         }
+      }
+
+      // Also check for any active subscription regardless of plan type for the same course
+      const anyActiveSubscription = await Subscription.findOne({
+        user: userObjectId,
+        courseId: new mongoose.Types.ObjectId(courseId),
+        status: 'active',
+        endDate: { $gt: new Date() }
+      });
+
+      if (anyActiveSubscription && anyActiveSubscription.plan !== planType) {
+        throw new AppError(`You already have an active ${anyActiveSubscription.plan} subscription for this course. You cannot subscribe to multiple plans for the same course.`, 400);
       }
 
       // Get plan details from database
@@ -452,6 +469,7 @@ class SubscriptionService {
       }
 
       const { event, data } = payload;
+      logger.info(`Processing subscription webhook - Event: ${event}, Reference: ${data.reference}`);
 
       if (event === 'charge.success') {
         const reference = data.reference;
@@ -459,34 +477,71 @@ class SubscriptionService {
         // Find and update subscription
         const subscription = await Subscription.findOne({ transactionReference: reference });
         
-        if (subscription) {
-          subscription.status = 'active';
-          subscription.paystackReference = data.reference;
-          subscription.paymentMethod = data.channel;
-          subscription.metadata = data;
-          await subscription.save();
-
-          // Initialize progress tracking for the user
-          try {
-            // Import progress service dynamically to avoid circular dependencies
-            const progressService = (await import("../../courses/services/progress.service.js")).default;
-            
-            await progressService.initializeProgress(
-              subscription.user,
-              subscription.courseId,
-              subscription._id
-            );
-            
-            logger.info(`Progress initialized for user ${subscription.user} in course ${subscription.courseId}`);
-          } catch (progressError) {
-            // Log error but don't fail the webhook - subscription is still valid
-            logger.error(`Failed to initialize progress for subscription ${subscription._id}: ${progressError.message}`);
-          }
+        if (!subscription) {
+          logger.warn(`Subscription not found for reference: ${reference}`);
+          return { status: 'error', message: 'Subscription not found' };
         }
+
+        // Update subscription status
+        subscription.status = 'active';
+        subscription.paystackReference = data.reference;
+        subscription.paymentMethod = data.channel;
+        subscription.metadata = data;
+        await subscription.save();
+
+        logger.info(`Subscription ${subscription._id} activated for user ${subscription.user}`);
+
+        // Initialize progress tracking for the user
+        try {
+          // Import progress service dynamically to avoid circular dependencies
+          const progressService = (await import("../../courses/services/progress.service.js")).default;
+          
+          logger.info(`Initializing progress for user ${subscription.user} in course ${subscription.courseId}`);
+          
+          await progressService.initializeProgress(
+            subscription.user,
+            subscription.courseId,
+            subscription._id
+          );
+          
+          logger.info(`✅ Progress successfully initialized for user ${subscription.user} in course ${subscription.courseId}`);
+          
+          return { 
+            status: 'success', 
+            message: 'Subscription activated and progress initialized',
+            subscriptionId: subscription._id,
+            progressInitialized: true
+          };
+          
+        } catch (progressError) {
+          // Log detailed error but don't fail the webhook - subscription is still valid
+          logger.error(`❌ Failed to initialize progress for subscription ${subscription._id}:`, {
+            error: progressError.message,
+            stack: progressError.stack,
+            userId: subscription.user,
+            courseId: subscription.courseId,
+            subscriptionId: subscription._id
+          });
+          
+          return { 
+            status: 'partial_success', 
+            message: 'Subscription activated but progress initialization failed',
+            subscriptionId: subscription._id,
+            progressInitialized: false,
+            progressError: progressError.message
+          };
+        }
+      } else {
+        logger.info(`Ignoring webhook event: ${event} for reference: ${data.reference}`);
+        return { status: 'ignored', message: `Event ${event} not processed` };
       }
 
-      return { status: 'success' };
     } catch (error) {
+      logger.error(`Webhook processing failed:`, {
+        error: error.message,
+        stack: error.stack,
+        payload: payload
+      });
       throw new AppError(error.message || "Webhook processing failed", error.status || 500);
     }
   }

@@ -16,8 +16,8 @@ class AssessmentController {
   async createAssessment(req, res) {
     try {
       const { moduleId, courseId, title, description, questions, passingScore, timeLimit, attemptsAllowed } = req.body;
-      const createdBy = req.user.id;
-
+      const createdBy = req.user.userId;
+      
       logger.info(`Creating assessment for module ${moduleId} by user ${createdBy}`);
 
       const assessment = await assessmentService.createAssessment(
@@ -43,7 +43,7 @@ class AssessmentController {
   async getAssessmentByModule(req, res) {
     try {
       const { moduleId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId;
 
       logger.info(`Fetching assessment for module ${moduleId} for user ${userId}`);
 
@@ -66,7 +66,7 @@ class AssessmentController {
     try {
       const { assessmentId } = req.params;
       const { answers } = req.body;
-      const userId = req.user.id;
+      const userId = req.user.userId;
 
       logger.info(`User ${userId} submitting assessment ${assessmentId}`);
 
@@ -96,7 +96,7 @@ class AssessmentController {
   async getAssessmentAttempts(req, res) {
     try {
       const { assessmentId } = req.params;
-      const userId = req.user.id;
+      const userId = req.user.userId;
 
       logger.info(`Fetching assessment attempts for assessment ${assessmentId} for user ${userId}`);
 
@@ -119,7 +119,7 @@ class AssessmentController {
     try {
       const { assessmentId } = req.params;
       const updateData = req.body;
-      const updatedBy = req.user.id;
+      const updatedBy = req.user.userId;
 
       logger.info(`Updating assessment ${assessmentId} by user ${updatedBy}`);
 
@@ -143,7 +143,7 @@ class AssessmentController {
   async deleteAssessment(req, res) {
     try {
       const { assessmentId } = req.params;
-      const deletedBy = req.user.id;
+      const deletedBy = req.user.userId;
 
       logger.info(`Deleting assessment ${assessmentId} by user ${deletedBy}`);
 
