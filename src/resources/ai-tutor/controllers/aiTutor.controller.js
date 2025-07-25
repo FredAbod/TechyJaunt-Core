@@ -9,7 +9,7 @@ import logger from "../../../utils/log/logger.js";
 export const getTopicExplanation = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { topic, userLevel = "intermediate", specificQuestions = [] } = req.body;
+    const { topic, userLevel = "intermediate", specificQuestions = [], courseId } = req.body;
 
     // Validate required fields
     if (!topic || topic.trim().length === 0) {
@@ -23,12 +23,31 @@ export const getTopicExplanation = async (req, res) => {
       return errorResMsg(res, 403, "AI Tutor access requires an active subscription. Please upgrade your plan to access this feature.");
     }
 
+    const startTime = Date.now();
+
     // Generate AI response
     const explanation = await AITutorService.generateTopicExplanation(
       topic.trim(),
       userLevel,
       Array.isArray(specificQuestions) ? specificQuestions : []
     );
+
+    const responseTime = Date.now() - startTime;
+
+    // Save interaction to history
+    const userInput = `Topic: ${topic}${specificQuestions.length > 0 ? `, Questions: ${specificQuestions.join(', ')}` : ''}`;
+    await AITutorService.saveInteraction(userId, {
+      courseId,
+      type: "explanation",
+      topic: topic.trim(),
+      userInput,
+      aiResponse: explanation.explanation,
+      userLevel,
+      model: explanation.model,
+      tokensUsed: explanation.metadata?.tokens_used,
+      responseTime,
+      tags: [topic.trim(), userLevel]
+    });
 
     logger.info(`AI Tutor topic explanation generated for user ${userId}: ${topic}`);
 
@@ -256,6 +275,72 @@ export const getAccessInfo = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor access info error: ${error.message}`);
+    return errorResMsg(res, error.status || 500, error.message);
+  }
+};
+
+/**
+ * Get user's AI Tutor interaction history
+ */
+export const getUserHistory = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { limit = 50, courseId, type } = req.query;
+
+    // Check if user has AI Tutor access
+    const subscriptionStatus = await SubscriptionService.getUserSubscriptionStatus(userId);
+    
+    if (!subscriptionStatus.featureAccess.aiTutor) {
+      return errorResMsg(res, 403, "AI Tutor access requires an active subscription. Please upgrade your plan to access this feature.");
+    }
+
+    // Get user's AI interaction history
+    const history = await AITutorService.getUserHistory(userId, {
+      limit: parseInt(limit),
+      courseId,
+      type
+    });
+
+    logger.info(`AI Tutor history retrieved for user ${userId}`);
+
+    return successResMsg(res, 200, {
+      message: "AI Tutor history retrieved successfully",
+      data: history
+    });
+
+  } catch (error) {
+    logger.error(`AI Tutor history error: ${error.message}`);
+    return errorResMsg(res, error.status || 500, error.message);
+  }
+};
+
+/**
+ * Get detailed AI Tutor interaction history item
+ */
+export const getHistoryItem = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { historyId } = req.params;
+
+    // Check if user has AI Tutor access
+    const subscriptionStatus = await SubscriptionService.getUserSubscriptionStatus(userId);
+    
+    if (!subscriptionStatus.featureAccess.aiTutor) {
+      return errorResMsg(res, 403, "AI Tutor access requires an active subscription. Please upgrade your plan to access this feature.");
+    }
+
+    // Get detailed history item
+    const historyItem = await AITutorService.getHistoryItem(userId, historyId);
+
+    logger.info(`AI Tutor history item retrieved for user ${userId}: ${historyId}`);
+
+    return successResMsg(res, 200, {
+      message: "AI Tutor history item retrieved successfully",
+      data: historyItem
+    });
+
+  } catch (error) {
+    logger.error(`AI Tutor history item error: ${error.message}`);
     return errorResMsg(res, error.status || 500, error.message);
   }
 };

@@ -100,4 +100,24 @@ router.post('/exercises',
   aiTutorController.generatePracticeExercises
 );
 
+/**
+ * @route   GET /api/v1/ai-tutor/history
+ * @desc    Get user's AI Tutor interaction history
+ * @access  Private (Authenticated users)
+ */
+router.get('/history',
+  aiTutorLimiter,
+  aiTutorController.getUserHistory
+);
+
+/**
+ * @route   GET /api/v1/ai-tutor/history/:historyId
+ * @desc    Get detailed AI Tutor interaction history item
+ * @access  Private (Authenticated users)
+ */
+router.get('/history/:historyId',
+  aiTutorLimiter,
+  aiTutorController.getHistoryItem
+);
+
 export default router;

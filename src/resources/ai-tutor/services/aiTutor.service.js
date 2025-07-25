@@ -1,5 +1,6 @@
 import Groq from "groq-sdk";
 import AppError from "../../../utils/lib/appError.js";
+import AITutorHistory from "../models/aiTutorHistory.js";
 
 class AITutorService {
   constructor() {
@@ -306,6 +307,155 @@ Make the exercises practical and hands-on. Ensure they progressively build under
         error: error.message,
         timestamp: new Date().toISOString()
       };
+    }
+  }
+
+  /**
+   * Get user's AI interaction history
+   */
+  async getUserHistory(userId, options = {}) {
+    try {
+      const {
+        limit = 50,
+        page = 1,
+        courseId,
+        type
+      } = options;
+
+      // Get paginated history
+      const history = await AITutorHistory.getUserHistory(userId, {
+        limit: parseInt(limit),
+        page: parseInt(page),
+        courseId,
+        type
+      });
+
+      // Get total count for pagination
+      const query = { userId, isArchived: false };
+      if (courseId) query.courseId = courseId;
+      if (type) query.interactionType = type;
+      
+      const totalCount = await AITutorHistory.countDocuments(query);
+      const totalPages = Math.ceil(totalCount / limit);
+
+      // Get summary statistics
+      const stats = await AITutorHistory.aggregate([
+        { $match: { userId: userId, isArchived: false } },
+        {
+          $group: {
+            _id: "$interactionType",
+            count: { $sum: 1 }
+          }
+        }
+      ]);
+
+      const interactionStats = {};
+      stats.forEach(stat => {
+        interactionStats[stat._id] = stat.count;
+      });
+
+      // Group by course for better organization
+      const courseSummary = await AITutorHistory.aggregate([
+        { $match: { userId: userId, isArchived: false, courseId: { $exists: true } } },
+        {
+          $group: {
+            _id: "$courseId",
+            count: { $sum: 1 },
+            lastInteraction: { $max: "$createdAt" }
+          }
+        },
+        {
+          $lookup: {
+            from: "courses",
+            localField: "_id",
+            foreignField: "_id",
+            as: "course"
+          }
+        },
+        {
+          $unwind: "$course"
+        },
+        {
+          $project: {
+            courseId: "$_id",
+            courseTitle: "$course.title",
+            thumbnail: "$course.thumbnail",
+            interactionCount: "$count",
+            lastInteraction: "$lastInteraction"
+          }
+        },
+        { $sort: { lastInteraction: -1 } }
+      ]);
+
+      return {
+        history,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages,
+          totalItems: totalCount,
+          hasNext: page < totalPages,
+          hasPrev: page > 1,
+          limit: parseInt(limit)
+        },
+        statistics: {
+          totalInteractions: totalCount,
+          interactionTypes: interactionStats,
+          courseSummary
+        }
+      };
+
+    } catch (error) {
+      throw new AppError(error.message || "Failed to retrieve AI tutor history", 500);
+    }
+  }
+
+  /**
+   * Save AI interaction to history
+   */
+  async saveInteraction(userId, interactionData) {
+    try {
+      const historyEntry = new AITutorHistory({
+        userId,
+        courseId: interactionData.courseId,
+        interactionType: interactionData.type,
+        topic: interactionData.topic,
+        userInput: interactionData.userInput,
+        aiResponse: interactionData.aiResponse,
+        userLevel: interactionData.userLevel,
+        metadata: {
+          model: interactionData.model || "llama3-8b-8192",
+          tokensUsed: interactionData.tokensUsed || 0,
+          responseTime: interactionData.responseTime || 0,
+          sessionId: interactionData.sessionId
+        },
+        tags: interactionData.tags || []
+      });
+
+      await historyEntry.save();
+      return historyEntry;
+
+    } catch (error) {
+      // Log error but don't fail the main request
+      console.error("Failed to save AI interaction history:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Get detailed history item
+   */
+  async getHistoryItem(userId, historyId) {
+    try {
+      const historyItem = await AITutorHistory.getHistoryItem(userId, historyId);
+      
+      if (!historyItem) {
+        throw new AppError("History item not found", 404);
+      }
+
+      return historyItem;
+
+    } catch (error) {
+      throw new AppError(error.message || "Failed to retrieve history item", 500);
     }
   }
 }
