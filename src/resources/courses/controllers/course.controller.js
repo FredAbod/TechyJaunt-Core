@@ -1,3 +1,60 @@
+// Edit a module
+export const updateModule = async (req, res) => {
+  try {
+    const { moduleId } = req.params;
+    const updateData = req.body;
+    const userId = req.user.userId;
+    const module = await CourseService.updateModule(moduleId, updateData, userId);
+    logger.info(`Module updated: ${moduleId} by ${userId}`);
+    return successResMsg(res, 200, { message: "Module updated successfully", module });
+  } catch (error) {
+    logger.error(`Update module error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
+  }
+};
+
+// Delete a module
+export const deleteModule = async (req, res) => {
+  try {
+    const { moduleId } = req.params;
+    const userId = req.user.userId;
+    const result = await CourseService.deleteModule(moduleId, userId);
+    logger.info(`Module deleted: ${moduleId} by ${userId}`);
+    return successResMsg(res, 200, { message: result.message });
+  } catch (error) {
+    logger.error(`Delete module error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
+  }
+};
+
+// Edit a lesson
+export const updateLesson = async (req, res) => {
+  try {
+    const { lessonId } = req.params;
+    const updateData = req.body;
+    const userId = req.user.userId;
+    const lesson = await CourseService.updateLesson(lessonId, updateData, userId);
+    logger.info(`Lesson updated: ${lessonId} by ${userId}`);
+    return successResMsg(res, 200, { message: "Lesson updated successfully", lesson });
+  } catch (error) {
+    logger.error(`Update lesson error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
+  }
+};
+
+// Delete a lesson
+export const deleteLesson = async (req, res) => {
+  try {
+    const { lessonId } = req.params;
+    const userId = req.user.userId;
+    const result = await CourseService.deleteLesson(lessonId, userId);
+    logger.info(`Lesson deleted: ${lessonId} by ${userId}`);
+    return successResMsg(res, 200, { message: result.message });
+  } catch (error) {
+    logger.error(`Delete lesson error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
+  }
+};
 import CourseService from "../services/course.service.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 import logger from "../../../utils/log/logger.js";

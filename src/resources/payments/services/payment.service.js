@@ -47,7 +47,8 @@ class PaymentService {
         email: user.email,
         amount: course.price * 100,
         reference: transactionReference,
-        callback_url: `${process.env.FRONTEND_URL}/courses/${course._id}/payment/verify`,
+        // Updated callback_url to match required format
+        callback_url: `http://localhost:5173/learning-hub/dashboard/${course._id}/subscription/verify?trxref=${transactionReference}&reference=${transactionReference}`,
         metadata: {
           custom_fields: [
             {

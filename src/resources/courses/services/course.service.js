@@ -1,3 +1,4 @@
+// ...existing code...
 import Course from "../models/course.js";
 import Module from "../models/module.js";
 import Lesson from "../models/lesson.js";
@@ -201,9 +202,17 @@ class CourseService {
 
       const skip = (page - 1) * limit;
 
+      // Fetch courses and populate modules and lessons
       const courses = await Course.find(query)
         .populate('instructor', 'firstName lastName')
-        .select('-modules') // Don't include full modules data in list
+        .populate({
+          path: 'modules',
+          populate: {
+            path: 'lessons',
+            select: 'title description type order isFree',
+          },
+          select: 'title description order duration isActive',
+        })
         .sort({ featured: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit);
@@ -239,14 +248,23 @@ class CourseService {
 
       const skip = (page - 1) * limit;
 
+      // Fetch courses and populate modules and lessons for admin
       const courses = await Course.find(query)
         .populate("instructor", "firstName lastName email")
-        .populate("modules", "title order")
+        .populate({
+          path: "modules",
+          populate: {
+            path: "lessons",
+            select: "title description type order isFree",
+          },
+          select: "title description order duration isActive",
+        })
         .select("-__v")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit));
 
+        
       const total = await Course.countDocuments(query);
 
       return {

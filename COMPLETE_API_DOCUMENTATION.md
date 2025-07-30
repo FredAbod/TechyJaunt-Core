@@ -6,14 +6,15 @@
 1. [Authentication Endpoints](#authentication-endpoints)
 2. [User Management Endpoints](#user-management-endpoints)
 3. [Course Management Endpoints](#course-management-endpoints)
-4. [Progress Tracking Endpoints](#progress-tracking-endpoints)
-5. [Live Classes Endpoints](#live-classes-endpoints)
-6. [Payment Endpoints](#payment-endpoints)
-7. [Subscription Endpoints](#subscription-endpoints)
-8. [AI Tutor Endpoints](#ai-tutor-endpoints)
-9. [Booking Endpoints](#booking-endpoints)
-10. [Assessment Endpoints](#assessment-endpoints)
-11. [Webhook Endpoints](#webhook-endpoints)
+4. [Content Management Endpoints](#content-management-endpoints)
+5. [Progress Tracking Endpoints](#progress-tracking-endpoints)
+6. [Live Classes Endpoints](#live-classes-endpoints)
+7. [Payment Endpoints](#payment-endpoints)
+8. [Subscription Endpoints](#subscription-endpoints)
+9. [AI Tutor Endpoints](#ai-tutor-endpoints)
+10. [Booking Endpoints](#booking-endpoints)
+11. [Assessment Endpoints](#assessment-endpoints)
+12. [Webhook Endpoints](#webhook-endpoints)
 
 ---
 
@@ -329,7 +330,7 @@ profilePicture: <image_file>
 ```
 
 ### 4. Get User Dashboard
-**GET** `/api/v1/user/dashboard`
+**GET** `/api/v1/progress/dashboard`
 
 **Headers:**
 ```
@@ -607,12 +608,70 @@ thumbnail: <image_file>
 }
 ```
 
+### 5. Get Course Progress (Legacy)
+**GET** `/api/v1/courses/progress/:courseId`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Course progress retrieved successfully",
+  "data": {
+    "courseId": "60d0fe4f5311236168a109cb",
+    "overallProgress": 65.5,
+    "completedLessons": 21,
+    "totalLessons": 32,
+    "lastAccessed": "2021-06-21T15:30:00.000Z"
+  }
+}
+```
+
+### 6. Get User Dashboard (Course-specific)
+**GET** `/api/v1/courses/user/dashboard`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "User dashboard retrieved successfully",
+  "data": {
+    "enrolledCourses": [
+      {
+        "id": "60d0fe4f5311236168a109cb",
+        "title": "React Development",
+        "progress": 85,
+        "thumbnail": "https://cloudinary.com/course-thumb.jpg",
+        "lastAccessed": "2021-06-21T15:30:00.000Z"
+      }
+    ],
+    "recentActivity": [
+      {
+        "type": "lesson_completed",
+        "courseTitle": "React Development",
+        "lessonTitle": "React Hooks",
+        "date": "2021-06-21T15:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
 ---
 
 ## Progress Tracking Endpoints
 
 ### 1. Get Course Progress
-**GET** `/api/v1/progress/course/:courseId`
+**GET** `/api/v1/progress/courses/:courseId/progress`
 
 **Headers:**
 ```
@@ -662,8 +721,8 @@ Authorization: Bearer <JWT_TOKEN>
 }
 ```
 
-### 2. Mark Lesson as Complete
-**PUT** `/api/v1/progress/complete-lesson`
+### 2. Update Video Progress
+**PUT** `/api/v1/progress/courses/:courseId/lessons/:lessonId/progress`
 
 **Headers:**
 ```
@@ -673,9 +732,10 @@ Authorization: Bearer <JWT_TOKEN>
 **Request Body:**
 ```json
 {
-  "courseId": "60d0fe4f5311236168a109cb",
-  "lessonId": "60d0fe4f5311236168a109ce",
-  "watchTime": 1800
+  "watchTime": 900,
+  "totalDuration": 1800,
+  "lastPosition": 900,
+  "completed": false
 }
 ```
 
@@ -683,29 +743,48 @@ Authorization: Bearer <JWT_TOKEN>
 ```json
 {
   "status": "success",
-  "message": "Lesson marked as complete",
+  "message": "Video progress updated successfully",
   "data": {
-    "lessonProgress": {
-      "lessonId": "60d0fe4f5311236168a109ce",
-      "isCompleted": true,
-      "completedAt": "2021-06-21T15:30:00.000Z",
-      "watchTime": 1800
-    },
-    "courseProgress": {
-      "overallProgress": 68.2,
-      "completedLessons": 22,
-      "totalLessons": 32
-    },
-    "nextLesson": {
-      "lessonId": "60d0fe4f5311236168a109cf",
-      "lessonTitle": "React Hooks Deep Dive"
-    }
+    "lessonId": "60d0fe4f5311236168a109ce",
+    "watchTime": 900,
+    "lastPosition": 900,
+    "progressPercentage": 50,
+    "completed": false,
+    "updatedAt": "2021-06-21T15:30:00.000Z"
   }
 }
 ```
 
-### 3. Sync Progress
-**PUT** `/api/v1/progress/sync`
+### 3. Get Module Access
+**GET** `/api/v1/progress/courses/:courseId/modules/:moduleId/access`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Module access retrieved successfully",
+  "data": {
+    "moduleId": "60d0fe4f5311236168a109cd",
+    "hasAccess": true,
+    "isUnlocked": true,
+    "prerequisites": [
+      {
+        "moduleId": "60d0fe4f5311236168a109cc",
+        "completed": true
+      }
+    ],
+    "nextModule": "60d0fe4f5311236168a109ce"
+  }
+}
+```
+
+### 4. Initialize Course Progress
+**POST** `/api/v1/progress/courses/:courseId/initialize`
 
 **Headers:**
 ```
@@ -715,12 +794,80 @@ Authorization: Bearer <JWT_TOKEN>
 **Request Body:**
 ```json
 {
-  "courseId": "60d0fe4f5311236168a109cb",
-  "lessonId": "60d0fe4f5311236168a109ce",
-  "watchTime": 900,
-  "totalDuration": 1800,
-  "lastPosition": 900
+  "enrollmentId": "60d0fe4f5311236168a109d0"
 }
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Course progress initialized successfully",
+  "data": {
+    "courseId": "60d0fe4f5311236168a109cb",
+    "progressInitialized": true,
+    "totalLessons": 32,
+    "initialProgress": 0
+  }
+}
+```
+
+### 5. Get User Dashboard
+**GET** `/api/v1/progress/dashboard`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Dashboard data retrieved successfully",
+  "data": {
+    "user": {
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john.doe@example.com",
+      "profilePic": "https://cloudinary.com/profile.jpg"
+    },
+    "stats": {
+      "enrolledCourses": 3,
+      "completedCourses": 1,
+      "inProgressCourses": 2,
+      "totalLessonsCompleted": 45,
+      "averageProgress": 75.5,
+      "certificatesEarned": 1,
+      "hoursLearned": 120.5
+    },
+    "recentActivity": [
+      {
+        "type": "lesson_completed",
+        "courseTitle": "React Development",
+        "lessonTitle": "React Hooks",
+        "date": "2021-06-21T15:30:00.000Z"
+      }
+    ],
+    "enrolledCourses": [
+      {
+        "id": "60d0fe4f5311236168a109cb",
+        "title": "React Development",
+        "progress": 85,
+        "thumbnail": "https://cloudinary.com/course-thumb.jpg",
+        "lastAccessed": "2021-06-21T15:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+### 6. Sync Progress
+**POST** `/api/v1/progress/courses/:courseId/sync`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
 ```
 
 **Response (200):**
@@ -729,10 +876,327 @@ Authorization: Bearer <JWT_TOKEN>
   "status": "success",
   "message": "Progress synced successfully",
   "data": {
-    "watchTime": 900,
-    "lastPosition": 900,
-    "progressPercentage": 50,
-    "updatedAt": "2021-06-21T15:30:00.000Z"
+    "courseId": "60d0fe4f5311236168a109cb",
+    "syncedLessons": 5,
+    "updatedProgress": 68.2,
+    "syncedAt": "2021-06-21T15:30:00.000Z"
+  }
+}
+```
+
+### 7. Get Course Progress Stats (Admin/Tutor)
+**GET** `/api/v1/progress/courses/:courseId/stats`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Course progress statistics retrieved successfully",
+  "data": {
+    "courseId": "60d0fe4f5311236168a109cb",
+    "totalEnrollments": 1250,
+    "averageProgress": 67.3,
+    "completionRate": 45.2,
+    "activeStudents": 832,
+    "moduleStats": [
+      {
+        "moduleId": "60d0fe4f5311236168a109cd",
+        "moduleTitle": "React Fundamentals",
+        "completionRate": 89.5,
+        "averageTimeSpent": 3600
+      }
+    ]
+  }
+}
+```
+
+### 8. Reset User Progress (Admin)
+**PUT** `/api/v1/progress/courses/:courseId/users/:userId/reset`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "User progress reset successfully",
+  "data": {
+    "courseId": "60d0fe4f5311236168a109cb",
+    "userId": "60d0fe4f5311236168a109ca",
+    "progressReset": true,
+    "resetAt": "2021-06-21T15:30:00.000Z"
+  }
+}
+```
+
+---
+
+## Content Management Endpoints
+
+### 1. Upload Video Class
+**POST** `/api/v1/content/upload-video`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+Content-Type: multipart/form-data
+```
+
+**Request Body (Form Data):**
+```
+title: Introduction to React
+description: Learn the basics of React
+moduleId: 60d0fe4f5311236168a109cd
+order: 1
+duration: 1800
+video: <video_file>
+thumbnail: <image_file>
+```
+
+**Response (201):**
+```json
+{
+  "status": "success",
+  "message": "Video class uploaded successfully",
+  "data": {
+    "videoClass": {
+      "id": "60d0fe4f5311236168a109ce",
+      "title": "Introduction to React",
+      "description": "Learn the basics of React",
+      "videoUrl": "https://cloudinary.com/video.mp4",
+      "thumbnailUrl": "https://cloudinary.com/thumbnail.jpg",
+      "duration": 1800,
+      "order": 1,
+      "moduleId": "60d0fe4f5311236168a109cd",
+      "createdAt": "2021-06-21T15:30:00.000Z"
+    }
+  }
+}
+```
+
+### 2. Get Video Classes
+**GET** `/api/v1/content/video-classes`
+
+**Query Parameters:**
+- `moduleId` (optional): Filter by module
+- `courseId` (optional): Filter by course
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Video classes retrieved successfully",
+  "data": {
+    "videoClasses": [
+      {
+        "id": "60d0fe4f5311236168a109ce",
+        "title": "Introduction to React",
+        "description": "Learn the basics of React",
+        "videoUrl": "https://cloudinary.com/video.mp4",
+        "thumbnailUrl": "https://cloudinary.com/thumbnail.jpg",
+        "duration": 1800,
+        "order": 1,
+        "moduleId": "60d0fe4f5311236168a109cd",
+        "isActive": true,
+        "createdAt": "2021-06-21T15:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+### 3. Get Single Video Class
+**GET** `/api/v1/content/video-classes/:classId`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Video class retrieved successfully",
+  "data": {
+    "videoClass": {
+      "id": "60d0fe4f5311236168a109ce",
+      "title": "Introduction to React",
+      "description": "Learn the basics of React",
+      "videoUrl": "https://cloudinary.com/video.mp4",
+      "thumbnailUrl": "https://cloudinary.com/thumbnail.jpg",
+      "duration": 1800,
+      "order": 1,
+      "moduleId": "60d0fe4f5311236168a109cd",
+      "resources": [
+        {
+          "id": "60d0fe4f5311236168a109cf",
+          "title": "React Cheat Sheet",
+          "url": "https://cloudinary.com/cheatsheet.pdf",
+          "type": "pdf"
+        }
+      ],
+      "isActive": true,
+      "createdAt": "2021-06-21T15:30:00.000Z"
+    }
+  }
+}
+```
+
+### 4. Update Video Class
+**PUT** `/api/v1/content/video-classes/:classId`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+Content-Type: multipart/form-data
+```
+
+**Request Body (Form Data):**
+```
+title: Introduction to React (Updated)
+description: Updated description
+video: <video_file> (optional)
+thumbnail: <image_file> (optional)
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Video class updated successfully",
+  "data": {
+    "videoClass": {
+      "id": "60d0fe4f5311236168a109ce",
+      "title": "Introduction to React (Updated)",
+      "description": "Updated description",
+      "videoUrl": "https://cloudinary.com/video.mp4",
+      "updatedAt": "2021-06-21T15:30:00.000Z"
+    }
+  }
+}
+```
+
+### 5. Delete Video Class
+**DELETE** `/api/v1/content/video-classes/:classId`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Video class deleted successfully",
+  "data": {
+    "deleted": true
+  }
+}
+```
+
+### 6. Upload Class Resource
+**POST** `/api/v1/content/video-classes/:classId/resources`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+Content-Type: multipart/form-data
+```
+
+**Request Body (Form Data):**
+```
+title: React Cheat Sheet
+description: Quick reference guide
+resource: <file>
+```
+
+**Response (201):**
+```json
+{
+  "status": "success",
+  "message": "Class resource uploaded successfully",
+  "data": {
+    "resource": {
+      "id": "60d0fe4f5311236168a109cf",
+      "title": "React Cheat Sheet",
+      "description": "Quick reference guide",
+      "url": "https://cloudinary.com/cheatsheet.pdf",
+      "type": "pdf",
+      "size": 2048576,
+      "uploadedAt": "2021-06-21T15:30:00.000Z"
+    }
+  }
+}
+```
+
+### 7. Get Class Resources
+**GET** `/api/v1/content/video-classes/:classId/resources`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Class resources retrieved successfully",
+  "data": {
+    "resources": [
+      {
+        "id": "60d0fe4f5311236168a109cf",
+        "title": "React Cheat Sheet",
+        "description": "Quick reference guide",
+        "url": "https://cloudinary.com/cheatsheet.pdf",
+        "type": "pdf",
+        "size": 2048576,
+        "downloadCount": 125,
+        "uploadedAt": "2021-06-21T15:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+### 8. Download Resource
+**GET** `/api/v1/content/resources/:resourceId/download`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```
+Binary file data or redirect to download URL
+```
+
+### 9. Delete Class Resource
+**DELETE** `/api/v1/content/video-classes/:classId/resources/:resourceId`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Class resource deleted successfully",
+  "data": {
+    "deleted": true
   }
 }
 ```
@@ -1215,8 +1679,134 @@ Authorization: Bearer <JWT_TOKEN>
 
 ## AI Tutor Endpoints
 
-### 1. Ask AI Tutor
-**POST** `/api/v1/ai-tutor/ask`
+### 1. Get AI Tutor Access Info
+**GET** `/api/v1/ai-tutor/access`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "AI Tutor access information retrieved successfully",
+  "data": {
+    "hasAccess": true,
+    "activePlans": [
+      {
+        "planName": "Bronze Plan",
+        "status": "active"
+      }
+    ],
+    "totalActiveSubscriptions": 1,
+    "availableFeatures": [
+      "Topic explanations and educational content",
+      "Personalized study plan generation",
+      "Question and answer assistance",
+      "Practice exercises and challenges",
+      "Learning guidance and tips"
+    ]
+  }
+}
+```
+
+### 2. Get AI Tutor Service Status
+**GET** `/api/v1/ai-tutor/status`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "AI Tutor service status retrieved successfully",
+  "data": {
+    "status": "operational",
+    "message": "AI Tutor service is running properly",
+    "availableModels": ["llama3-8b-8192"],
+    "testResponse": "AI Tutor service is operational",
+    "timestamp": "2021-06-21T15:30:00.000Z"
+  }
+}
+```
+
+### 3. Get Topic Explanation
+**POST** `/api/v1/ai-tutor/explain`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Request Body:**
+```json
+{
+  "topic": "React Hooks",
+  "userLevel": "intermediate",
+  "specificQuestions": ["How do useState and useEffect work together?"],
+  "courseId": "60d0fe4f5311236168a109cb"
+}
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Topic explanation generated successfully",
+  "data": {
+    "topic": "React Hooks",
+    "userLevel": "intermediate",
+    "explanation": "React Hooks are functions that let you use state and other React features in functional components. They were introduced in React 16.8 as a way to write components without classes...",
+    "generatedAt": "2021-06-21T15:30:00.000Z",
+    "model": "llama3-8b-8192",
+    "metadata": {
+      "tokens_used": 456,
+      "response_time": 2340
+    }
+  }
+}
+```
+
+### 4. Generate Study Plan
+**POST** `/api/v1/ai-tutor/study-plan`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Request Body:**
+```json
+{
+  "topic": "React Development",
+  "userLevel": "beginner",
+  "duration": "4 weeks",
+  "goals": ["Build first React app", "Understand components"]
+}
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Study plan generated successfully",
+  "data": {
+    "topic": "React Development",
+    "duration": "4 weeks",
+    "studyPlan": "Week 1: Introduction to React and JSX...",
+    "generatedAt": "2021-06-21T15:30:00.000Z",
+    "model": "llama3-8b-8192"
+  }
+}
+```
+
+### 5. Ask AI Tutor Question
+**POST** `/api/v1/ai-tutor/question`
 
 **Headers:**
 ```
@@ -1228,7 +1818,7 @@ Authorization: Bearer <JWT_TOKEN>
 {
   "question": "What are React Hooks and how do they work?",
   "courseId": "60d0fe4f5311236168a109cb",
-  "context": "lesson" // optional: lesson, general, assignment
+  "context": "lesson"
 }
 ```
 
@@ -1236,31 +1826,51 @@ Authorization: Bearer <JWT_TOKEN>
 ```json
 {
   "status": "success",
-  "message": "AI Tutor response generated successfully",
+  "message": "Question answered successfully",
   "data": {
     "question": "What are React Hooks and how do they work?",
     "answer": "React Hooks are functions that let you use state and other React features in functional components. They were introduced in React 16.8 as a way to write components without classes...",
-    "courseContext": {
-      "courseId": "60d0fe4f5311236168a109cb",
-      "courseTitle": "Complete React Development"
-    },
-    "relatedTopics": [
-      "useState Hook",
-      "useEffect Hook",
-      "Custom Hooks",
-      "Hook Rules"
-    ],
-    "suggestedFollowUps": [
-      "How do I create custom hooks?",
-      "What are the rules of hooks?",
-      "When should I use useEffect?"
-    ],
-    "timestamp": "2021-06-21T15:30:00.000Z"
+    "generatedAt": "2021-06-21T15:30:00.000Z",
+    "model": "llama3-8b-8192"
   }
 }
 ```
 
-### 2. Get AI Tutor Chat History
+### 6. Generate Practice Exercises
+**POST** `/api/v1/ai-tutor/exercises`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Request Body:**
+```json
+{
+  "topic": "React Hooks",
+  "difficulty": "intermediate",
+  "count": 5,
+  "exerciseType": "coding"
+}
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Practice exercises generated successfully",
+  "data": {
+    "topic": "React Hooks",
+    "difficulty": "intermediate",
+    "exerciseCount": 5,
+    "exercises": "1. Create a custom hook for API calls...",
+    "generatedAt": "2021-06-21T15:30:00.000Z",
+    "model": "llama3-8b-8192"
+  }
+}
+```
+
+### 7. Get AI Tutor Chat History
 **GET** `/api/v1/ai-tutor/history`
 
 **Headers:**
@@ -1377,7 +1987,7 @@ Authorization: Bearer <JWT_TOKEN>
 ## Assessment Endpoints
 
 ### 1. Get Course Assessments
-**GET** `/api/v1/assessments/course/:courseId`
+**GET** `/api/v1/assessments/courses/:courseId/assessments`
 
 **Headers:**
 ```
@@ -1397,15 +2007,11 @@ Authorization: Bearer <JWT_TOKEN>
         "description": "Test your knowledge of React basics",
         "moduleId": "60d0fe4f5311236168a109cd",
         "moduleTitle": "React Fundamentals",
-        "type": "quiz", // quiz, assignment, project
-        "duration": 30, // minutes
+        "type": "quiz",
+        "duration": 30,
         "totalQuestions": 15,
         "passingScore": 70,
         "maxAttempts": 3,
-        "attemptsUsed": 1,
-        "bestScore": 85,
-        "lastAttemptDate": "2021-06-21T15:30:00.000Z",
-        "status": "completed", // not_started, in_progress, completed
         "isRequired": true,
         "availableFrom": "2021-06-21T00:00:00.000Z",
         "availableUntil": "2021-12-31T23:59:59.000Z"
@@ -1415,8 +2021,8 @@ Authorization: Bearer <JWT_TOKEN>
 }
 ```
 
-### 2. Start Assessment
-**POST** `/api/v1/assessments/:assessmentId/start`
+### 2. Get Assessment by Module
+**GET** `/api/v1/assessments/modules/:moduleId/assessment`
 
 **Headers:**
 ```
@@ -1427,17 +2033,261 @@ Authorization: Bearer <JWT_TOKEN>
 ```json
 {
   "status": "success",
-  "message": "Assessment started successfully",
+  "message": "Module assessment retrieved successfully",
   "data": {
-    "attemptId": "60d0fe4f5311236168a109d7",
     "assessment": {
       "id": "60d0fe4f5311236168a109d6",
       "title": "React Fundamentals Quiz",
+      "description": "Test your knowledge of React basics",
+      "moduleId": "60d0fe4f5311236168a109cd",
+      "type": "quiz",
       "duration": 30,
-      "totalQuestions": 15
+      "totalQuestions": 15,
+      "passingScore": 70,
+      "maxAttempts": 3,
+      "attemptsUsed": 1,
+      "bestScore": 85,
+      "lastAttemptDate": "2021-06-21T15:30:00.000Z",
+      "status": "completed",
+      "isRequired": true
+    }
+  }
+}
+```
+
+### 3. Get Assessment Details
+**GET** `/api/v1/assessments/assessments/:assessmentId/details`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Assessment details retrieved successfully",
+  "data": {
+    "assessment": {
+      "id": "60d0fe4f5311236168a109d6",
+      "title": "React Fundamentals Quiz",
+      "description": "Test your knowledge of React basics",
+      "moduleId": "60d0fe4f5311236168a109cd",
+      "type": "quiz",
+      "duration": 30,
+      "questions": [
+        {
+          "id": "60d0fe4f5311236168a109d8",
+          "question": "What is JSX?",
+          "type": "multiple_choice",
+          "options": ["JavaScript XML", "Java Syntax Extension", "JSON XML"],
+          "correctAnswer": 0,
+          "points": 2
+        }
+      ],
+      "totalQuestions": 15,
+      "passingScore": 70,
+      "maxAttempts": 3
+    }
+  }
+}
+```
+
+### 4. Submit Assessment
+**POST** `/api/v1/assessments/assessments/:assessmentId/submit`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Request Body:**
+```json
+{
+  "answers": [
+    {
+      "questionId": "60d0fe4f5311236168a109d8",
+      "answer": 0
     },
-    "questions": [
+    {
+      "questionId": "60d0fe4f5311236168a109d9",
+      "answer": "React is a JavaScript library"
+    }
+  ],
+  "timeSpent": 1800
+}
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Assessment submitted successfully",
+  "data": {
+    "attempt": {
+      "id": "60d0fe4f5311236168a109da",
+      "assessmentId": "60d0fe4f5311236168a109d6",
+      "score": 85,
+      "percentage": 85,
+      "passed": true,
+      "timeSpent": 1800,
+      "submittedAt": "2021-06-21T15:30:00.000Z",
+      "correctAnswers": 13,
+      "totalQuestions": 15
+    }
+  }
+}
+```
+
+### 5. Get Assessment Attempts
+**GET** `/api/v1/assessments/assessments/:assessmentId/attempts`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Assessment attempts retrieved successfully",
+  "data": {
+    "attempts": [
       {
+        "id": "60d0fe4f5311236168a109da",
+        "assessmentId": "60d0fe4f5311236168a109d6",
+        "score": 85,
+        "percentage": 85,
+        "passed": true,
+        "timeSpent": 1800,
+        "submittedAt": "2021-06-21T15:30:00.000Z",
+        "correctAnswers": 13,
+        "totalQuestions": 15
+      }
+    ],
+    "bestAttempt": {
+      "score": 85,
+      "percentage": 85,
+      "attemptNumber": 1
+    },
+    "attemptsUsed": 1,
+    "maxAttempts": 3
+  }
+}
+```
+
+### 6. Create Assessment (Admin/Tutor)
+**POST** `/api/v1/assessments/assessments`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Request Body:**
+```json
+{
+  "title": "JavaScript Fundamentals Quiz",
+  "description": "Test your JavaScript knowledge",
+  "moduleId": "60d0fe4f5311236168a109cd",
+  "type": "quiz",
+  "duration": 45,
+  "passingScore": 70,
+  "maxAttempts": 3,
+  "isRequired": true,
+  "availableFrom": "2021-06-21T00:00:00.000Z",
+  "availableUntil": "2021-12-31T23:59:59.000Z",
+  "questions": [
+    {
+      "question": "What is JavaScript?",
+      "type": "multiple_choice",
+      "options": ["Programming Language", "Markup Language", "Style Sheet"],
+      "correctAnswer": 0,
+      "points": 2
+    }
+  ]
+}
+```
+
+**Response (201):**
+```json
+{
+  "status": "success",
+  "message": "Assessment created successfully",
+  "data": {
+    "assessment": {
+      "id": "60d0fe4f5311236168a109d6",
+      "title": "JavaScript Fundamentals Quiz",
+      "description": "Test your JavaScript knowledge",
+      "moduleId": "60d0fe4f5311236168a109cd",
+      "type": "quiz",
+      "duration": 45,
+      "totalQuestions": 1,
+      "passingScore": 70,
+      "maxAttempts": 3,
+      "isRequired": true,
+      "createdAt": "2021-06-21T15:30:00.000Z"
+    }
+  }
+}
+```
+
+### 7. Update Assessment (Admin/Tutor)
+**PUT** `/api/v1/assessments/assessments/:assessmentId`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Request Body:**
+```json
+{
+  "title": "Updated Quiz Title",
+  "description": "Updated description",
+  "duration": 60,
+  "passingScore": 75
+}
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Assessment updated successfully",
+  "data": {
+    "assessment": {
+      "id": "60d0fe4f5311236168a109d6",
+      "title": "Updated Quiz Title",
+      "description": "Updated description",
+      "duration": 60,
+      "passingScore": 75,
+      "updatedAt": "2021-06-21T15:30:00.000Z"
+    }
+  }
+}
+```
+
+### 8. Delete Assessment (Admin/Tutor)
+**DELETE** `/api/v1/assessments/assessments/:assessmentId`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Assessment deleted successfully",
+  "data": {
+    "deleted": true
+  }
+}
+```
         "id": "60d0fe4f5311236168a109d8",
         "questionNumber": 1,
         "question": "What is React?",
