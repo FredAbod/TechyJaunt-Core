@@ -47,7 +47,7 @@ export const handlePaystackWebhook = async (req, res) => {
         
       case 'course':
         logger.info(`Processing course payment webhook for reference: ${data.reference}`);
-        result = await PaymentService.handlePaymentWebhook(req.body, req.headers['x-paystack-signature']);
+        result = await PaymentService.handleWebhook(req.body, req.headers['x-paystack-signature']);
         break;
         
       default:

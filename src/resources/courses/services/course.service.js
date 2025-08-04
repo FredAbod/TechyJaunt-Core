@@ -209,7 +209,7 @@ class CourseService {
           path: 'modules',
           populate: {
             path: 'lessons',
-            select: 'title description type order isFree',
+            select: 'title description type order isFree content.videoUrl content.videoDuration',
           },
           select: 'title description order duration isActive',
         })
@@ -255,7 +255,7 @@ class CourseService {
           path: "modules",
           populate: {
             path: "lessons",
-            select: "title description type order isFree",
+            select: "title description type order isFree content.videoUrl content.videoDuration",
           },
           select: "title description order duration isActive",
         })

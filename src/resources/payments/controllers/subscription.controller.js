@@ -58,7 +58,8 @@ export const verifySubscription = async (req, res) => {
     });
   } catch (error) {
     logger.error(`Verify subscription error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message || "Failed to verify subscription");
+    const statusCode = typeof error.status === 'number' ? error.status : 500;
+    return errorResMsg(res, statusCode, error.message || "Failed to verify subscription");
   }
 };
 

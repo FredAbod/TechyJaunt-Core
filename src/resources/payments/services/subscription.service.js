@@ -140,6 +140,9 @@ class SubscriptionService {
       // Get plan details from database
       const planDetails = await this.getPlanByType(planType);
 
+      // Debug logging
+      logger.info(`Subscription Debug - Plan: ${planType}, Course: ${courseId}, Plan Price: ${planDetails.price}, Course Price: ${course.price}`);
+
       // Generate unique transaction reference
       const transactionReference = `TJ_SUB_${generateRandomString(20)}`;
 
@@ -196,6 +199,9 @@ class SubscriptionService {
           ]
         }
       };
+
+      // Debug logging before Paystack call
+      logger.info(`Paystack payload - Amount: ${paystackPayload.amount}, Plan: ${planType}, Reference: ${transactionReference}`);
 
       // Initialize payment with Paystack
       const response = await axios.post(

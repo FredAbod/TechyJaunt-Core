@@ -96,13 +96,9 @@ export const createCourseMultipartSchema = Joi.object({
   startDate: Joi.date().optional(),
   endDate: Joi.date().optional(),
   maxStudents: Joi.number().min(1).optional(),
-      image: Joi.string()
-    .uri()
-    .optional()
-    .messages({
-      "string.uri": "Image must be a valid URL",
-      "any.required": "Course image is required",
-    }),
+  image: Joi.any().meta({ swaggerType: "file" }).required().messages({
+    "any.required": "Course image is required",
+  }),
 });
 
 // Course creation validation
@@ -154,8 +150,7 @@ export const createCourseSchema = Joi.object({
     "any.required": "Course price is required",
   }),
   originalPrice: Joi.number().min(0).optional(),
-  image: Joi.string().uri().required().messages({
-    "string.uri": "Image must be a valid URL",
+  image: Joi.any().meta({ swaggerType: "file" }).required().messages({
     "any.required": "Course image is required",
   }),
   thumbnail: Joi.string().uri().optional().messages({
