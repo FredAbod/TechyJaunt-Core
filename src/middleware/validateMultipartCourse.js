@@ -21,7 +21,24 @@ export const validateMultipartCourse = (req, res, next) => {
     if (req.body.originalPrice) req.body.originalPrice = parseFloat(req.body.originalPrice);
     if (req.body.maxStudents) req.body.maxStudents = parseInt(req.body.maxStudents);
 
-    // Validate the request body
+    // Check for uploaded image file
+    if (!req.files || !req.files.image || req.files.image.length === 0) {
+      return res.status(400).json({
+        status: "error",
+        message: "Validation error",
+        errors: [
+          {
+            field: "image",
+            message: "Course image is required"
+          }
+        ]
+      });
+    }
+
+    // Add the uploaded file info to req.body for validation (if needed)
+    req.body.image = req.files.image[0];
+
+    // Validate the request body (excluding image field since it's handled above)
     const { error } = createCourseMultipartSchema.validate(req.body);
     
     if (error) {

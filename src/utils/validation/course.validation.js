@@ -96,7 +96,7 @@ export const createCourseMultipartSchema = Joi.object({
   startDate: Joi.date().optional(),
   endDate: Joi.date().optional(),
   maxStudents: Joi.number().min(1).optional(),
-  image: Joi.any().meta({ swaggerType: "file" }).required().messages({
+  image: Joi.any().meta({ swaggerType: "file" }).optional().messages({
     "any.required": "Course image is required",
   }),
 });

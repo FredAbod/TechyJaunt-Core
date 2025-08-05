@@ -19,6 +19,9 @@ import webhookRoute from "./src/resources/payments/routes/webhook.routes.js";
 import aiTutorRoute from "./src/resources/ai-tutor/routes/aiTutor.routes.js";
 const app = express();
 
+// Trust proxy for production environments (Render, Heroku, etc.)
+app.set('trust proxy', true);
+
 app.use(morgan("dev"));
 app.use(cors({
   origin: "*", // Allow all origins, adjust as needed for production  
