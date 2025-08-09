@@ -1,0 +1,43 @@
+flowchart TD
+    Start([User Enrolls in Course]) --> CreateProgress[Create Progress Record]
+    
+    CreateProgress --> ProgressDB[(Progress Database)]
+    ProgressDB --> |"userId: ObjectId<br/>courseId: ObjectId<br/>overallProgress: 0%<br/>currentModule: 0<br/>modules: []"| InitialState[Initial Progress State]
+    
+    InitialState --> FirstModule{Can Access<br/>First Module?}
+    FirstModule -->|Yes| UnlockModule1[Unlock Module 1]
+    FirstModule -->|No| NoAccess[No Access - Check Subscription]
+    
+    UnlockModule1 --> ModuleProgress[Module Progress Tracking]
+    
+    subgraph ModuleProgress["Module Progress Tracking"]
+        direction TB
+        WatchLesson[User Watches Lesson] --> UpdateProgress[Update Lesson Progress]
+        UpdateProgress --> CalcWatchTime[Calculate Watch Time %]
+        CalcWatchTime --> CheckComplete{Lesson Complete?<br/>>= 80% watched}
+        
+        CheckComplete -->|Yes| MarkLessonComplete[Mark Lesson Complete]
+        CheckComplete -->|No| SaveProgress[Save Partial Progress]
+        
+        MarkLessonComplete --> CheckModuleComplete{All Lessons<br/>in Module Complete?}
+        SaveProgress --> UpdateOverall[Update Overall Progress]
+        
+        CheckModuleComplete -->|No| UpdateOverall
+        CheckModuleComplete -->|Yes| CheckAssessment{Assessment<br/>Required?}
+        
+        CheckAssessment -->|No| CompleteModule[Complete Module]
+        CheckAssessment -->|Yes| TakeAssessment[Take Assessment]
+        
+        TakeAssessment --> AssessmentResult{Assessment<br/>Passed?}
+        AssessmentResult -->|No| RetryAssessment[Can Retry Assessment]
+        AssessmentResult -->|Yes| CompleteModule
+        
+        CompleteModule --> UnlockNext[Unlock Next Module]
+        RetryAssessment --> TakeAssessment
+    end
+    
+    UnlockNext --> CheckCourseComplete{All Modules<br/>Complete?}
+    CheckCourseComplete -->|No| NextModule[Access Next Module]
+    CheckCourseComplete -->|Yes| CourseComplete[Course Complete<br/>Generate Certificate]
+    
+    NextModule --> ModuleProgress

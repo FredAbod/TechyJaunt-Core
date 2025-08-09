@@ -5,6 +5,7 @@ import Lesson from "../models/lesson.js";
 import UserCourseProgress from "../models/userCourseProgress.js";
 import User from "../../user/models/user.js";
 import PaymentService from "../../payments/services/payment.service.js";
+import { getVideoDurationFromUrl } from "../../../utils/image/cloudinary.js";
 
 class CourseService {
   // Admin/Tutor methods
@@ -172,6 +173,19 @@ class CourseService {
         }).sort({ order: -1 });
         
         lessonData.order = highestOrder ? highestOrder.order + 1 : 1;
+      }
+
+      // Auto-fetch video duration from Cloudinary if video URL is provided
+      if (lessonData.content && lessonData.content.videoUrl && !lessonData.content.videoDuration) {
+        try {
+          const duration = await getVideoDurationFromUrl(lessonData.content.videoUrl);
+          if (duration > 0) {
+            lessonData.content.videoDuration = duration;
+          }
+        } catch (error) {
+          console.warn('Could not fetch video duration automatically:', error.message);
+          // Continue without video duration - not a critical error
+        }
       }
 
       const lesson = new Lesson(lessonData);
@@ -485,6 +499,76 @@ class CourseService {
       }
 
       return course.brochure;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async updateLesson(lessonId, updateData, userId) {
+    try {
+      const lesson = await Lesson.findById(lessonId).populate('courseId');
+      if (!lesson) {
+        throw new Error("Lesson not found");
+      }
+
+      // Check permissions
+      const user = await User.findById(userId);
+      if (!user || !["admin", "super admin"].includes(user.role)) {
+        if (lesson.courseId.instructor.toString() !== userId) {
+          throw new Error("You can only edit lessons in your own courses");
+        }
+      }
+
+      // Auto-fetch video duration if video URL is updated and duration not provided
+      if (updateData.content && updateData.content.videoUrl && !updateData.content.videoDuration) {
+        try {
+          const duration = await getVideoDurationFromUrl(updateData.content.videoUrl);
+          if (duration > 0) {
+            updateData.content.videoDuration = duration;
+          }
+        } catch (error) {
+          console.warn('Could not fetch video duration automatically:', error.message);
+          // Continue without video duration - not a critical error
+        }
+      }
+
+      const updatedLesson = await Lesson.findByIdAndUpdate(
+        lessonId,
+        updateData,
+        { new: true, runValidators: true }
+      ).populate('moduleId courseId');
+
+      return updatedLesson;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async deleteLesson(lessonId, userId) {
+    try {
+      const lesson = await Lesson.findById(lessonId).populate('courseId');
+      if (!lesson) {
+        throw new Error("Lesson not found");
+      }
+
+      // Check permissions
+      const user = await User.findById(userId);
+      if (!user || !["admin", "super admin"].includes(user.role)) {
+        if (lesson.courseId.instructor.toString() !== userId) {
+          throw new Error("You can only delete lessons in your own courses");
+        }
+      }
+
+      // Remove lesson from module
+      await Module.findByIdAndUpdate(
+        lesson.moduleId,
+        { $pull: { lessons: lessonId } }
+      );
+
+      // Delete the lesson
+      await Lesson.findByIdAndDelete(lessonId);
+
+      return { message: "Lesson deleted successfully" };
     } catch (error) {
       throw error;
     }

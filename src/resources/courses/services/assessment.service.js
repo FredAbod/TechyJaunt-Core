@@ -172,27 +172,44 @@ class AssessmentService {
         throw new AppError("You have already passed this assessment", 400);
       }
 
-      // Validate answers
-      if (!answers || answers.length !== assessment.questions.length) {
-        throw new AppError("Please answer all questions", 400);
+      // Validate answers - allow partial submissions (for timeouts)
+      if (!answers || !Array.isArray(answers)) {
+        answers = []; // If no answers provided, treat as empty array
       }
 
       // Calculate score
       let correctAnswers = 0;
+      let answeredQuestions = 0;
       const processedAnswers = [];
 
       assessment.questions.forEach((question, index) => {
         const userAnswer = answers.find(a => a.questionId === question._id.toString());
-        if (!userAnswer) {
-          throw new AppError(`Missing answer for question ${index + 1}`, 400);
+        
+        if (!userAnswer || !userAnswer.selectedOptionId) {
+          // User didn't answer this question (timeout or skipped)
+          processedAnswers.push({
+            questionId: question._id,
+            selectedOptionId: null,
+            isCorrect: false,
+            skipped: true
+          });
+          return;
         }
 
+        answeredQuestions++;
         const selectedOption = question.options.find(
           opt => opt._id.toString() === userAnswer.selectedOptionId
         );
 
         if (!selectedOption) {
-          throw new AppError(`Invalid option selected for question ${index + 1}`, 400);
+          // Invalid option, treat as incorrect
+          processedAnswers.push({
+            questionId: question._id,
+            selectedOptionId: userAnswer.selectedOptionId,
+            isCorrect: false,
+            invalid: true
+          });
+          return;
         }
 
         const isCorrect = selectedOption.isCorrect;
@@ -240,11 +257,14 @@ class AssessmentService {
         score,
         passed,
         correctAnswers,
+        answeredQuestions,
         totalQuestions: assessment.questions.length,
+        skippedQuestions: assessment.questions.length - answeredQuestions,
         passingScore: assessment.passingScore,
         attemptsUsed: previousAttempts.length + 1,
         attemptsAllowed: assessment.attemptsAllowed,
-        canRetake: !passed && (previousAttempts.length + 1) < assessment.attemptsAllowed
+        canRetake: !passed && (previousAttempts.length + 1) < assessment.attemptsAllowed,
+        timeoutSubmission: answeredQuestions < assessment.questions.length
       };
     } catch (error) {
       if (error instanceof AppError) throw error;

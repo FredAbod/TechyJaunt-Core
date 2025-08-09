@@ -8,6 +8,8 @@ import {
   addCurriculum,
   addModule,
   addLesson,
+  updateLesson,
+  deleteLesson,
   getAllCourses,
   getAllCoursesAdmin,
   publishCourse,
@@ -95,6 +97,8 @@ router.delete("/:courseId", adminLimiter, isAuthenticated, deleteCourse);
 router.post("/:courseId/curriculum", adminLimiter, isAuthenticated, addCurriculum);
 router.post("/modules", adminLimiter, isAuthenticated, validateRequest(createModuleSchema), addModule);
 router.post("/lessons", adminLimiter, isAuthenticated, validateRequest(createLessonSchema), addLesson);
+router.put("/lessons/:lessonId", adminLimiter, isAuthenticated, updateLesson);
+router.delete("/lessons/:lessonId", adminLimiter, isAuthenticated, deleteLesson);
 router.post("/:courseId/brochure/upload", 
   adminLimiter, 
   isAuthenticated, 

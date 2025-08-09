@@ -120,13 +120,75 @@ const generateThumbnail = async (videoPublicId, options = {}) => {
   }
 };
 
+// Get video metadata including duration from Cloudinary URL
+const getVideoMetadata = async (videoUrl) => {
+  try {
+    // Extract public ID from Cloudinary URL
+    const publicId = extractPublicIdFromUrl(videoUrl);
+    if (!publicId) {
+      throw new Error('Invalid Cloudinary URL format');
+    }
+
+    // Get resource details from Cloudinary
+    const result = await cloudinary.api.resource(publicId, {
+      resource_type: "video"
+    });
+
+    return {
+      duration: result.duration || 0, // Duration in seconds
+      width: result.width,
+      height: result.height,
+      format: result.format,
+      bytes: result.bytes,
+      url: result.secure_url,
+      publicId: result.public_id
+    };
+  } catch (error) {
+    console.error('Error getting video metadata:', error);
+    throw new Error('Failed to get video metadata from Cloudinary');
+  }
+};
+
+// Extract public ID from Cloudinary URL
+const extractPublicIdFromUrl = (url) => {
+  try {
+    // Handle different Cloudinary URL formats
+    const regex = /(?:cloudinary\.com\/[^\/]+\/(?:image|video)\/upload\/(?:v\d+\/)?)(.*?)(?:\.[^.]+)?$/;
+    const match = url.match(regex);
+    
+    if (match && match[1]) {
+      // Remove file extension and return public ID
+      return match[1].replace(/\.[^.]+$/, '');
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error extracting public ID from URL:', error);
+    return null;
+  }
+};
+
+// Get video duration from URL (convenience function)
+const getVideoDurationFromUrl = async (videoUrl) => {
+  try {
+    const metadata = await getVideoMetadata(videoUrl);
+    return metadata.duration;
+  } catch (error) {
+    console.error('Error getting video duration:', error);
+    return 0; // Return 0 if unable to get duration
+  }
+};
+
 export {
   cloudinary,
   uploadVideo,
   uploadImage,
   uploadDocument,
   deleteFile,
-  generateThumbnail
+  generateThumbnail,
+  getVideoMetadata,
+  getVideoDurationFromUrl,
+  extractPublicIdFromUrl
 };
 
 export default cloudinary;
