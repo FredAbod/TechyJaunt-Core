@@ -430,31 +430,92 @@ class CourseService {
 
   async getUserDashboard(userId) {
     try {
-      const enrolledCourses = await UserCourseProgress.find({ userId })
-        .populate('courseId', 'title thumbnail category level')
-        .sort({ lastAccessedAt: -1 });
+      // Get enrolled courses from Progress collection (active subscriptions)
+      const Progress = (await import("../models/progress.js")).default;
+      
+      const enrolledCourses = await Progress.find({ userId })
+        .populate({
+          path: 'courseId',
+          select: 'title description thumbnail category level instructor duration price',
+          populate: {
+            path: 'instructor',
+            select: 'firstName lastName'
+          }
+        })
+        .populate('subscriptionId', 'plan status endDate')
+        .sort({ lastActivityAt: -1 });
 
+      console.log(`Found ${enrolledCourses.length} enrolled courses for user ${userId}`);
+
+      // Calculate statistics
+      const validEnrolledCourses = enrolledCourses.filter(progress => progress.courseId); // Only count courses that populated successfully
+      
       const stats = {
-        totalCourses: enrolledCourses.length,
-        completedCourses: enrolledCourses.filter(p => p.status === "completed").length,
-        inProgressCourses: enrolledCourses.filter(p => p.status === "in-progress").length,
+        totalCourses: validEnrolledCourses.length,
+        completedCourses: validEnrolledCourses.filter(p => p.isCompleted).length,
+        inProgressCourses: validEnrolledCourses.filter(p => !p.isCompleted).length,
         overallProgress: 0,
+        totalWatchTime: 0,
       };
 
       if (stats.totalCourses > 0) {
-        const totalProgress = enrolledCourses.reduce(
-          (sum, course) => sum + course.progress.progressPercentage,
+        const totalProgress = validEnrolledCourses.reduce(
+          (sum, course) => sum + (course.overallProgress || 0),
           0
         );
         stats.overallProgress = Math.round(totalProgress / stats.totalCourses);
+        stats.totalWatchTime = validEnrolledCourses.reduce(
+          (sum, course) => sum + (course.totalWatchTime || 0),
+          0
+        );
       }
+
+      // Format enrolled courses data for frontend
+      const formattedCourses = enrolledCourses
+        .filter(progress => progress.courseId) // Filter out any courses that failed to populate
+        .map(progress => ({
+          courseId: progress.courseId._id,
+          title: progress.courseId.title,
+          description: progress.courseId.description,
+          thumbnail: progress.courseId.thumbnail,
+          category: progress.courseId.category,
+          level: progress.courseId.level,
+          instructor: progress.courseId.instructor ? {
+            name: `${progress.courseId.instructor.firstName || ''} ${progress.courseId.instructor.lastName || ''}`.trim() || 'Unknown Instructor',
+            id: progress.courseId.instructor._id
+          } : {
+            name: 'Unknown Instructor',
+            id: null
+          },
+          duration: progress.courseId.duration,
+          price: progress.courseId.price,
+          subscription: progress.subscriptionId ? {
+            plan: progress.subscriptionId.plan,
+            status: progress.subscriptionId.status,
+            endDate: progress.subscriptionId.endDate
+          } : {
+            plan: 'unknown',
+            status: 'inactive',
+            endDate: null
+          },
+          progress: {
+            overallProgress: progress.overallProgress || 0,
+            currentModuleIndex: progress.currentModuleIndex || 0,
+            totalModules: progress.modules ? progress.modules.length : 0,
+            isCompleted: progress.isCompleted || false,
+            completedAt: progress.completedAt,
+            lastActivityAt: progress.lastActivityAt,
+            totalWatchTime: progress.totalWatchTime || 0
+          }
+        }));
 
       return {
         stats,
-        recentCourses: enrolledCourses.slice(0, 5),
-        enrolledCourses,
+        recentCourses: formattedCourses.slice(0, 5),
+        enrolledCourses: formattedCourses,
       };
     } catch (error) {
+      console.error('Dashboard error details:', error);
       throw error;
     }
   }
@@ -569,6 +630,51 @@ class CourseService {
       await Lesson.findByIdAndDelete(lessonId);
 
       return { message: "Lesson deleted successfully" };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async deleteModule(moduleId, userId) {
+    try {
+      const module = await Module.findById(moduleId).populate('courseId');
+      if (!module) {
+        throw new Error("Module not found");
+      }
+
+      // Check permissions
+      const user = await User.findById(userId);
+      if (!user || !["admin", "super admin"].includes(user.role)) {
+        if (module.courseId.instructor.toString() !== userId) {
+          throw new Error("You can only delete modules in your own courses");
+        }
+      }
+
+      // Delete all lessons in this module first
+      if (module.lessons && module.lessons.length > 0) {
+        await Lesson.deleteMany({ _id: { $in: module.lessons } });
+      }
+
+      // Remove module from course
+      await Course.findByIdAndUpdate(
+        module.courseId,
+        { $pull: { modules: moduleId } }
+      );
+
+      // Update any progress records that reference this module
+      const Progress = (await import("../models/progress.js")).default;
+      await Progress.updateMany(
+        { courseId: module.courseId },
+        {
+          $pull: { modules: { moduleId: moduleId } },
+          $set: { updatedAt: new Date() }
+        }
+      );
+
+      // Delete the module
+      await Module.findByIdAndDelete(moduleId);
+
+      return { message: "Module and all its lessons deleted successfully" };
     } catch (error) {
       throw error;
     }

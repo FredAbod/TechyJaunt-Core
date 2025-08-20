@@ -10,6 +10,7 @@ import {
   addLesson,
   updateLesson,
   deleteLesson,
+  deleteModule,
   getAllCourses,
   getAllCoursesAdmin,
   publishCourse,
@@ -96,6 +97,7 @@ router.put("/:courseId/publish", adminLimiter, isAuthenticated, roleBasedAccess(
 router.delete("/:courseId", adminLimiter, isAuthenticated, deleteCourse);
 router.post("/:courseId/curriculum", adminLimiter, isAuthenticated, addCurriculum);
 router.post("/modules", adminLimiter, isAuthenticated, validateRequest(createModuleSchema), addModule);
+router.delete("/modules/:moduleId", adminLimiter, isAuthenticated, deleteModule);
 router.post("/lessons", adminLimiter, isAuthenticated, validateRequest(createLessonSchema), addLesson);
 router.put("/lessons/:lessonId", adminLimiter, isAuthenticated, updateLesson);
 router.delete("/lessons/:lessonId", adminLimiter, isAuthenticated, deleteLesson);
