@@ -363,15 +363,17 @@ class CourseService {
 
   async getUserCourseProgress(userId, courseId) {
     try {
-      const progress = await UserCourseProgress.findOne({ userId, courseId })
-        .populate('courseId', 'title description')
-        .populate('progress.completedLessons.lessonId', 'title type');
-
-      if (!progress) {
+      // Use the new Progress model instead of UserCourseProgress
+      const ProgressService = (await import("./progress.service.js")).default;
+      
+      // Get comprehensive progress data including lessons and modules
+      const progressData = await ProgressService.getUserProgress(userId, courseId);
+      
+      if (!progressData) {
         throw new Error("You are not enrolled in this course");
       }
 
-      return progress;
+      return progressData;
     } catch (error) {
       throw error;
     }
