@@ -267,34 +267,38 @@ class ProgressService {
         throw new AppError("Failed to populate progress data", 500);
       }
 
-      // Manually populate lesson data since nested array population can be problematic
+
+      // Fetch all lessons for the course in one query
+      const allLessons = await Lesson.find({ courseId, isActive: true });
+      const lessonMap = {};
+      allLessons.forEach(l => lessonMap[l._id.toString()] = l);
+
       for (let i = 0; i < populatedProgress.modules.length; i++) {
         const module = populatedProgress.modules[i];
         for (let j = 0; j < module.lessons.length; j++) {
           const lesson = module.lessons[j];
-          try {
-            // Use Lesson model instead of PrerecordedClass
-            const lessonData = await Lesson.findById(lesson.lessonId).select(
-              "title description duration order type isFree content.videoUrl content.videoDuration"
-            );
-            if (lessonData) {
-              lesson.lessonData = lessonData;
-            }
-          } catch (lessonError) {
-            console.warn(
-              `Failed to populate lesson ${lesson.lessonId}:`,
-              lessonError.message
-            );
+          const lessonData = lessonMap[lesson.lessonId.toString()];
+          if (lessonData) {
+            lesson.title = lessonData.title;
+            lesson.description = lessonData.description;
+            lesson.duration = lessonData.content?.videoDuration || lessonData.duration || lesson.totalDuration;
+            lesson.totalDuration = lessonData.content?.videoDuration || lessonData.duration || lesson.totalDuration;
+            lesson.type = lessonData.type;
+            lesson.isFree = lessonData.isFree;
+            lesson.videoUrl = lessonData.content?.videoUrl || null;
+            lesson.resources = lessonData.resources || [];
+            lesson.order = lessonData.order;
+          } else {
+            lesson.title = "Unknown Lesson";
+            lesson.description = "";
+            lesson.duration = lesson.totalDuration || 0;
+            lesson.resources = [];
           }
         }
       }
 
-      console.log("Progress populated successfully");
-
-      // Get course details
-      const course = await Course.findById(courseId).select(
-        "title description"
-      );
+      // Always fetch course details before returning response
+      const course = await Course.findById(courseId).select("title description");
 
       return {
         course,
@@ -320,9 +324,9 @@ class ProgressService {
             canAccess: canAccess,
             lessons: module.lessons.map((lesson) => ({
               lessonId: lesson.lessonId,
-              title: lesson.lessonData?.title || "Unknown Lesson",
-              description: lesson.lessonData?.description || "",
-              duration: lesson.lessonData?.duration || lesson.totalDuration,
+              title: lesson.title || "Unknown Lesson",
+              description: lesson.description || "",
+              duration: lesson.duration || lesson.totalDuration,
               watchTime: lesson.watchTime,
               totalDuration: lesson.totalDuration,
               isCompleted: lesson.isCompleted,
@@ -331,6 +335,11 @@ class ProgressService {
                 lesson.totalDuration > 0
                   ? Math.round((lesson.watchTime / lesson.totalDuration) * 100)
                   : 0,
+              resources: lesson.resources || [],
+              type: lesson.type,
+              isFree: lesson.isFree,
+              videoUrl: lesson.videoUrl,
+              order: lesson.order,
             })),
             assessmentAttempts: module.assessmentAttempts.map((attempt) => ({
               assessmentId: attempt.assessmentId,
