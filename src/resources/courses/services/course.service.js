@@ -280,6 +280,17 @@ class CourseService {
         .sort({ featured: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit);
+      
+        // Ensure we never return lessons that don't exist in DB (filter out nulls from populate)
+        courses.forEach((course) => {
+          if (Array.isArray(course.modules)) {
+            course.modules.forEach((mod) => {
+              if (Array.isArray(mod.lessons)) {
+                mod.lessons = mod.lessons.filter(Boolean);
+              }
+            });
+          }
+        });
 
       const total = await Course.countDocuments(query);
 
@@ -328,6 +339,16 @@ class CourseService {
         .skip(skip)
         .limit(parseInt(limit));
 
+        // Ensure we never return lessons that don't exist in DB (filter out nulls from populate)
+        courses.forEach((course) => {
+          if (Array.isArray(course.modules)) {
+            course.modules.forEach((mod) => {
+              if (Array.isArray(mod.lessons)) {
+                mod.lessons = mod.lessons.filter(Boolean);
+              }
+            });
+          }
+        });
         
       const total = await Course.countDocuments(query);
 
@@ -359,6 +380,15 @@ class CourseService {
       if (!course) {
         throw new Error("Course not found");
       }
+      
+        // Filter out any lessons that did not populate (deleted or missing)
+        if (Array.isArray(course.modules)) {
+          course.modules.forEach((mod) => {
+            if (Array.isArray(mod.lessons)) {
+              mod.lessons = mod.lessons.filter(Boolean);
+            }
+          });
+        }
 
       return course;
     } catch (error) {
