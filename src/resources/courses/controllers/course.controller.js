@@ -2,6 +2,11 @@
 export const updateModule = async (req, res) => {
   try {
     const { moduleId } = req.params;
+    // Basic validation for ObjectId format to avoid Mongoose Cast errors
+    if (!/^[0-9a-fA-F]{24}$/.test(moduleId)) {
+      logger.warn(`Invalid moduleId received: ${moduleId}`);
+      return errorResMsg(res, 400, "Invalid moduleId parameter");
+    }
     const updateData = req.body;
     const userId = req.user.userId;
     const module = await CourseService.updateModule(moduleId, updateData, userId);
@@ -17,6 +22,11 @@ export const updateModule = async (req, res) => {
 export const deleteModule = async (req, res) => {
   try {
     const { moduleId } = req.params;
+    // Validate moduleId format
+    if (!/^[0-9a-fA-F]{24}$/.test(moduleId)) {
+      logger.warn(`Invalid moduleId received for delete: ${moduleId}`);
+      return errorResMsg(res, 400, "Invalid moduleId parameter");
+    }
     const userId = req.user.userId;
     const result = await CourseService.deleteModule(moduleId, userId);
     logger.info(`Module deleted: ${moduleId} by ${userId}`);
@@ -31,6 +41,10 @@ export const deleteModule = async (req, res) => {
 export const updateLesson = async (req, res) => {
   try {
     const { lessonId } = req.params;
+    if (!/^[0-9a-fA-F]{24}$/.test(lessonId)) {
+      logger.warn(`Invalid lessonId received: ${lessonId}`);
+      return errorResMsg(res, 400, "Invalid lessonId parameter");
+    }
     const updateData = req.body;
     const userId = req.user.userId;
     const lesson = await CourseService.updateLesson(lessonId, updateData, userId);
@@ -46,6 +60,10 @@ export const updateLesson = async (req, res) => {
 export const deleteLesson = async (req, res) => {
   try {
     const { lessonId } = req.params;
+    if (!/^[0-9a-fA-F]{24}$/.test(lessonId)) {
+      logger.warn(`Invalid lessonId received for delete: ${lessonId}`);
+      return errorResMsg(res, 400, "Invalid lessonId parameter");
+    }
     const userId = req.user.userId;
     const result = await CourseService.deleteLesson(lessonId, userId);
     logger.info(`Lesson deleted: ${lessonId} by ${userId}`);

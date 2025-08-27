@@ -199,6 +199,23 @@ export const createModuleSchema = Joi.object({
   duration: Joi.string().optional(),
 });
 
+// Module update validation (partial)
+export const updateModuleSchema = Joi.object({
+  title: Joi.string().min(3).max(100).optional().messages({
+    "string.min": "Module title must be at least 3 characters",
+    "string.max": "Module title cannot exceed 100 characters",
+  }),
+  description: Joi.string().min(10).max(1000).optional().messages({
+    "string.min": "Description must be at least 10 characters",
+    "string.max": "Description cannot exceed 1000 characters",
+  }),
+  order: Joi.number().min(1).optional().messages({
+    "number.min": "Module order must be at least 1",
+  }),
+  duration: Joi.string().optional(),
+  isActive: Joi.boolean().optional(),
+});
+
 // Lesson creation validation
 export const createLessonSchema = Joi.object({
   title: Joi.string().min(3).max(100).required().messages({
@@ -542,10 +559,10 @@ export const submitAssessmentSchema = Joi.object({
           }),
       })
     )
-    .min(1)
+    // Allow empty array so students may submit with no answers
+    .min(0)
     .required()
     .messages({
-      "array.min": "At least one answer is required",
       "any.required": "Answers are required",
     }),
 });

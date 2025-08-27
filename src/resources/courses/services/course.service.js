@@ -132,6 +132,56 @@ class CourseService {
       throw error;
     }
   }
+
+  async updateModule(moduleId, updateData, userId) {
+    try {
+      const module = await Module.findById(moduleId).populate('courseId');
+      if (!module) throw new Error('Module not found');
+
+      const course = module.courseId;
+      const user = await User.findById(userId);
+      if (!user || !['admin', 'super admin'].includes(user.role)) {
+        if (course.instructor.toString() !== userId) {
+          throw new Error('You can only update modules in your own courses');
+        }
+      }
+
+      // If order is changed, adjust other modules ordering
+      if (updateData.order && updateData.order !== module.order) {
+        // clamp to positive
+        const newOrder = Math.max(1, parseInt(updateData.order, 10) || module.order);
+        // shift other modules accordingly
+        const modules = await Module.find({ courseId: course._id }).sort({ order: 1 });
+        // remove current module from list
+        const others = modules.filter(m => m._id.toString() !== moduleId);
+        // insert module placeholder at new position
+        others.splice(Math.max(0, newOrder - 1), 0, module);
+        // reassign orders
+        for (let i = 0; i < others.length; i++) {
+          const m = others[i];
+          const desiredOrder = i + 1;
+          if (m._id.toString() === moduleId) {
+            module.order = desiredOrder;
+          } else if (m.order !== desiredOrder) {
+            await Module.findByIdAndUpdate(m._id, { order: desiredOrder });
+          }
+        }
+      }
+
+      // Apply other updates
+      const updatable = ['title', 'description', 'duration', 'isActive'];
+      updatable.forEach((field) => {
+        if (Object.prototype.hasOwnProperty.call(updateData, field)) {
+          module[field] = updateData[field];
+        }
+      });
+
+      await module.save();
+      return module;
+    } catch (error) {
+      throw error;
+    }
+  }
   async addLessonToModule(lessonData, userId) {
     try {
       const module = await Module.findById(lessonData.moduleId);

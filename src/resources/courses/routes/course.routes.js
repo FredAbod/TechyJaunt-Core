@@ -7,6 +7,7 @@ import {
   deleteCourse,
   addCurriculum,
   addModule,
+  updateModule,
   addLesson,
   updateLesson,
   deleteLesson,
@@ -27,6 +28,7 @@ import { validateRequest } from "../../../middleware/validation.middleware.js";
 import {
   createCourseSchema,
   createModuleSchema,
+  updateModuleSchema,
   createLessonSchema,
   enrollCourseSchema,
   completeLessonSchema,
@@ -97,6 +99,7 @@ router.put("/:courseId/publish", adminLimiter, isAuthenticated, roleBasedAccess(
 router.delete("/:courseId", adminLimiter, isAuthenticated, deleteCourse);
 router.post("/:courseId/curriculum", adminLimiter, isAuthenticated, addCurriculum);
 router.post("/modules", adminLimiter, isAuthenticated, validateRequest(createModuleSchema), addModule);
+router.put("/modules/:moduleId", adminLimiter, isAuthenticated, validateRequest(updateModuleSchema), roleBasedAccess(["admin", "super admin", "tutor"]), updateModule);
 router.delete("/modules/:moduleId", adminLimiter, isAuthenticated, deleteModule);
 router.post("/lessons", adminLimiter, isAuthenticated, validateRequest(createLessonSchema), addLesson);
 router.put("/lessons/:lessonId", adminLimiter, isAuthenticated, updateLesson);
