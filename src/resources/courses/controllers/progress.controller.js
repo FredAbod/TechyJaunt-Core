@@ -14,24 +14,83 @@ class ProgressController {
 
   // Update video watch progress
   async updateVideoProgress(req, res) {
+    const startTime = Date.now();
     try {
       const { courseId, lessonId } = req.params;
       const { watchTime, totalDuration } = req.body;
       const userId = req.user.userId;
 
+      logger.info(`[UPDATE_VIDEO_PROGRESS] Starting request`, {
+        userId,
+        courseId,
+        lessonId,
+        watchTime,
+        totalDuration,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+
+      // Validate ObjectId format for params
+      if (!/^[0-9a-fA-F]{24}$/.test(courseId)) {
+        logger.warn(`[UPDATE_VIDEO_PROGRESS] Invalid courseId format`, { 
+          userId, 
+          courseId, 
+          format: 'ObjectId validation failed' 
+        });
+        return sendResponse(res, 400, { message: "Invalid courseId parameter" });
+      }
+
+      if (!/^[0-9a-fA-F]{24}$/.test(lessonId)) {
+        logger.warn(`[UPDATE_VIDEO_PROGRESS] Invalid lessonId format`, { 
+          userId, 
+          lessonId, 
+          format: 'ObjectId validation failed' 
+        });
+        return sendResponse(res, 400, { message: "Invalid lessonId parameter" });
+      }
+
+      logger.info(`[UPDATE_VIDEO_PROGRESS] ObjectId validation passed`, { userId, courseId, lessonId });
+
+      // Validate required fields
       if (!watchTime || !totalDuration) {
+        logger.warn(`[UPDATE_VIDEO_PROGRESS] Missing required fields`, {
+          userId,
+          courseId,
+          lessonId,
+          hasWatchTime: !!watchTime,
+          hasTotalDuration: !!totalDuration
+        });
         return sendResponse(res, 400, {
           message: "Watch time and total duration are required"
         });
       }
 
+      // Validate value ranges
       if (watchTime < 0 || totalDuration <= 0 || watchTime > totalDuration) {
+        logger.warn(`[UPDATE_VIDEO_PROGRESS] Invalid time values`, {
+          userId,
+          courseId,
+          lessonId,
+          watchTime,
+          totalDuration,
+          watchTimeValid: watchTime >= 0,
+          totalDurationValid: totalDuration > 0,
+          watchTimeWithinRange: watchTime <= totalDuration
+        });
         return sendResponse(res, 400, {
           message: "Invalid watch time or duration values"
         });
       }
 
-      logger.info(`Updating video progress for user ${userId}, course ${courseId}, lesson ${lessonId}`);
+      logger.info(`[UPDATE_VIDEO_PROGRESS] Input validation completed successfully`, {
+        userId,
+        courseId,
+        lessonId,
+        watchTime,
+        totalDuration
+      });
+
+      logger.info(`[UPDATE_VIDEO_PROGRESS] Calling service method`, { userId, courseId, lessonId });
 
       const result = await progressService.updateVideoProgress(
         userId, 
@@ -41,14 +100,33 @@ class ProgressController {
         totalDuration
       );
 
-      logger.info(`Video progress updated successfully`);
+      const processingTime = Date.now() - startTime;
+      logger.info(`[UPDATE_VIDEO_PROGRESS] Service method completed successfully`, {
+        userId,
+        courseId,
+        lessonId,
+        processingTimeMs: processingTime,
+        resultType: typeof result,
+        hasResult: !!result
+      });
 
       return sendResponse(res, 200, {
         message: "Video progress updated successfully",
         progress: result
       });
     } catch (error) {
-      logger.error("Error updating video progress:", error);
+      const processingTime = Date.now() - startTime;
+      logger.error(`[UPDATE_VIDEO_PROGRESS] Error occurred`, {
+        userId: req.user?.userId,
+        courseId: req.params?.courseId,
+        lessonId: req.params?.lessonId,
+        error: error.message,
+        stack: error.stack,
+        statusCode: error.statusCode,
+        processingTimeMs: processingTime,
+        errorType: error.constructor.name
+      });
+      
       return sendResponse(res, error.statusCode || 500, {
         message: error.message || "Failed to update video progress"
       });
@@ -281,6 +359,7 @@ class ProgressController {
 
       // Import models
       const Module = (await import("../models/module.js")).default;
+      const Lesson = (await import("../models/lesson.js")).default;
       const PrerecordedClass = (await import("../models/prerecordedClass.js")).default;
 
       // Get all modules for the course
@@ -293,7 +372,13 @@ class ProgressController {
       };
 
       for (const module of modules) {
-        const lessons = await PrerecordedClass.find({ 
+        // Check both Lesson and PrerecordedClass collections
+        const lessons = await Lesson.find({ 
+          moduleId: module._id,
+          isActive: true 
+        }).select('_id title description duration content order');
+
+        const legacyLessons = await PrerecordedClass.find({ 
           moduleId: module._id,
           isActive: true 
         }).select('_id title description duration order');
@@ -302,19 +387,32 @@ class ProgressController {
           moduleId: module._id,
           moduleTitle: module.title,
           moduleOrder: module.order,
-          totalLessons: lessons.length,
-          lessons: lessons.map(lesson => ({
-            lessonId: lesson._id,
-            title: lesson.title,
-            description: lesson.description,
-            duration: lesson.duration,
-            order: lesson.order
-          }))
+          newLessons: {
+            total: lessons.length,
+            lessons: lessons.map(lesson => ({
+              lessonId: lesson._id,
+              title: lesson.title,
+              description: lesson.description,
+              duration: lesson.content?.videoDuration || lesson.duration,
+              order: lesson.order,
+              type: lesson.type || 'video'
+            }))
+          },
+          legacyLessons: {
+            total: legacyLessons.length,
+            lessons: legacyLessons.map(lesson => ({
+              lessonId: lesson._id,
+              title: lesson.title,
+              description: lesson.description,
+              duration: lesson.duration,
+              order: lesson.order
+            }))
+          }
         });
       }
 
       return sendResponse(res, 200, {
-        message: "Course lessons fetched successfully",
+        message: "Course lessons fetched successfully (showing both Lesson and PrerecordedClass collections)",
         data: courseData
       });
     } catch (error) {

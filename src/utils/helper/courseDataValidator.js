@@ -1,10 +1,51 @@
 import Lesson from "../../resources/courses/models/lesson.js";
+import PrerecordedClass from "../../resources/courses/models/prerecordedClass.js";
 import logger from "../log/logger.js";
 
 /**
  * Validates and cleans course data to ensure no non-existent lessons are returned
  */
 class CourseDataValidator {
+  
+  /**
+   * Check if a lesson exists in either Lesson or PrerecordedClass collections
+   * @param {string} lessonId - Lesson ID to check
+   * @param {string} courseId - Course ID for additional validation
+   * @returns {Object|null} - Lesson object if found, null if not found
+   */
+  static async findLessonById(lessonId, courseId = null) {
+    try {
+      // First check the Lesson collection (current model)
+      const query = { _id: lessonId, isActive: true };
+      if (courseId) {
+        query.courseId = courseId;
+      }
+      
+      let lesson = await Lesson.findOne(query).lean();
+      if (lesson) {
+        logger.info(`Found lesson ${lessonId} in Lesson collection`);
+        return { ...lesson, source: 'Lesson' };
+      }
+
+      // Fallback to PrerecordedClass collection (legacy)
+      const legacyQuery = { _id: lessonId };
+      if (courseId) {
+        legacyQuery.courseId = courseId;
+      }
+      
+      lesson = await PrerecordedClass.findOne(legacyQuery).lean();
+      if (lesson) {
+        logger.info(`Found lesson ${lessonId} in PrerecordedClass collection (legacy)`);
+        return { ...lesson, source: 'PrerecordedClass' };
+      }
+
+      logger.warn(`Lesson ${lessonId} not found in either collection`);
+      return null;
+    } catch (error) {
+      logger.error(`Error finding lesson ${lessonId}: ${error.message}`);
+      return null;
+    }
+  }
   
   /**
    * Validates lessons in course modules and filters out non-existent ones
