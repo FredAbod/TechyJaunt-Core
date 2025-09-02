@@ -6,6 +6,7 @@ import UserCourseProgress from "../models/userCourseProgress.js";
 import User from "../../user/models/user.js";
 import PaymentService from "../../payments/services/payment.service.js";
 import { getVideoDurationFromUrl } from "../../../utils/image/cloudinary.js";
+import CourseDataValidator from "../../../utils/helper/courseDataValidator.js";
 
 class CourseService {
   // Admin/Tutor methods
@@ -292,6 +293,11 @@ class CourseService {
           }
         });
 
+        // Additional validation to ensure no non-existent lessons are returned
+        for (const course of courses) {
+          await CourseDataValidator.validateAndCleanCourse(course, course._id);
+        }
+
       const total = await Course.countDocuments(query);
 
       return {
@@ -349,6 +355,11 @@ class CourseService {
             });
           }
         });
+
+        // Additional validation to ensure no non-existent lessons are returned
+        for (const course of courses) {
+          await CourseDataValidator.validateAndCleanCourse(course, course._id);
+        }
         
       const total = await Course.countDocuments(query);
 
@@ -389,6 +400,9 @@ class CourseService {
             }
           });
         }
+
+        // Additional validation to ensure no non-existent lessons are returned
+        await CourseDataValidator.validateAndCleanCourse(course, course._id);
 
       return course;
     } catch (error) {

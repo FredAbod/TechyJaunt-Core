@@ -273,12 +273,18 @@ class ProgressService {
       const lessonMap = {};
       allLessons.forEach(l => lessonMap[l._id.toString()] = l);
 
+      // Process each module and validate lessons exist in DB
       for (let i = 0; i < populatedProgress.modules.length; i++) {
         const module = populatedProgress.modules[i];
+        const validLessons = [];
+        
+        // Filter out lessons that don't exist in DB and populate valid ones
         for (let j = 0; j < module.lessons.length; j++) {
           const lesson = module.lessons[j];
           const lessonData = lessonMap[lesson.lessonId.toString()];
+          
           if (lessonData) {
+            // Lesson exists in DB - populate it
             lesson.title = lessonData.title;
             lesson.description = lessonData.description;
             lesson.duration = lessonData.content?.videoDuration || lessonData.duration || lesson.totalDuration;
@@ -288,13 +294,15 @@ class ProgressService {
             lesson.videoUrl = lessonData.content?.videoUrl || null;
             lesson.resources = lessonData.resources || [];
             lesson.order = lessonData.order;
+            validLessons.push(lesson);
           } else {
-            lesson.title = "Unknown Lesson";
-            lesson.description = "";
-            lesson.duration = lesson.totalDuration || 0;
-            lesson.resources = [];
+            // Lesson doesn't exist in DB - log warning and skip
+            console.warn(`Lesson ${lesson.lessonId} in progress not found in DB for course ${courseId}, module ${module.moduleId._id}`);
           }
         }
+        
+        // Replace lessons array with only valid lessons
+        module.lessons = validLessons;
       }
 
       // Always fetch course details before returning response
@@ -313,6 +321,10 @@ class ProgressService {
           const canAccess =
             index === 0 || index <= populatedProgress.currentModuleIndex;
 
+          // Determine lesson status for frontend
+          const hasLessons = module.lessons && module.lessons.length > 0;
+          const lessonStatus = hasLessons ? 'has_lessons' : 'no_lessons';
+
           return {
             moduleId: module.moduleId._id,
             title: module.moduleId.title,
@@ -322,10 +334,12 @@ class ProgressService {
             completedAt: module.completedAt,
             unlockedAt: module.unlockedAt,
             canAccess: canAccess,
-            lessons: module.lessons.map((lesson) => ({
+            lessonStatus: lessonStatus, // 'has_lessons' or 'no_lessons'
+            totalLessons: module.lessons ? module.lessons.length : 0,
+            lessons: hasLessons ? module.lessons.map((lesson) => ({
               lessonId: lesson.lessonId,
-              title: lesson.title || "Unknown Lesson",
-              description: lesson.description || "",
+              title: lesson.title,
+              description: lesson.description,
               duration: lesson.duration || lesson.totalDuration,
               watchTime: lesson.watchTime,
               totalDuration: lesson.totalDuration,
@@ -340,7 +354,7 @@ class ProgressService {
               isFree: lesson.isFree,
               videoUrl: lesson.videoUrl,
               order: lesson.order,
-            })),
+            })) : [], // Empty array when no lessons, but lessonStatus indicates this
             assessmentAttempts: module.assessmentAttempts.map((attempt) => ({
               assessmentId: attempt.assessmentId,
               score: attempt.score,
