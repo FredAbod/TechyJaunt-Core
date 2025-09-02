@@ -6,6 +6,7 @@ import Subscription from "../../payments/models/subscription.js";
 import AppError from "../../../utils/lib/appError.js";
 import mongoose from "mongoose";
 import Lesson from "../models/lesson.js";
+import logger from "../../../utils/log/logger.js";
 
 class ProgressService {
   // Initialize progress when user subscribes to a course
