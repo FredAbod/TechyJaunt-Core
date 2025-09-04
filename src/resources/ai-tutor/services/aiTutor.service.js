@@ -52,7 +52,7 @@ Keep the response comprehensive but not overwhelming (aim for 300-600 words).`;
             content: prompt
           }
         ],
-        model: "llama3-8b-8192", // Using Llama 3 8B model
+        model: "llama-3.1-8b-instant", // Using Llama 3 8B model
         temperature: 0.7,
         max_tokens: 1024,
         top_p: 1,
@@ -70,7 +70,7 @@ Keep the response comprehensive but not overwhelming (aim for 300-600 words).`;
         userLevel,
         explanation: response,
         generatedAt: new Date().toISOString(),
-        model: "llama3-8b-8192",
+        model: "llama-3.1-8b-instant",
         metadata: {
           tokens_used: completion.usage?.total_tokens || 0,
           response_time: Date.now()
@@ -126,7 +126,7 @@ Format as a structured study plan that's practical and achievable within the giv
             content: prompt
           }
         ],
-        model: "llama3-8b-8192",
+        model: "llama-3.1-8b-instant",
         temperature: 0.6,
         max_tokens: 1024,
         top_p: 1,
@@ -145,7 +145,7 @@ Format as a structured study plan that's practical and achievable within the giv
         goals,
         studyPlan: response,
         generatedAt: new Date().toISOString(),
-        model: "llama3-8b-8192"
+        model: "llama-3.1-8b-instant"
       };
 
     } catch (error) {
@@ -186,7 +186,7 @@ Be concise but thorough in your explanation.`;
             content: prompt
           }
         ],
-        model: "llama3-8b-8192",
+        model: "llama-3.1-8b-instant",
         temperature: 0.5,
         max_tokens: 512,
         top_p: 1,
@@ -205,7 +205,7 @@ Be concise but thorough in your explanation.`;
         userLevel,
         answer: response,
         generatedAt: new Date().toISOString(),
-        model: "llama3-8b-8192"
+        model: "llama-3.1-8b-instant"
       };
 
     } catch (error) {
@@ -245,7 +245,7 @@ Make the exercises practical and hands-on. Ensure they progressively build under
             content: prompt
           }
         ],
-        model: "llama3-8b-8192",
+        model: "llama-3.1-8b-instant",
         temperature: 0.8,
         max_tokens: 1024,
         top_p: 1,
@@ -264,7 +264,7 @@ Make the exercises practical and hands-on. Ensure they progressively build under
         exerciseCount: count,
         exercises: response,
         generatedAt: new Date().toISOString(),
-        model: "llama3-8b-8192"
+        model: "llama-3.1-8b-instant"
       };
 
     } catch (error) {
@@ -288,14 +288,14 @@ Make the exercises practical and hands-on. Ensure they progressively build under
             content: "Say 'AI Tutor service is operational' if you can respond."
           }
         ],
-        model: "llama3-8b-8192",
+        model: "llama-3.1-8b-instant",
         max_tokens: 20,
       });
 
       return {
         status: "operational",
         message: "AI Tutor service is running properly",
-        availableModels: ["llama3-8b-8192"],
+        availableModels: ["llama-3.1-8b-instant"],
         testResponse: testCompletion.choices[0]?.message?.content,
         timestamp: new Date().toISOString()
       };
@@ -423,7 +423,7 @@ Make the exercises practical and hands-on. Ensure they progressively build under
         aiResponse: interactionData.aiResponse,
         userLevel: interactionData.userLevel,
         metadata: {
-          model: interactionData.model || "llama3-8b-8192",
+          model: interactionData.model || "llama-3.1-8b-instant",
           tokensUsed: interactionData.tokensUsed || 0,
           responseTime: interactionData.responseTime || 0,
           sessionId: interactionData.sessionId

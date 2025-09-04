@@ -404,7 +404,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
     "userLevel": "intermediate",
     "explanation": "# React Hooks Explained\n\nReact Hooks are functions that let you use state and other React features in functional components...\n\n## Key Concepts\n1. **useState Hook**: Manages component state\n2. **useEffect Hook**: Handles side effects\n3. **Rules of Hooks**: Only call at top level...\n\n## Real-world Applications\n- Form handling with useState\n- API calls with useEffect\n- Custom hooks for reusable logic...",
     "generatedAt": "2025-01-07T15:30:00.000Z",
-    "model": "llama3-8b-8192",
+    "model": "llama-3.1-8b-instant",
     "metadata": {
       "tokens_used": 256,
       "response_time": 1672531800000
@@ -440,7 +440,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
     "goals": ["Build a complete web application", "Learn both frontend and backend development", "Deploy to production"],
     "studyPlan": "# 2-Week Full Stack Web Development Study Plan\n\n## Week 1: Frontend Fundamentals\n\n### Day 1-2: HTML & CSS Mastery\n- Learning objectives: Master semantic HTML and responsive CSS\n- Activities: Build 3 responsive landing pages\n- Resources: MDN Web Docs, Flexbox Froggy\n\n### Day 3-4: JavaScript Essentials\n- Learning objectives: ES6+ features and DOM manipulation\n- Activities: Build interactive JavaScript projects\n\n### Day 5-7: React Framework\n- Learning objectives: Components, state, props, hooks\n- Practice: Build a todo app with React\n\n## Week 2: Backend & Deployment\n\n### Day 8-10: Node.js & Express\n- Learning objectives: Server setup, API creation, middleware\n- Activities: Build REST API with authentication\n\n### Day 11-12: Database Integration\n- Learning objectives: MongoDB/PostgreSQL integration\n- Practice: Connect frontend to backend\n\n### Day 13-14: Deployment & Production\n- Learning objectives: Deploy full stack app\n- Activities: Deploy to Heroku/Vercel\n\n## Assessment Checkpoints\n- Day 7: Frontend portfolio review\n- Day 14: Full stack application presentation\n\n## Success Tips\n- Code daily for at least 3-4 hours\n- Join developer communities for support\n- Build projects, not just tutorials",
     "generatedAt": "2025-01-07T15:30:00.000Z",
-    "model": "llama3-8b-8192"
+    "model": "llama-3.1-8b-instant"
   }
 }
 ```
@@ -468,7 +468,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
     "userLevel": "intermediate",
     "answer": "# MongoDB Query Optimization\n\nHere are key strategies to optimize your MongoDB queries:\n\n## 1. **Create Proper Indexes**\n```javascript\n// Create index on frequently queried fields\ndb.users.createIndex({ email: 1 })\ndb.products.createIndex({ category: 1, price: -1 })\n```\n\n## 2. **Use Query Projections**\n```javascript\n// Only fetch needed fields\ndb.users.find({}, { name: 1, email: 1, _id: 0 })\n```\n\n## 3. **Limit and Pagination**\n```javascript\n// Use limit and skip for pagination\ndb.posts.find().limit(10).skip(20)\n```\n\n## 4. **Aggregation Pipeline Optimization**\n- Use $match early in pipeline\n- Use $limit after $match\n- Consider $lookup performance\n\n## 5. **Monitor with explain()**\n```javascript\ndb.collection.find({}).explain('executionStats')\n```\n\nFocus on indexes first - they provide the biggest performance improvement for most queries.",
     "generatedAt": "2025-01-07T15:30:00.000Z",
-    "model": "llama3-8b-8192"
+    "model": "llama-3.1-8b-instant"
   }
 }
 ```
@@ -496,7 +496,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
     "exerciseCount": 3,
     "exercises": "# JavaScript Array Methods - Practice Exercises\n\n## Exercise 1: Data Transformation Challenge\n**Title**: E-commerce Product Filter\n\n**Problem Statement**: You have an array of products with properties: name, price, category, rating. Create functions using array methods to:\n- Filter products by category and minimum rating\n- Sort by price (low to high)\n- Transform to include only name and discounted price (10% off)\n\n**Learning Objectives**: Master filter(), sort(), and map() methods\n\n**Hints**: Chain array methods for elegant solutions\n\n**Expected Outcome**: Clean, functional approach to data manipulation\n\n## Exercise 2: Advanced Data Analysis\n**Title**: Student Grade Calculator\n\n**Problem Statement**: Given an array of student objects with subjects and scores, use array methods to:\n- Calculate average grade per student\n- Find top 3 performing students\n- Group students by grade level (A, B, C, D, F)\n\n**Learning Objectives**: Practice reduce(), sort(), and filter() combinations\n\n**Hints**: Use reduce() for calculations, sort() with custom comparator\n\n**Expected Outcome**: Complex data analysis using functional programming\n\n## Exercise 3: Real-world API Data Processing\n**Title**: Social Media Post Analyzer\n\n**Problem Statement**: Process an array of social media posts to:\n- Extract unique hashtags from all posts\n- Find posts with most engagement (likes + comments)\n- Create summary statistics (total posts, average engagement)\n\n**Learning Objectives**: Apply flatMap(), reduce(), and Set operations\n\n**Hints**: Consider using Set for unique values, flatMap for nested arrays\n\n**Expected Outcome**: Practical data processing skills for real applications",
     "generatedAt": "2025-01-07T15:30:00.000Z",
-    "model": "llama3-8b-8192"
+    "model": "llama-3.1-8b-instant"
   }
 }
 ```
@@ -514,7 +514,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
   "data": {
     "status": "operational",
     "message": "AI Tutor service is running properly",
-    "availableModels": ["llama3-8b-8192"],
+    "availableModels": ["llama-3.1-8b-instant"],
     "testResponse": "AI Tutor service is operational",
     "timestamp": "2025-01-07T15:30:00.000Z",
     "userAccess": {

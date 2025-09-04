@@ -155,7 +155,7 @@ TEST_JWT_TOKEN=your_jwt_token node test-ai-tutor.js
 
 ## 10. Model Information
 
-- **Model**: Llama 3 8B (llama3-8b-8192)
+- **Model**: Llama 3 8B (llama-3.1-8b-instant)
 - **Context Window**: 8,192 tokens
 - **Temperature**: Varies by endpoint (0.5-0.8)
 - **Max Tokens**: 512-1024 depending on endpoint

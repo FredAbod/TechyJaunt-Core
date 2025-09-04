@@ -1728,7 +1728,7 @@ Authorization: Bearer <JWT_TOKEN>
   "data": {
     "status": "operational",
     "message": "AI Tutor service is running properly",
-    "availableModels": ["llama3-8b-8192"],
+    "availableModels": ["llama-3.1-8b-instant"],
     "testResponse": "AI Tutor service is operational",
     "timestamp": "2021-06-21T15:30:00.000Z"
   }
@@ -1763,7 +1763,7 @@ Authorization: Bearer <JWT_TOKEN>
     "userLevel": "intermediate",
     "explanation": "React Hooks are functions that let you use state and other React features in functional components. They were introduced in React 16.8 as a way to write components without classes...",
     "generatedAt": "2021-06-21T15:30:00.000Z",
-    "model": "llama3-8b-8192",
+    "model": "llama-3.1-8b-instant",
     "metadata": {
       "tokens_used": 456,
       "response_time": 2340
@@ -1800,7 +1800,7 @@ Authorization: Bearer <JWT_TOKEN>
     "duration": "4 weeks",
     "studyPlan": "Week 1: Introduction to React and JSX...",
     "generatedAt": "2021-06-21T15:30:00.000Z",
-    "model": "llama3-8b-8192"
+    "model": "llama-3.1-8b-instant"
   }
 }
 ```
@@ -1831,7 +1831,7 @@ Authorization: Bearer <JWT_TOKEN>
     "question": "What are React Hooks and how do they work?",
     "answer": "React Hooks are functions that let you use state and other React features in functional components. They were introduced in React 16.8 as a way to write components without classes...",
     "generatedAt": "2021-06-21T15:30:00.000Z",
-    "model": "llama3-8b-8192"
+    "model": "llama-3.1-8b-instant"
   }
 }
 ```
@@ -1865,7 +1865,7 @@ Authorization: Bearer <JWT_TOKEN>
     "exerciseCount": 5,
     "exercises": "1. Create a custom hook for API calls...",
     "generatedAt": "2021-06-21T15:30:00.000Z",
-    "model": "llama3-8b-8192"
+    "model": "llama-3.1-8b-instant"
   }
 }
 ```
@@ -1903,7 +1903,7 @@ Authorization: Bearer <JWT_TOKEN>
           "thumbnail": "https://cloudinary.com/course-thumb.jpg"
         },
         "metadata": {
-          "model": "llama3-8b-8192",
+          "model": "llama-3.1-8b-instant",
           "tokensUsed": 456,
           "responseTime": 2340
         },
@@ -1968,7 +1968,7 @@ Authorization: Bearer <JWT_TOKEN>
       "thumbnail": "https://cloudinary.com/course-thumb.jpg"
     },
     "metadata": {
-      "model": "llama3-8b-8192",
+      "model": "llama-3.1-8b-instant",
       "tokensUsed": 456,
       "responseTime": 2340,
       "sessionId": "session_abc123"
