@@ -4,7 +4,7 @@ import Joi from "joi";
 export const setAvailabilitySchema = Joi.object({
   dayOfWeek: Joi.string()
     .valid("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
-    .required()
+    .optional()
     .messages({
       "any.only": "Day of week must be a valid day (monday-sunday)",
       "any.required": "Day of week is required",

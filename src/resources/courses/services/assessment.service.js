@@ -169,7 +169,8 @@ class AssessmentService {
       // Check if already passed
       const hasPassedBefore = previousAttempts.some(attempt => attempt.passed);
       if (hasPassedBefore) {
-        throw new AppError("You have already passed this assessment", 400);
+        throw new AppError("You have already passed this assessment. Your score was " + 
+          previousAttempts.find(attempt => attempt.passed).score + "%", 400);
       }
 
       // Validate answers - allow partial submissions (for timeouts)

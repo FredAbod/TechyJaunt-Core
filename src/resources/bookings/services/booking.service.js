@@ -67,11 +67,6 @@ class BookingService {
           currentBookings: slot.currentBookings || 0,
         })),
         timezone: availabilityData.timezone || "UTC",
-        dayOfWeek:
-          availabilityData.dayOfWeek ||
-          new Date()
-            .toLocaleDateString("en-US", { weekday: "long" })
-            .toLowerCase(),
         isRecurring:
           availabilityData.isRecurring !== undefined
             ? availabilityData.isRecurring
@@ -85,6 +80,22 @@ class BookingService {
         hourlyRate: availabilityData.hourlyRate || null,
         specificDate: availabilityData.specificDate || null,
       };
+
+      // Handle dayOfWeek logic
+      if (availabilityData.specificDate) {
+        // If specific date is provided, extract dayOfWeek from it
+        const date = new Date(availabilityData.specificDate);
+        processedData.dayOfWeek = date.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+        processedData.isRecurring = false; // Specific dates are not recurring
+      } else if (availabilityData.dayOfWeek) {
+        // Use provided dayOfWeek
+        processedData.dayOfWeek = availabilityData.dayOfWeek.toLowerCase();
+      } else {
+        // Default to current day
+        processedData.dayOfWeek = new Date()
+          .toLocaleDateString("en-US", { weekday: "long" })
+          .toLowerCase();
+      }
 
       // If course specific, verify the course exists and tutor has access
       if (processedData.courseSpecific) {
@@ -390,12 +401,25 @@ class BookingService {
         ];
       }
 
+      // Get tutor's courses
+      const tutorCourses = await Course.find({
+        $or: [
+          { instructor: tutorId },
+          { assistants: tutorId }
+        ],
+        isActive: true
+      }).select('title description category level price thumbnail');
+
       const availability = await TutorAvailability.find(query)
-        .populate("tutorId", "firstName lastName email")
+        .populate("tutorId", "firstName lastName email profilePic")
         .populate("courseSpecific", "title")
         .sort({ dayOfWeek: 1 });
 
-      return availability;
+      return {
+        availability,
+        tutorCourses,
+        tutorInfo: availability.length > 0 ? availability[0].tutorId : null
+      };
     } catch (error) {
       throw error;
     }

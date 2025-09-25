@@ -10,7 +10,9 @@ const tutorAvailabilitySchema = new mongoose.Schema(
     dayOfWeek: {
       type: String,
       enum: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"],
-      required: true
+      required: function() {
+        return !this.specificDate; // dayOfWeek is required only if specificDate is not provided
+      }
     },
     timeSlots: [{
       startTime: {
@@ -47,7 +49,16 @@ const tutorAvailabilitySchema = new mongoose.Schema(
       default: true // If true, applies to all weeks
     },
     specificDate: {
-      type: Date // For one-time availability
+      type: Date, // For one-time availability
+      validate: {
+        validator: function(value) {
+          if (value) {
+            return value >= new Date().setHours(0, 0, 0, 0); // Must be today or future date
+          }
+          return true;
+        },
+        message: 'Specific date must be today or a future date'
+      }
     },
     courseSpecific: {
       type: mongoose.Schema.Types.ObjectId,
@@ -80,6 +91,7 @@ const tutorAvailabilitySchema = new mongoose.Schema(
 
 // Indexes for efficient queries
 tutorAvailabilitySchema.index({ tutorId: 1, dayOfWeek: 1 });
+tutorAvailabilitySchema.index({ tutorId: 1, specificDate: 1 });
 tutorAvailabilitySchema.index({ tutorId: 1, isActive: 1 });
 tutorAvailabilitySchema.index({ courseSpecific: 1 });
 
