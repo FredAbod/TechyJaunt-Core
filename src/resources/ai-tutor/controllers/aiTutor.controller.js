@@ -129,6 +129,18 @@ export const answerQuestion = async (req, res) => {
       userLevel
     );
 
+    // Save interaction to history
+    await AITutorService.saveInteraction(userId, {
+      type: "question",
+      topic: context || undefined,
+      userInput: question.trim(),
+      aiResponse: answer.answer,
+      userLevel,
+      model: answer.model,
+      responseTime: undefined,
+      tags: ["question", userLevel]
+    });
+
     logger.info(`AI Tutor question answered for user ${userId}: ${question.substring(0, 50)}...`);
 
     return successResMsg(res, 200, {
