@@ -129,17 +129,24 @@ export const answerQuestion = async (req, res) => {
       userLevel
     );
 
-    // Save interaction to history
-    await AITutorService.saveInteraction(userId, {
-      type: "question",
-      topic: context || undefined,
-      userInput: question.trim(),
-      aiResponse: answer.answer,
-      userLevel,
-      model: answer.model,
-      responseTime: undefined,
-      tags: ["question", userLevel]
-    });
+
+    // Save interaction to history and log if it fails
+    try {
+      const topicForHistory = (context && context.trim().length > 0) ? context.trim() : question.trim();
+      const saved = await AITutorService.saveInteraction(userId, {
+        type: "question",
+        topic: topicForHistory,
+        userInput: question.trim(),
+        aiResponse: answer.answer,
+        userLevel,
+        model: answer.model,
+        responseTime: undefined,
+        tags: ["question", userLevel]
+      });
+      if (saved) logger.info(`AI Tutor history saved for user ${userId}, interactionId: ${saved._id}`);
+    } catch (historyError) {
+      logger.error(`Failed to save AI Tutor question interaction for user ${userId}: ${historyError.message}`);
+    }
 
     logger.info(`AI Tutor question answered for user ${userId}: ${question.substring(0, 50)}...`);
 
@@ -315,14 +322,20 @@ export const getUserHistory = async (req, res) => {
 
     logger.info(`AI Tutor history retrieved for user ${userId}`);
 
+    // Spread the history object so the response data contains { history, pagination, statistics }
     return successResMsg(res, 200, {
       message: "AI Tutor history retrieved successfully",
-      data: history
+      ...history
     });
 
   } catch (error) {
     logger.error(`AI Tutor history error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    // Ensure status is a valid number, else default to 500
+    let status = 500;
+    if (typeof error.status === 'number' && !isNaN(error.status)) {
+      status = error.status;
+    }
+    return errorResMsg(res, status, error.message);
   }
 };
 

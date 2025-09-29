@@ -112,7 +112,7 @@ aiTutorHistorySchema.statics.getUserHistory = function(userId, options = {}) {
     .sort({ createdAt: -1 })
     .limit(limit * 1)
     .skip((page - 1) * limit)
-    .select('-aiResponse') // Exclude full response for list view
+    // Include aiResponse and userInput so the question and AI answer are returned
     .lean();
 };
 
