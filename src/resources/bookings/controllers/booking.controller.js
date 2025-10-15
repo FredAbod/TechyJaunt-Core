@@ -78,17 +78,22 @@ const bookSession = async (req, res) => {
  */
 const getAvailableSessionSlots = async (req, res) => {
   try {
-    const tutorId = req.user.userId; // Get tutor ID from authenticated user
-    const { courseId, dayOfWeek } = req.query;
+    const { tutorId, courseId, dayOfWeek } = req.query;
+    const requesterId = req.user.userId;
+    const requesterRole = req.user.role;
 
-    logger.info(`Getting available slots - tutorId: ${tutorId}, courseId: ${courseId}, dayOfWeek: ${dayOfWeek}`);
+    logger.info(`Getting available slots - requesterId: ${requesterId}, tutorId: ${tutorId || 'all'}, courseId: ${courseId}, dayOfWeek: ${dayOfWeek}`);
 
+    // If no specific tutor is requested, get slots for all tutors with courses
+    // If a specific tutor is requested, get slots for that tutor (must have courses)
     const slots = await bookingService.getAvailableSessionSlots(tutorId, { 
       courseId, 
-      dayOfWeek 
+      dayOfWeek,
+      requesterId,
+      requesterRole
     });
 
-    logger.info(`Found ${slots.length} available slots for tutor ${tutorId}`);
+    logger.info(`Found ${slots.length} available slots`);
 
     return successResMsg(res, 200, {
       message: 'Available session slots retrieved successfully',

@@ -3,6 +3,8 @@ import dotenv from "dotenv";
 import logger from "./src/utils/log/logger.js";
 import connectDB from "./src/database/db.js"
 import { sendServerFailure } from "./src/utils/email/email-sender.js";
+// Start background schedulers
+import './src/resources/bookings/services/reminderScheduler.js';
 
 
 const port = process.env.PORT || 4000;

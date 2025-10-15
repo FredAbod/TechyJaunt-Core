@@ -6,6 +6,8 @@ import resetPasswordTemplate from "../templates/resetPassword-template.js";
 import sessionBookingStudentTemplate from "../templates/session-booking-student-template.js";
 import sessionBookingTutorTemplate from "../templates/session-booking-tutor-template.js";
 import sessionBookingAdminTemplate from "../templates/session-booking-admin-template.js";
+import sessionReminderStudentTemplate from "../templates/session-reminder-student-template.js";
+import sessionReminderTutorTemplate from "../templates/session-reminder-tutor-template.js";
 
 // Create a reusable transporter
 const createTransporter = () => {
@@ -276,6 +278,52 @@ const sendSessionBookingAdminEmail = async (adminEmail, studentName, tutorName, 
   }
 };
 
+// Send session reminder email to student (2d / 1d / 1h / 10min)
+const sendSessionReminderStudentEmail = async (studentEmail, studentName, tutorName, sessionDetails, reminderType) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+      to: studentEmail,
+      subject: `Session Reminder - ${reminderType} - TechyJaunt`,
+      html: sessionReminderStudentTemplate(studentName, tutorName, sessionDetails, reminderType),
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(
+      `${new Date().toLocaleString()} - Session reminder (student) email sent successfully:`,
+      info.response
+    );
+  } catch (error) {
+    console.log("Session reminder (student) email error:", error.message);
+    // Don't throw to avoid blocking reminder loop; just log
+  }
+};
+
+// Send session reminder email to tutor (2d / 1d / 1h / 10min)
+const sendSessionReminderTutorEmail = async (tutorEmail, tutorName, studentName, sessionDetails, reminderType) => {
+  try {
+    const transporter = createTransporter();
+
+    const mailOptions = {
+      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+      to: tutorEmail,
+      subject: `Session Reminder - ${reminderType} - TechyJaunt`,
+      html: sessionReminderTutorTemplate(tutorName, studentName, sessionDetails, reminderType),
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(
+      `${new Date().toLocaleString()} - Session reminder (tutor) email sent successfully:`,
+      info.response
+    );
+  } catch (error) {
+    console.log("Session reminder (tutor) email error:", error.message);
+    // Don't throw to avoid blocking reminder loop; just log
+  }
+};
+
 export {
   sendOtpEmail,
   sendWelcomeOnboardingEmail,
@@ -287,4 +335,6 @@ export {
   sendSessionBookingStudentEmail,
   sendSessionBookingTutorEmail,
   sendSessionBookingAdminEmail,
+  sendSessionReminderStudentEmail,
+  sendSessionReminderTutorEmail,
 };

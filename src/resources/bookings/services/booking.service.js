@@ -156,10 +156,49 @@ class BookingService {
       console.log("\n=== getAvailableSessionSlots START ===");
       console.log("Input parameters:", { tutorId, filters });
 
-      const query = {
-        tutorId,
+      // First, get tutors who have courses (instructors or assistants)
+      const tutorsWithCourses = await Course.find({
+        $or: [
+          { instructor: { $exists: true } },
+          { assistants: { $exists: true, $ne: [] } }
+        ]
+      }).distinct('instructor');
+
+      // Also get assistants from courses
+      const coursesWithAssistants = await Course.find({
+        assistants: { $exists: true, $ne: [] }
+      }).populate('assistants', '_id');
+
+      const assistantIds = [];
+      coursesWithAssistants.forEach(course => {
+        course.assistants.forEach(assistant => {
+          assistantIds.push(assistant._id);
+        });
+      });
+
+      // Combine instructors and assistants
+      const allTutorsWithCourses = [...new Set([
+        ...tutorsWithCourses.map(id => id.toString()),
+        ...assistantIds.map(id => id.toString())
+      ])];
+
+      console.log("Tutors with courses:", allTutorsWithCourses);
+
+      let query = {
         isActive: true,
       };
+
+      // If specific tutorId is provided, check if they have courses
+      if (tutorId) {
+        if (!allTutorsWithCourses.includes(tutorId.toString())) {
+          console.log(`Tutor ${tutorId} has no courses, returning empty slots`);
+          return [];
+        }
+        query.tutorId = tutorId;
+      } else {
+        // If no specific tutor, only return availability for tutors with courses
+        query.tutorId = { $in: allTutorsWithCourses };
+      }
 
       if (filters.dayOfWeek) {
         query.dayOfWeek = filters.dayOfWeek;
@@ -322,10 +361,30 @@ class BookingService {
         });
       });
 
-      console.log(`\nTotal session slots generated: ${sessionSlots.length}`);
+      // Get courses for each tutor to include in response
+      const uniqueTutorIds = [...new Set(sessionSlots.map(slot => slot.tutorId.toString()))];
+      const tutorCourses = {};
+      
+      for (const tutorId of uniqueTutorIds) {
+        const courses = await Course.find({
+          $or: [
+            { instructor: tutorId },
+            { assistants: tutorId }
+          ]
+        }).select('_id title category level price thumbnail');
+        tutorCourses[tutorId] = courses;
+      }
+
+      // Add tutor courses to each session slot
+      const enhancedSessionSlots = sessionSlots.map(slot => ({
+        ...slot,
+        tutorCourses: tutorCourses[slot.tutorId.toString()] || []
+      }));
+
+      console.log(`\nTotal session slots generated: ${enhancedSessionSlots.length}`);
       console.log("=== getAvailableSessionSlots END ===\n");
 
-      return sessionSlots.sort(
+      return enhancedSessionSlots.sort(
         (a, b) => new Date(a.sessionDate) - new Date(b.sessionDate)
       );
     } catch (error) {

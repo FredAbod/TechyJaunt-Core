@@ -47,7 +47,7 @@ router.get('/availability/:tutorId',
 router.get('/slots/available',
   bookingLimiter,
   isAuthenticated,
-  roleBasedAccess(['tutor', 'admin', 'super admin']),
+  roleBasedAccess(['tutor', 'admin', 'super admin', 'student', 'user']),
   bookingController.getAvailableSessionSlots
 );
 
