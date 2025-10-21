@@ -1,5 +1,5 @@
 import User from "../../user/models/user.js";
-import bcrypt, { hash } from "bcrypt";
+import bcrypt from "bcryptjs";
 import generateOtp from "../../../utils/OtpMessage.js";
 import { sendOtpEmail, sendWelcomeOnboardingEmail, sendResetPasswordEmail, sendPasswordResetConfirmationEmail } from "../../../utils/email/email-sender.js";
 import { createJwtToken } from "../../../middleware/isAuthenticated.js";

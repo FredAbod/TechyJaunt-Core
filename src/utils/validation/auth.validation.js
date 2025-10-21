@@ -173,3 +173,12 @@ export const resetPasswordSchema = Joi.object({
       "any.required": "New password is required",
     }),
 });
+
+// Admin invite user validation
+export const inviteSchema = Joi.object({
+  firstName: Joi.string().min(2).max(50).required(),
+  lastName: Joi.string().min(2).max(50).required(),
+  email: Joi.string().email().required(),
+  password: Joi.string().min(8).required(),
+  role: Joi.string().valid('super admin','admin','tutor','user').optional()
+});

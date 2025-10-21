@@ -3,6 +3,8 @@ import CourseService from "../../courses/services/course.service.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 import { uploadImage } from "../../../utils/image/cloudinary.js";
 import logger from "../../../utils/log/logger.js";
+import { passwordHash } from "../../../middleware/hashing.js";
+import { sendMail } from "../../../utils/email/email-sender.js";
 
 // Helper function to check if profile is complete
 const isProfileComplete = (user) => {
@@ -525,5 +527,82 @@ export const getStudentById = async (req, res) => {
   } catch (error) {
     logger.error(`Get student by ID error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to retrieve student details");
+  }
+};
+
+// Admin endpoint to invite a new user
+export const inviteUser = async (req, res) => {
+  try {
+    const adminId = req.user.userId;
+    const { firstName, lastName, email, password, role = 'user' } = req.body;
+
+    // Check admin privileges
+    const adminUser = await User.findById(adminId);
+    if (!adminUser || !["admin", "super admin"].includes(adminUser.role)) {
+      return errorResMsg(res, 403, "Access denied. Admin privileges required.");
+    }
+
+    if (!firstName || !lastName || !email || !password) {
+      return errorResMsg(res, 400, "Missing required fields: firstName, lastName, email, password");
+    }
+
+    // Don't allow creating higher-privilege roles unless super admin
+    if (["admin", "super admin"].includes(role) && adminUser.role !== 'super admin') {
+      return errorResMsg(res, 403, "Only super admin can invite admin or super admin users.");
+    }
+
+    // Check if user already exists
+    const existing = await User.findOne({ email: email.toLowerCase() });
+    if (existing) {
+      return errorResMsg(res, 409, "A user with that email already exists");
+    }
+
+    // Hash password
+    const hashed = await passwordHash(password);
+    if (!hashed) {
+      logger.error('Failed to hash password during invite');
+      return errorResMsg(res, 500, "Failed to create user");
+    }
+
+    const newUser = new User({
+      firstName,
+      lastName,
+      email: email.toLowerCase(),
+      password: hashed,
+      role,
+      status: 'active',
+      emailVerified: true,
+      profileCompleted: false
+    });
+
+    const saved = await newUser.save();
+
+    // Send invite email with credentials (avoid including raw password in logs)
+    try {
+      const subject = 'You have been invited to TechyJaunt';
+      const text = `Hello ${firstName},\n\nYou have been invited to TechyJaunt. Use the credentials below to login:\nEmail: ${email}\nPassword: ${password}\n\nPlease change your password after first login.`;
+      const html = `
+        <div style="font-family: Arial, sans-serif; max-width:600px; margin:0 auto;">
+          <h2>Hello ${firstName},</h2>
+          <p>You have been invited to TechyJaunt. Use the login details below:</p>
+          <p><strong>Email:</strong> ${email}</p>
+          <p><strong>Password:</strong> ${password}</p>
+          <p>Please change your password after first login.</p>
+          <p>Best regards,<br/>TechyJaunt Team</p>
+        </div>
+      `;
+
+      await sendMail(email, subject, text, html);
+    } catch (emailErr) {
+      logger.warn(`Invite email failed to send to ${email}: ${emailErr.message}`);
+      // continue; user was still created
+    }
+
+    logger.info(`Admin ${adminId} invited user ${saved._id}`);
+    return successResMsg(res, 201, { message: 'User invited successfully', user: saved.toJSON() });
+
+  } catch (error) {
+    logger.error(`Invite user error: ${error.message}`);
+    return errorResMsg(res, 500, "Failed to invite user");
   }
 };

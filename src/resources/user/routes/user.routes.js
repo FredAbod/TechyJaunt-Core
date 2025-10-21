@@ -5,6 +5,7 @@ import {
   getProfile, 
   updateProfile, 
   getDashboard,
+  inviteUser,
   promoteUserRole,
   uploadProfilePicture,
   updateProfileWithPicture,
@@ -15,6 +16,7 @@ import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
 import { imageUpload } from "../../../middleware/upload.middleware.js";
 import { profileSchema } from "../../../utils/validation/auth.validation.js";
+import { inviteSchema } from "../../../utils/validation/auth.validation.js";
 
 const router = express.Router();
 
@@ -45,5 +47,7 @@ router.post("/promote-role", profileLimiter, isAuthenticated, promoteUserRole);
 // Admin routes
 router.get("/admin/students", profileLimiter, isAuthenticated, getAllStudents);
 router.get("/admin/students/:studentId", profileLimiter, isAuthenticated, getStudentById);
+// Admin invite route
+router.post("/admin/invite", profileLimiter, isAuthenticated, validateRequest(inviteSchema), inviteUser);
 
 export default router;
