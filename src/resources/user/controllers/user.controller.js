@@ -606,7 +606,7 @@ export const getAllTutors = async (req, res) => {
 export const inviteUser = async (req, res) => {
   try {
     const adminId = req.user.userId;
-    const { firstName, lastName, email, password, role = 'user' } = req.body;
+    const { firstName, lastName, email, password, role = 'user', courseId } = req.body;
 
     // Check admin privileges
     const adminUser = await User.findById(adminId);
@@ -618,9 +618,34 @@ export const inviteUser = async (req, res) => {
       return errorResMsg(res, 400, "Missing required fields: firstName, lastName, email, password");
     }
 
+    // Require courseId for tutors and admins
+    if (["admin", "tutor"].includes(role) && !courseId) {
+      return errorResMsg(res, 400, "courseId is required when inviting tutors or admins");
+    }
+
     // Don't allow creating higher-privilege roles unless super admin
     if (["admin", "super admin"].includes(role) && adminUser.role !== 'super admin') {
       return errorResMsg(res, 403, "Only super admin can invite admin or super admin users.");
+    }
+
+    // If courseId is provided, verify the course exists
+    let course = null;
+    if (courseId) {
+      const Course = (await import("../../courses/models/course.js")).default;
+      course = await Course.findById(courseId);
+      if (!course) {
+        return errorResMsg(res, 404, "Course not found");
+      }
+      
+      // Verify the admin has permission for this course (unless super admin)
+      if (adminUser.role !== 'super admin') {
+        const isInstructor = course.instructor.toString() === adminId;
+        const isAssistant = course.assistants.some(assistantId => assistantId.toString() === adminId);
+        
+        if (!isInstructor && !isAssistant) {
+          return errorResMsg(res, 403, "You don't have permission to invite users to this course");
+        }
+      }
     }
 
     // Check if user already exists
@@ -649,14 +674,47 @@ export const inviteUser = async (req, res) => {
 
     const saved = await newUser.save();
 
+    // If courseId is provided and role is tutor or admin, add them to the course
+    if (courseId && course && ["admin", "tutor"].includes(role)) {
+      const Course = (await import("../../courses/models/course.js")).default;
+      
+      if (role === 'tutor') {
+        // Add as assistant/tutor to the course
+        if (!course.assistants.includes(saved._id)) {
+          await Course.findByIdAndUpdate(
+            courseId,
+            { $addToSet: { assistants: saved._id } },
+            { new: true }
+          );
+          logger.info(`Added tutor ${saved._id} to course ${courseId} as assistant`);
+        }
+      } else if (role === 'admin') {
+        // For admin role, add as assistant (they can also be instructor if needed)
+        if (!course.assistants.includes(saved._id)) {
+          await Course.findByIdAndUpdate(
+            courseId,
+            { $addToSet: { assistants: saved._id } },
+            { new: true }
+          );
+          logger.info(`Added admin ${saved._id} to course ${courseId} as assistant`);
+        }
+      }
+    }
+
     // Send invite email with credentials (avoid including raw password in logs)
     try {
       const subject = 'You have been invited to TechyJaunt';
-      const text = `Hello ${firstName},\n\nYou have been invited to TechyJaunt. Use the credentials below to login:\nEmail: ${email}\nPassword: ${password}\n\nPlease change your password after first login.`;
+      let courseInfo = '';
+      if (course) {
+        courseInfo = `<p>You have been assigned to the course: <strong>${course.title}</strong></p>`;
+      }
+      
+      const text = `Hello ${firstName},\n\nYou have been invited to TechyJaunt${course ? ` for the course: ${course.title}` : ''}. Use the credentials below to login:\nEmail: ${email}\nPassword: ${password}\n\nPlease change your password after first login.`;
       const html = `
         <div style="font-family: Arial, sans-serif; max-width:600px; margin:0 auto;">
           <h2>Hello ${firstName},</h2>
-          <p>You have been invited to TechyJaunt. Use the login details below:</p>
+          <p>You have been invited to TechyJaunt${course ? ` as a ${role}` : ''}. Use the login details below:</p>
+          ${courseInfo}
           <p><strong>Email:</strong> ${email}</p>
           <p><strong>Password:</strong> ${password}</p>
           <p>Please change your password after first login.</p>
@@ -670,8 +728,13 @@ export const inviteUser = async (req, res) => {
       // continue; user was still created
     }
 
-    logger.info(`Admin ${adminId} invited user ${saved._id}`);
-    return successResMsg(res, 201, { message: 'User invited successfully', user: saved.toJSON() });
+    logger.info(`Admin ${adminId} invited user ${saved._id}${courseId ? ` to course ${courseId}` : ''}`);
+    return successResMsg(res, 201, { 
+      message: 'User invited successfully', 
+      user: saved.toJSON(),
+      courseAssigned: courseId ? true : false,
+      courseId: courseId || null
+    });
 
   } catch (error) {
     logger.error(`Invite user error: ${error.message}`);

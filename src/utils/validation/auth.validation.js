@@ -180,5 +180,14 @@ export const inviteSchema = Joi.object({
   lastName: Joi.string().min(2).max(50).required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  role: Joi.string().valid('super admin','admin','tutor','user').optional()
+  role: Joi.string().valid('super admin','admin','tutor','user').optional(),
+  courseId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).when('role', {
+    is: Joi.string().valid('admin', 'tutor'),
+    then: Joi.required().messages({
+      'any.required': 'courseId is required when inviting tutors or admins'
+    }),
+    otherwise: Joi.optional()
+  }).messages({
+    'string.pattern.base': 'courseId must be a valid MongoDB ObjectId'
+  })
 });
