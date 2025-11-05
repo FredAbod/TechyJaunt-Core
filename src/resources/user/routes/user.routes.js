@@ -10,7 +10,8 @@ import {
   uploadProfilePicture,
   updateProfileWithPicture,
   getAllStudents,
-  getStudentById
+  getStudentById,
+  getAllTutors
 } from "../controllers/user.controller.js";
 import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
@@ -47,6 +48,8 @@ router.post("/promote-role", profileLimiter, isAuthenticated, promoteUserRole);
 // Admin routes
 router.get("/admin/students", profileLimiter, isAuthenticated, getAllStudents);
 router.get("/admin/students/:studentId", profileLimiter, isAuthenticated, getStudentById);
+// Get all tutors (accessible by any authenticated user)
+router.get("/tutors", profileLimiter, isAuthenticated, getAllTutors);
 // Admin invite route
 router.post("/admin/invite", profileLimiter, isAuthenticated, validateRequest(inviteSchema), inviteUser);
 

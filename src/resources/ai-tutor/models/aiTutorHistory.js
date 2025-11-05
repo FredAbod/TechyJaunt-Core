@@ -8,6 +8,12 @@ const aiTutorHistorySchema = new mongoose.Schema(
       required: true,
       index: true
     },
+    chatId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "AITutorChat",
+      required: false,
+      index: true
+    },
     courseId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Course",
@@ -80,6 +86,7 @@ const aiTutorHistorySchema = new mongoose.Schema(
 aiTutorHistorySchema.index({ userId: 1, createdAt: -1 });
 aiTutorHistorySchema.index({ userId: 1, interactionType: 1 });
 aiTutorHistorySchema.index({ userId: 1, courseId: 1 });
+aiTutorHistorySchema.index({ userId: 1, chatId: 1, createdAt: 1 });
 
 // Virtual for formatted date
 aiTutorHistorySchema.virtual('formattedDate').get(function() {
@@ -93,6 +100,7 @@ aiTutorHistorySchema.statics.getUserHistory = function(userId, options = {}) {
     page = 1,
     courseId,
     type,
+    chatId,
     startDate,
     endDate
   } = options;
@@ -101,6 +109,7 @@ aiTutorHistorySchema.statics.getUserHistory = function(userId, options = {}) {
   
   if (courseId) query.courseId = courseId;
   if (type) query.interactionType = type;
+  if (chatId) query.chatId = chatId;
   if (startDate || endDate) {
     query.createdAt = {};
     if (startDate) query.createdAt.$gte = new Date(startDate);
@@ -109,6 +118,7 @@ aiTutorHistorySchema.statics.getUserHistory = function(userId, options = {}) {
 
   return this.find(query)
     .populate('courseId', 'title thumbnail')
+    .populate('chatId', 'title')
     .sort({ createdAt: -1 })
     .limit(limit * 1)
     .skip((page - 1) * limit)

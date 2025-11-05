@@ -7,7 +7,9 @@ import {
   topicExplanationSchema,
   studyPlanSchema,
   questionAnswerSchema,
-  practiceExercisesSchema
+  practiceExercisesSchema,
+  createChatSchema,
+  updateChatSchema
 } from "../../../utils/validation/aiTutor.validation.js";
 
 const router = express.Router();
@@ -118,6 +120,68 @@ router.get('/history',
 router.get('/history/:historyId',
   aiTutorLimiter,
   aiTutorController.getHistoryItem
+);
+
+/**
+ * @route   POST /api/v1/ai-tutor/chats
+ * @desc    Create a new chat session
+ * @access  Private (Subscription required)
+ */
+router.post('/chats',
+  aiTutorLimiter,
+  validateRequest(createChatSchema),
+  aiTutorController.createChat
+);
+
+/**
+ * @route   GET /api/v1/ai-tutor/chats
+ * @desc    Get all user's chat sessions
+ * @access  Private (Subscription required)
+ */
+router.get('/chats',
+  aiTutorLimiter,
+  aiTutorController.getUserChats
+);
+
+/**
+ * @route   GET /api/v1/ai-tutor/chats/statistics
+ * @desc    Get chat statistics
+ * @access  Private (Subscription required)
+ */
+router.get('/chats/statistics',
+  aiTutorLimiter,
+  aiTutorController.getChatStatistics
+);
+
+/**
+ * @route   GET /api/v1/ai-tutor/chats/:chatId
+ * @desc    Get a specific chat with its messages
+ * @access  Private (Subscription required)
+ */
+router.get('/chats/:chatId',
+  aiTutorLimiter,
+  aiTutorController.getChatById
+);
+
+/**
+ * @route   PATCH /api/v1/ai-tutor/chats/:chatId
+ * @desc    Update a chat (title, pin, archive, etc.)
+ * @access  Private (Subscription required)
+ */
+router.patch('/chats/:chatId',
+  aiTutorLimiter,
+  validateRequest(updateChatSchema),
+  aiTutorController.updateChat
+);
+
+/**
+ * @route   DELETE /api/v1/ai-tutor/chats/:chatId
+ * @desc    Delete a chat and all its messages
+ * @access  Private (Subscription required)
+ */
+router.delete('/chats/:chatId',
+  aiTutorLimiter,
+  aiTutorController.deleteChat
 );
 
 export default router;

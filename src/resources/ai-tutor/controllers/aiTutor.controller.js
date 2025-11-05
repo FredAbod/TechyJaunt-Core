@@ -108,7 +108,7 @@ export const generateStudyPlan = async (req, res) => {
 export const answerQuestion = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { question, context = "", userLevel = "intermediate" } = req.body;
+    const { question, context = "", userLevel = "intermediate", chatId, courseId } = req.body;
 
     // Validate required fields
     if (!question || question.trim().length === 0) {
@@ -120,6 +120,16 @@ export const answerQuestion = async (req, res) => {
     
     if (!subscriptionStatus.featureAccess.aiTutor) {
       return errorResMsg(res, 403, "AI Tutor access requires an active subscription. Please upgrade your plan to access this feature.");
+    }
+
+    // If chatId is provided, validate it belongs to the user
+    let validatedChatId = chatId;
+    if (chatId) {
+      const chat = await AITutorService.getChatWithMessages(userId, chatId, { messageLimit: 0 });
+      if (!chat) {
+        return errorResMsg(res, 404, "Chat not found");
+      }
+      validatedChatId = chatId;
     }
 
     // Generate answer
@@ -134,6 +144,8 @@ export const answerQuestion = async (req, res) => {
     try {
       const topicForHistory = (context && context.trim().length > 0) ? context.trim() : question.trim();
       const saved = await AITutorService.saveInteraction(userId, {
+        chatId: validatedChatId,
+        courseId: courseId,
         type: "question",
         topic: topicForHistory,
         userInput: question.trim(),
@@ -143,7 +155,12 @@ export const answerQuestion = async (req, res) => {
         responseTime: undefined,
         tags: ["question", userLevel]
       });
-      if (saved) logger.info(`AI Tutor history saved for user ${userId}, interactionId: ${saved._id}`);
+      if (saved) {
+        logger.info(`AI Tutor history saved for user ${userId}, interactionId: ${saved._id}, chatId: ${validatedChatId}`);
+        // Include the saved interaction details in response
+        answer.interactionId = saved._id;
+        answer.chatId = validatedChatId;
+      }
     } catch (historyError) {
       logger.error(`Failed to save AI Tutor question interaction for user ${userId}: ${historyError.message}`);
     }
@@ -366,6 +383,213 @@ export const getHistoryItem = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor history item error: ${error.message}`);
+    return errorResMsg(res, error.status || 500, error.message);
+  }
+};
+
+/**
+ * Create a new chat session
+ */
+export const createChat = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { title, courseId, description, tags } = req.body;
+
+    // Check if user has AI Tutor access
+    const subscriptionStatus = await SubscriptionService.getUserSubscriptionStatus(userId);
+    
+    if (!subscriptionStatus.featureAccess.aiTutor) {
+      return errorResMsg(res, 403, "AI Tutor access requires an active subscription. Please upgrade your plan to access this feature.");
+    }
+
+    // Create new chat
+    const chat = await AITutorService.createChat(userId, {
+      title,
+      courseId,
+      description,
+      tags
+    });
+
+    logger.info(`AI Tutor chat created for user ${userId}: ${chat._id}`);
+
+    return successResMsg(res, 201, {
+      message: "Chat created successfully",
+      data: chat
+    });
+
+  } catch (error) {
+    logger.error(`AI Tutor create chat error: ${error.message}`);
+    return errorResMsg(res, error.status || 500, error.message);
+  }
+};
+
+/**
+ * Get all user's chats
+ */
+export const getUserChats = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { limit = 20, page = 1, courseId, includeArchived, searchQuery } = req.query;
+
+    // Check if user has AI Tutor access
+    const subscriptionStatus = await SubscriptionService.getUserSubscriptionStatus(userId);
+    
+    if (!subscriptionStatus.featureAccess.aiTutor) {
+      return errorResMsg(res, 403, "AI Tutor access requires an active subscription. Please upgrade your plan to access this feature.");
+    }
+
+    // Get user's chats
+    const result = await AITutorService.getUserChats(userId, {
+      limit: parseInt(limit),
+      page: parseInt(page),
+      courseId,
+      includeArchived: includeArchived === 'true',
+      searchQuery
+    });
+
+    logger.info(`AI Tutor chats retrieved for user ${userId}`);
+
+    return successResMsg(res, 200, {
+      message: "Chats retrieved successfully",
+      ...result
+    });
+
+  } catch (error) {
+    logger.error(`AI Tutor get chats error: ${error.message}`);
+    return errorResMsg(res, error.status || 500, error.message);
+  }
+};
+
+/**
+ * Get a specific chat with its messages
+ */
+export const getChatById = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { chatId } = req.params;
+    const { messageLimit = 50, messagePage = 1 } = req.query;
+
+    // Check if user has AI Tutor access
+    const subscriptionStatus = await SubscriptionService.getUserSubscriptionStatus(userId);
+    
+    if (!subscriptionStatus.featureAccess.aiTutor) {
+      return errorResMsg(res, 403, "AI Tutor access requires an active subscription. Please upgrade your plan to access this feature.");
+    }
+
+    // Get chat with messages
+    const result = await AITutorService.getChatWithMessages(userId, chatId, {
+      messageLimit: parseInt(messageLimit),
+      messagePage: parseInt(messagePage)
+    });
+
+    logger.info(`AI Tutor chat retrieved for user ${userId}: ${chatId}`);
+
+    return successResMsg(res, 200, {
+      message: "Chat retrieved successfully",
+      data: result
+    });
+
+  } catch (error) {
+    logger.error(`AI Tutor get chat error: ${error.message}`);
+    return errorResMsg(res, error.status || 500, error.message);
+  }
+};
+
+/**
+ * Update a chat
+ */
+export const updateChat = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { chatId } = req.params;
+    const { title, description, isPinned, isArchived, courseId } = req.body;
+
+    // Check if user has AI Tutor access
+    const subscriptionStatus = await SubscriptionService.getUserSubscriptionStatus(userId);
+    
+    if (!subscriptionStatus.featureAccess.aiTutor) {
+      return errorResMsg(res, 403, "AI Tutor access requires an active subscription. Please upgrade your plan to access this feature.");
+    }
+
+    // Update chat
+    const chat = await AITutorService.updateChat(userId, chatId, {
+      title,
+      description,
+      isPinned,
+      isArchived,
+      courseId
+    });
+
+    logger.info(`AI Tutor chat updated for user ${userId}: ${chatId}`);
+
+    return successResMsg(res, 200, {
+      message: "Chat updated successfully",
+      data: chat
+    });
+
+  } catch (error) {
+    logger.error(`AI Tutor update chat error: ${error.message}`);
+    return errorResMsg(res, error.status || 500, error.message);
+  }
+};
+
+/**
+ * Delete a chat
+ */
+export const deleteChat = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { chatId } = req.params;
+
+    // Check if user has AI Tutor access
+    const subscriptionStatus = await SubscriptionService.getUserSubscriptionStatus(userId);
+    
+    if (!subscriptionStatus.featureAccess.aiTutor) {
+      return errorResMsg(res, 403, "AI Tutor access requires an active subscription. Please upgrade your plan to access this feature.");
+    }
+
+    // Delete chat
+    const result = await AITutorService.deleteChat(userId, chatId);
+
+    logger.info(`AI Tutor chat deleted for user ${userId}: ${chatId}`);
+
+    return successResMsg(res, 200, {
+      message: result.message,
+      data: { success: true }
+    });
+
+  } catch (error) {
+    logger.error(`AI Tutor delete chat error: ${error.message}`);
+    return errorResMsg(res, error.status || 500, error.message);
+  }
+};
+
+/**
+ * Get chat statistics
+ */
+export const getChatStatistics = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+
+    // Check if user has AI Tutor access
+    const subscriptionStatus = await SubscriptionService.getUserSubscriptionStatus(userId);
+    
+    if (!subscriptionStatus.featureAccess.aiTutor) {
+      return errorResMsg(res, 403, "AI Tutor access requires an active subscription. Please upgrade your plan to access this feature.");
+    }
+
+    // Get statistics
+    const statistics = await AITutorService.getChatStatistics(userId);
+
+    logger.info(`AI Tutor chat statistics retrieved for user ${userId}`);
+
+    return successResMsg(res, 200, {
+      message: "Chat statistics retrieved successfully",
+      data: statistics
+    });
+
+  } catch (error) {
+    logger.error(`AI Tutor chat statistics error: ${error.message}`);
     return errorResMsg(res, error.status || 500, error.message);
   }
 };

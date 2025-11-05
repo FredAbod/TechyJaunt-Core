@@ -55,7 +55,7 @@ router.get('/slots/available',
 router.post('/sessions',
   strictBookingLimiter,
   isAuthenticated,
-  roleBasedAccess(['student', 'admin', 'user']),
+  roleBasedAccess(['student', 'admin', 'user', 'super admin', 'tutor']),
   validateRequest(bookSessionSchema),
   bookingController.bookSession
 );
@@ -64,7 +64,7 @@ router.post('/sessions',
 router.post('/sessions/by-slot',
   strictBookingLimiter,
   isAuthenticated,
-  roleBasedAccess(['student', 'admin', 'user']),
+  roleBasedAccess(['student', 'admin', 'user', 'super admin', 'tutor']),
   validateRequest(bookSessionBySlotSchema),
   bookingController.bookSessionBySlot
 );

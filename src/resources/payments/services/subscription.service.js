@@ -116,12 +116,79 @@ class SubscriptionService {
         
         // Check if subscription is pending (payment not completed)
         if (existingSubscription.status === 'pending') {
-          // Check if pending subscription is recent (within last 1 hour)
-          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-          if (existingSubscription.createdAt > oneHourAgo) {
-            throw new AppError("You have a recent pending subscription payment for this plan and course. Please complete the payment or wait for it to expire before creating a new subscription.", 400);
+          // Return the existing pending subscription's payment URL
+          logger.info(`User has pending subscription, returning existing payment URL. Reference: ${existingSubscription.transactionReference}`);
+          
+          // Re-initialize payment with Paystack using the existing reference to get a fresh URL
+          try {
+            const planDetails = await this.getPlanByType(planType);
+            
+            const paystackPayload = {
+              email: userEmail,
+              amount: planDetails.price,
+              currency: planDetails.currency,
+              reference: existingSubscription.transactionReference, // Use existing reference
+              callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/${courseId}/subscription/confirmation`,
+              metadata: {
+                custom_fields: [
+                  {
+                    display_name: "Subscription Plan",
+                    variable_name: "subscription_plan",
+                    value: planDetails.name
+                  },
+                  {
+                    display_name: "User Name",
+                    variable_name: "user_name",
+                    value: userName
+                  },
+                  {
+                    display_name: "Plan Type",
+                    variable_name: "plan_type",
+                    value: planType
+                  },
+                  {
+                    display_name: "Billing Type",
+                    variable_name: "billing_type",
+                    value: planDetails.billing
+                  },
+                  {
+                    display_name: "Course",
+                    variable_name: "course_title",
+                    value: course.title
+                  },
+                  {
+                    display_name: "Course ID",
+                    variable_name: "course_id",
+                    value: courseId
+                  }
+                ]
+              }
+            };
+
+            const response = await axios.post(
+              'https://api.paystack.co/transaction/initialize',
+              paystackPayload,
+              this.paystackConfig
+            );
+
+            if (response.data.status) {
+              return {
+                authorizationUrl: response.data.data.authorization_url,
+                reference: existingSubscription.transactionReference,
+                subscription: existingSubscription.toJSON(),
+                message: "Returning existing pending subscription payment link"
+              };
+            }
+          } catch (paystackError) {
+            logger.error(`Failed to re-initialize payment for pending subscription: ${paystackError.message}`);
+            // If re-initialization fails, update the old subscription status and create a new one below
+            existingSubscription.status = 'failed';
+            existingSubscription.metadata = {
+              ...existingSubscription.metadata,
+              failureReason: 'Payment link re-initialization failed, new subscription created'
+            };
+            await existingSubscription.save();
           }
-          // If pending subscription is old, we can allow a new one (old one likely failed)
         }
       }
 

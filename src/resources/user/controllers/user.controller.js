@@ -530,6 +530,78 @@ export const getStudentById = async (req, res) => {
   }
 };
 
+// Get all tutors endpoint
+export const getAllTutors = async (req, res) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+
+    // Get all users with tutor or admin roles
+    const query = {
+      role: { $in: ["tutor", "admin", "super admin"] }
+    };
+
+    // Execute query with pagination
+    const tutorsPromise = User.find(query)
+      .select('-password -emailOtp -resetPasswordToken -resetPasswordExpiry')
+      .limit(limit * 1)
+      .skip((page - 1) * limit)
+      .sort({ createdAt: -1 });
+
+    const totalCountPromise = User.countDocuments(query);
+
+    const [tutors, totalTutors] = await Promise.all([tutorsPromise, totalCountPromise]);
+
+    // Get courses for each tutor
+    const Course = (await import("../../courses/models/course.js")).default;
+    
+    const tutorsWithCourses = await Promise.all(
+      tutors.map(async (tutor) => {
+        try {
+          const courses = await Course.find({
+            $or: [
+              { instructor: tutor._id },
+              { assistants: tutor._id }
+            ],
+            isActive: true
+          }).select('_id title category level price thumbnail description');
+
+          return {
+            ...tutor.toJSON(),
+            courses: courses || [],
+            totalCourses: courses?.length || 0
+          };
+        } catch (error) {
+          logger.warn(`Failed to get courses for tutor ${tutor._id}: ${error.message}`);
+          return {
+            ...tutor.toJSON(),
+            courses: [],
+            totalCourses: 0
+          };
+        }
+      })
+    );
+
+    const pagination = {
+      currentPage: parseInt(page),
+      totalPages: Math.ceil(totalTutors / limit),
+      totalTutors,
+      hasNext: page < Math.ceil(totalTutors / limit),
+      hasPrev: page > 1
+    };
+
+    logger.info(`Retrieved tutors list (${totalTutors} total)`);
+    return successResMsg(res, 200, {
+      message: "Tutors retrieved successfully",
+      tutors: tutorsWithCourses,
+      pagination
+    });
+
+  } catch (error) {
+    logger.error(`Get all tutors error: ${error.message}`);
+    return errorResMsg(res, 500, "Failed to retrieve tutors");
+  }
+};
+
 // Admin endpoint to invite a new user
 export const inviteUser = async (req, res) => {
   try {

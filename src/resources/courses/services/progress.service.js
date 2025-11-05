@@ -511,6 +511,44 @@ class ProgressService {
       // Always fetch course details before returning response
       const course = await Course.findById(courseId).select("title description");
 
+      // Determine next module information
+      const currentIndex = populatedProgress.currentModuleIndex;
+      const nextModuleIndex = currentIndex + 1;
+      const hasNextModule = nextModuleIndex < populatedProgress.modules.length;
+      
+      let nextModule = null;
+      if (hasNextModule) {
+        const nextModuleData = populatedProgress.modules[nextModuleIndex];
+        nextModule = {
+          moduleId: nextModuleData.moduleId._id,
+          title: nextModuleData.moduleId.title,
+          description: nextModuleData.moduleId.description,
+          order: nextModuleData.moduleId.order,
+          isUnlocked: nextModuleData.unlockedAt !== null,
+          unlockedAt: nextModuleData.unlockedAt,
+          canAccess: nextModuleIndex <= populatedProgress.currentModuleIndex
+        };
+      }
+
+      // Get last quiz/assessment attempt
+      let lastQuizAttempt = null;
+      for (let i = populatedProgress.modules.length - 1; i >= 0; i--) {
+        const module = populatedProgress.modules[i];
+        if (module.assessmentAttempts && module.assessmentAttempts.length > 0) {
+          const lastAttempt = module.assessmentAttempts[module.assessmentAttempts.length - 1];
+          lastQuizAttempt = {
+            moduleId: module.moduleId._id,
+            moduleTitle: module.moduleId.title,
+            assessmentId: lastAttempt.assessmentId,
+            score: lastAttempt.score,
+            passed: lastAttempt.passed,
+            attemptedAt: lastAttempt.attemptedAt,
+            totalAttempts: module.assessmentAttempts.length
+          };
+          break;
+        }
+      }
+
       return {
         course,
         overallProgress: populatedProgress.overallProgress,
@@ -519,6 +557,8 @@ class ProgressService {
         completedAt: populatedProgress.completedAt,
         totalWatchTime: populatedProgress.totalWatchTime,
         lastActivityAt: populatedProgress.lastActivityAt,
+        nextModule: nextModule,
+        lastQuizAttempt: lastQuizAttempt,
         modules: populatedProgress.modules.map((module, index) => {
           // Check module access - user can access module 0 by default, or if index <= currentModuleIndex
           const canAccess =

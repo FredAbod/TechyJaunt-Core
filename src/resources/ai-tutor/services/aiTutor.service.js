@@ -1,6 +1,8 @@
 import Groq from "groq-sdk";
 import AppError from "../../../utils/lib/appError.js";
 import AITutorHistory from "../models/aiTutorHistory.js";
+import AITutorChat from "../models/aiTutorChat.js";
+import mongoose from "mongoose";
 
 class AITutorService {
   constructor() {
@@ -416,6 +418,7 @@ Make the exercises practical and hands-on. Ensure they progressively build under
     try {
       const historyEntry = new AITutorHistory({
         userId,
+        chatId: interactionData.chatId,
         courseId: interactionData.courseId,
         interactionType: interactionData.type,
         topic: interactionData.topic,
@@ -432,6 +435,21 @@ Make the exercises practical and hands-on. Ensure they progressively build under
       });
 
       await historyEntry.save();
+
+      // Update chat metadata if chatId is provided
+      if (interactionData.chatId) {
+        const chat = await AITutorChat.findById(interactionData.chatId);
+        if (chat) {
+          await chat.updateMessageMetadata();
+          
+          // Auto-generate title from first message if it's still "New Chat"
+          if (chat.metadata.messageCount === 1) {
+            chat.generateTitle(interactionData.userInput);
+            await chat.save();
+          }
+        }
+      }
+
       return historyEntry;
 
     } catch (error) {
@@ -456,6 +474,156 @@ Make the exercises practical and hands-on. Ensure they progressively build under
 
     } catch (error) {
       throw new AppError(error.message || "Failed to retrieve history item", 500);
+    }
+  }
+
+  /**
+   * Create a new chat session
+   */
+  async createChat(userId, chatData = {}) {
+    try {
+      const chat = new AITutorChat({
+        userId,
+        title: chatData.title || "New Chat",
+        courseId: chatData.courseId,
+        description: chatData.description,
+        metadata: {
+          messageCount: 0,
+          tags: chatData.tags || []
+        }
+      });
+
+      await chat.save();
+      return chat;
+
+    } catch (error) {
+      throw new AppError(error.message || "Failed to create chat", 500);
+    }
+  }
+
+  /**
+   * Get user's chats
+   */
+  async getUserChats(userId, options = {}) {
+    try {
+      const result = await AITutorChat.getUserChats(userId, options);
+      return result;
+
+    } catch (error) {
+      throw new AppError(error.message || "Failed to retrieve chats", 500);
+    }
+  }
+
+  /**
+   * Get a specific chat with its messages
+   */
+  async getChatWithMessages(userId, chatId, options = {}) {
+    try {
+      const result = await AITutorChat.getChatWithMessages(userId, chatId, options);
+      
+      if (!result) {
+        throw new AppError("Chat not found", 404);
+      }
+
+      return result;
+
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError(error.message || "Failed to retrieve chat", 500);
+    }
+  }
+
+  /**
+   * Update a chat
+   */
+  async updateChat(userId, chatId, updateData) {
+    try {
+      const chat = await AITutorChat.findOne({ _id: chatId, userId });
+      
+      if (!chat) {
+        throw new AppError("Chat not found", 404);
+      }
+
+      // Update allowed fields
+      if (updateData.title !== undefined) chat.title = updateData.title;
+      if (updateData.description !== undefined) chat.description = updateData.description;
+      if (updateData.isPinned !== undefined) chat.isPinned = updateData.isPinned;
+      if (updateData.isArchived !== undefined) chat.isArchived = updateData.isArchived;
+      if (updateData.courseId !== undefined) chat.courseId = updateData.courseId;
+
+      await chat.save();
+      return chat;
+
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError(error.message || "Failed to update chat", 500);
+    }
+  }
+
+  /**
+   * Delete a chat and all its messages
+   */
+  async deleteChat(userId, chatId) {
+    try {
+      const chat = await AITutorChat.findOne({ _id: chatId, userId });
+      
+      if (!chat) {
+        throw new AppError("Chat not found", 404);
+      }
+
+      // Delete all messages associated with this chat
+      await AITutorHistory.deleteMany({ chatId, userId });
+
+      // Delete the chat itself
+      await chat.deleteOne();
+
+      return { success: true, message: "Chat and all its messages deleted successfully" };
+
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+      throw new AppError(error.message || "Failed to delete chat", 500);
+    }
+  }
+
+  /**
+   * Get chat statistics
+   */
+  async getChatStatistics(userId) {
+    try {
+      const totalChats = await AITutorChat.countDocuments({ userId, isArchived: false });
+      const archivedChats = await AITutorChat.countDocuments({ userId, isArchived: true });
+      const pinnedChats = await AITutorChat.countDocuments({ userId, isPinned: true, isArchived: false });
+
+      // Get most active chats
+      const mostActiveChats = await AITutorChat.find({ userId, isArchived: false })
+        .sort({ 'metadata.messageCount': -1 })
+        .limit(5)
+        .populate('courseId', 'title')
+        .lean();
+
+      // Get recent chats
+      const recentChats = await AITutorChat.find({ userId, isArchived: false })
+        .sort({ 'metadata.lastMessageAt': -1 })
+        .limit(5)
+        .populate('courseId', 'title')
+        .lean();
+
+      return {
+        totalChats,
+        archivedChats,
+        pinnedChats,
+        mostActiveChats,
+        recentChats
+      };
+
+    } catch (error) {
+      throw new AppError(error.message || "Failed to retrieve chat statistics", 500);
     }
   }
 }

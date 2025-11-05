@@ -106,6 +106,22 @@ export const questionAnswerSchema = Joi.object({
     .default('intermediate')
     .messages({
       'any.only': 'User level must be one of: beginner, intermediate, advanced'
+    }),
+  
+  chatId: Joi.string()
+    .trim()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Invalid chat ID format'
+    }),
+  
+  courseId: Joi.string()
+    .trim()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Invalid course ID format'
     })
 });
 
@@ -140,4 +156,92 @@ export const practiceExercisesSchema = Joi.object({
       'number.max': 'Exercise count cannot exceed 10',
       'number.integer': 'Exercise count must be a whole number'
     })
+});
+
+// Create chat validation
+export const createChatSchema = Joi.object({
+  title: Joi.string()
+    .trim()
+    .min(1)
+    .max(100)
+    .optional()
+    .messages({
+      'string.min': 'Title must be at least 1 character long',
+      'string.max': 'Title cannot exceed 100 characters'
+    }),
+  
+  description: Joi.string()
+    .trim()
+    .max(500)
+    .optional()
+    .allow('')
+    .messages({
+      'string.max': 'Description cannot exceed 500 characters'
+    }),
+  
+  courseId: Joi.string()
+    .trim()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .optional()
+    .messages({
+      'string.pattern.base': 'Invalid course ID format'
+    }),
+  
+  tags: Joi.array()
+    .items(
+      Joi.string()
+        .trim()
+        .min(1)
+        .max(50)
+    )
+    .max(10)
+    .optional()
+    .messages({
+      'array.max': 'Maximum 10 tags allowed'
+    })
+});
+
+// Update chat validation
+export const updateChatSchema = Joi.object({
+  title: Joi.string()
+    .trim()
+    .min(1)
+    .max(100)
+    .optional()
+    .messages({
+      'string.min': 'Title must be at least 1 character long',
+      'string.max': 'Title cannot exceed 100 characters'
+    }),
+  
+  description: Joi.string()
+    .trim()
+    .max(500)
+    .optional()
+    .allow('')
+    .messages({
+      'string.max': 'Description cannot exceed 500 characters'
+    }),
+  
+  courseId: Joi.string()
+    .trim()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .optional()
+    .allow(null)
+    .messages({
+      'string.pattern.base': 'Invalid course ID format'
+    }),
+  
+  isPinned: Joi.boolean()
+    .optional()
+    .messages({
+      'boolean.base': 'isPinned must be a boolean value'
+    }),
+  
+  isArchived: Joi.boolean()
+    .optional()
+    .messages({
+      'boolean.base': 'isArchived must be a boolean value'
+    })
+}).min(1).messages({
+  'object.min': 'At least one field must be provided for update'
 });

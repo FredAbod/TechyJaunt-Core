@@ -280,6 +280,7 @@ class BookingService {
               daysToAdd += week * 7; // Add additional weeks
 
               sessionDate.setDate(today.getDate() + daysToAdd);
+              sessionDate.setHours(0, 0, 0, 0); // Reset time to start of day
 
               console.log(
                 `      Week ${week + 1}: ${
@@ -287,10 +288,10 @@ class BookingService {
                 }, Days to add: ${daysToAdd}`
               );
 
-              // Only include future dates (at least 1 day ahead)
-              if (sessionDate > today) {
+              // Only include future dates (must be at least today or later)
+              if (sessionDate >= today) {
                 console.log(
-                  `        Date is in future, generating time slots...`
+                  `        Date is today or in future, generating time slots...`
                 );
 
                 // Generate individual session slots within the time block
@@ -474,10 +475,25 @@ class BookingService {
         .populate("courseSpecific", "title")
         .sort({ dayOfWeek: 1 });
 
+      // Filter out past dates from availability
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Set to start of today
+
+      const filteredAvailability = availability.filter(avail => {
+        // If there's a specific date, check if it's in the future
+        if (avail.specificDate) {
+          const availDate = new Date(avail.specificDate);
+          availDate.setHours(0, 0, 0, 0);
+          return availDate >= today;
+        }
+        // If it's recurring, keep it (it applies to future dates)
+        return true;
+      });
+
       return {
-        availability,
+        availability: filteredAvailability,
         tutorCourses,
-        tutorInfo: availability.length > 0 ? availability[0].tutorId : null
+        tutorInfo: filteredAvailability.length > 0 ? filteredAvailability[0].tutorId : null
       };
     } catch (error) {
       throw error;
