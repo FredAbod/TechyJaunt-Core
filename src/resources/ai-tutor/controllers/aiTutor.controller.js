@@ -3,6 +3,18 @@ import SubscriptionService from "../../payments/services/subscription.service.js
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 import logger from "../../../utils/log/logger.js";
 
+// Normalize error status to a valid HTTP status code (100-599), default to 500
+const normalizeStatus = (error) => {
+  if (!error) return 500;
+  const candidates = [error.status, error.statusCode, error.code];
+  for (const c of candidates) {
+    const n = Number(c);
+    if (Number.isInteger(n) && n >= 100 && n < 600) return n;
+  }
+  // if error.status is a string like 'error', ignore it
+  return 500;
+};
+
 /**
  * Generate topic explanation using AI Tutor
  */
@@ -58,7 +70,7 @@ export const getTopicExplanation = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor topic explanation error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -98,7 +110,7 @@ export const generateStudyPlan = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor study plan error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -122,14 +134,17 @@ export const answerQuestion = async (req, res) => {
       return errorResMsg(res, 403, "AI Tutor access requires an active subscription. Please upgrade your plan to access this feature.");
     }
 
-    // If chatId is provided, validate it belongs to the user
+    // If chatId is provided (and not the string 'null'), validate it belongs to the user
     let validatedChatId = chatId;
-    if (chatId) {
+    if (chatId && chatId !== 'null') {
       const chat = await AITutorService.getChatWithMessages(userId, chatId, { messageLimit: 0 });
       if (!chat) {
         return errorResMsg(res, 404, "Chat not found");
       }
       validatedChatId = chatId;
+    } else {
+      // Treat 'null' or falsy chatId as not provided
+      validatedChatId = null;
     }
 
     // Generate answer
@@ -174,7 +189,7 @@ export const answerQuestion = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor answer question error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -220,7 +235,7 @@ export const generatePracticeExercises = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor exercises error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -254,7 +269,7 @@ export const getServiceStatus = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor service status error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -311,7 +326,7 @@ export const getAccessInfo = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor access info error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -348,11 +363,7 @@ export const getUserHistory = async (req, res) => {
   } catch (error) {
     logger.error(`AI Tutor history error: ${error.message}`);
     // Ensure status is a valid number, else default to 500
-    let status = 500;
-    if (typeof error.status === 'number' && !isNaN(error.status)) {
-      status = error.status;
-    }
-    return errorResMsg(res, status, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -383,7 +394,7 @@ export const getHistoryItem = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor history item error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -419,7 +430,7 @@ export const createChat = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor create chat error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -456,7 +467,7 @@ export const getUserChats = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor get chats error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -466,7 +477,11 @@ export const getUserChats = async (req, res) => {
 export const getChatById = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { chatId } = req.params;
+      const { chatId } = req.params;
+
+      if (!chatId || chatId === 'null') {
+        return errorResMsg(res, 400, "Invalid chatId parameter");
+      }
     const { messageLimit = 50, messagePage = 1 } = req.query;
 
     // Check if user has AI Tutor access
@@ -491,7 +506,7 @@ export const getChatById = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor get chat error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -501,7 +516,11 @@ export const getChatById = async (req, res) => {
 export const updateChat = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { chatId } = req.params;
+      const { chatId } = req.params;
+
+      if (!chatId || chatId === 'null') {
+        return errorResMsg(res, 400, "Invalid chatId parameter");
+      }
     const { title, description, isPinned, isArchived, courseId } = req.body;
 
     // Check if user has AI Tutor access
@@ -529,7 +548,7 @@ export const updateChat = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor update chat error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -539,7 +558,11 @@ export const updateChat = async (req, res) => {
 export const deleteChat = async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { chatId } = req.params;
+      const { chatId } = req.params;
+
+      if (!chatId || chatId === 'null') {
+        return errorResMsg(res, 400, "Invalid chatId parameter");
+      }
 
     // Check if user has AI Tutor access
     const subscriptionStatus = await SubscriptionService.getUserSubscriptionStatus(userId);
@@ -560,7 +583,7 @@ export const deleteChat = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor delete chat error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
 
@@ -590,6 +613,6 @@ export const getChatStatistics = async (req, res) => {
 
   } catch (error) {
     logger.error(`AI Tutor chat statistics error: ${error.message}`);
-    return errorResMsg(res, error.status || 500, error.message);
+    return errorResMsg(res, normalizeStatus(error), error.message);
   }
 };
