@@ -395,8 +395,8 @@ class SubscriptionService {
         throw new AppError("Subscription not found", 404);
       }
 
-      // If already verified, return existing data
-      if (subscription.status === "success") {
+      // If already active, return existing data
+      if (subscription.status === "active") {
         return subscription;
       }
 
