@@ -14,7 +14,8 @@
 9. [AI Tutor Endpoints](#ai-tutor-endpoints)
 10. [Booking Endpoints](#booking-endpoints)
 11. [Assessment Endpoints](#assessment-endpoints)
-12. [Webhook Endpoints](#webhook-endpoints)
+12. [Certificate Endpoints](#certificate-endpoints)
+13. [Webhook Endpoints](#webhook-endpoints)
 
 ---
 
@@ -2502,6 +2503,246 @@ x-paystack-signature: <webhook_signature>
 {
   "status": "success",
   "message": "Webhook processed successfully"
+}
+```
+
+---
+
+## Certificate Endpoints
+
+### 1. Check Certificate Eligibility
+**GET** `/api/v1/certificates/courses/:courseId/eligibility`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Eligible for certificate",
+  "data": {
+    "eligible": true,
+    "progress": {
+      "isCompleted": true,
+      "completedAt": "2024-12-10T14:30:00.000Z"
+    },
+    "subscription": {
+      "planName": "Bronze",
+      "status": "active"
+    }
+  }
+}
+```
+
+**Response (200) - Not Eligible:**
+```json
+{
+  "status": "success",
+  "message": "Course not completed. Please complete all modules and assessments.",
+  "data": {
+    "eligible": false,
+    "reason": "Course not completed. Please complete all modules and assessments."
+  }
+}
+```
+
+### 2. Generate Certificate
+**POST** `/api/v1/certificates/courses/:courseId/generate`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (201):**
+```json
+{
+  "status": "success",
+  "message": "Certificate generated successfully",
+  "data": {
+    "_id": "675ae8f8b1c5a2d3e4f5g6h7",
+    "userId": "60d0fe4f5311236168a109ca",
+    "courseId": "60d0fe4f5311236168a109cb",
+    "certificateNumber": "TJ-202412-AB12CD34",
+    "verificationCode": "VF12AB34CD56EF78",
+    "issueDate": "2024-12-12T10:30:00.000Z",
+    "completionDate": "2024-12-10T14:30:00.000Z",
+    "studentName": "John Doe",
+    "studentEmail": "john.doe@example.com",
+    "courseTitle": "Advanced Web Development",
+    "courseCategory": "Web Development",
+    "courseLevel": "Advanced",
+    "certificateUrl": "https://res.cloudinary.com/techyjaunt/image/upload/v1234567890/techyjaunt/certificates/certificate_123.png",
+    "status": "active",
+    "finalScore": 95,
+    "totalModules": 8,
+    "totalLessons": 32
+  }
+}
+```
+
+### 3. Get My Certificates
+**GET** `/api/v1/certificates`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Query Parameters:**
+- `status` (optional): Filter by status (active, revoked, expired)
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Certificates retrieved successfully",
+  "data": [
+    {
+      "_id": "675ae8f8b1c5a2d3e4f5g6h7",
+      "certificateNumber": "TJ-202412-AB12CD34",
+      "issueDate": "2024-12-12T10:30:00.000Z",
+      "completionDate": "2024-12-10T14:30:00.000Z",
+      "certificateUrl": "https://res.cloudinary.com/techyjaunt/image/upload/v1234567890/techyjaunt/certificates/certificate_123.png",
+      "status": "active",
+      "courseId": {
+        "_id": "60d0fe4f5311236168a109cb",
+        "title": "Advanced Web Development",
+        "category": "Web Development",
+        "level": "Advanced",
+        "thumbnail": "https://res.cloudinary.com/techyjaunt/image/upload/v1234567890/courses/course_thumb.jpg"
+      },
+      "finalScore": 95,
+      "totalModules": 8,
+      "totalLessons": 32
+    }
+  ],
+  "count": 1
+}
+```
+
+### 4. Get Certificate by ID
+**GET** `/api/v1/certificates/:certificateId`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Certificate retrieved successfully",
+  "data": {
+    "_id": "675ae8f8b1c5a2d3e4f5g6h7",
+    "userId": "60d0fe4f5311236168a109ca",
+    "courseId": {
+      "_id": "60d0fe4f5311236168a109cb",
+      "title": "Advanced Web Development",
+      "category": "Web Development",
+      "level": "Advanced",
+      "description": "Master advanced web development concepts",
+      "thumbnail": "https://res.cloudinary.com/techyjaunt/image/upload/v1234567890/courses/course_thumb.jpg"
+    },
+    "certificateNumber": "TJ-202412-AB12CD34",
+    "verificationCode": "VF12AB34CD56EF78",
+    "issueDate": "2024-12-12T10:30:00.000Z",
+    "completionDate": "2024-12-10T14:30:00.000Z",
+    "studentName": "John Doe",
+    "studentEmail": "john.doe@example.com",
+    "courseTitle": "Advanced Web Development",
+    "courseCategory": "Web Development",
+    "courseLevel": "Advanced",
+    "certificateUrl": "https://res.cloudinary.com/techyjaunt/image/upload/v1234567890/techyjaunt/certificates/certificate_123.png",
+    "status": "active",
+    "finalScore": 95,
+    "totalModules": 8,
+    "totalLessons": 32,
+    "totalWatchTime": 1800
+  }
+}
+```
+
+### 5. Verify Certificate (Public)
+**GET** `/api/v1/certificates/verify`
+
+**No Authentication Required**
+
+**Query Parameters:**
+- `certificateNumber` (required): Certificate number to verify (e.g., TJ-202412-AB12CD34)
+- `verificationCode` (optional): Additional verification code for enhanced security
+
+**Response (200) - Valid Certificate:**
+```json
+{
+  "status": "success",
+  "message": "Certificate is valid",
+  "data": {
+    "valid": true,
+    "certificate": {
+      "certificateNumber": "TJ-202412-AB12CD34",
+      "issueDate": "2024-12-12T10:30:00.000Z",
+      "completionDate": "2024-12-10T14:30:00.000Z",
+      "status": "active",
+      "student": {
+        "name": "John Doe",
+        "email": "john.doe@example.com"
+      },
+      "course": {
+        "title": "Advanced Web Development",
+        "category": "Web Development",
+        "level": "Advanced",
+        "duration": "40 hours"
+      },
+      "stats": {
+        "finalScore": 95,
+        "totalModules": 8,
+        "totalLessons": 32
+      }
+    }
+  }
+}
+```
+
+**Response (200) - Invalid Certificate:**
+```json
+{
+  "status": "success",
+  "message": "Certificate not found",
+  "data": {
+    "valid": false
+  }
+}
+```
+
+### 6. Get Certificate Statistics (Admin)
+**GET** `/api/v1/certificates/admin/stats`
+
+**Headers:**
+```
+Authorization: Bearer <JWT_TOKEN>
+```
+
+**Required Role:** `superAdmin`, `admin`
+
+**Query Parameters:**
+- `courseId` (optional): Filter statistics by specific course
+
+**Response (200):**
+```json
+{
+  "status": "success",
+  "message": "Certificate statistics retrieved successfully",
+  "data": {
+    "total": 156,
+    "active": 148,
+    "revoked": 5,
+    "recentlyIssued": 23
+  }
 }
 ```
 
