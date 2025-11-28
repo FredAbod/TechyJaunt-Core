@@ -1,92 +1,154 @@
 import Joi from "joi";
 
-// Set tutor availability validation
-export const setAvailabilitySchema = Joi.object({
-  dayOfWeek: Joi.string()
-    .valid("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
-    .optional()
-    .messages({
-      "any.only": "Day of week must be a valid day (monday-sunday)",
-      "any.required": "Day of week is required",
-    }),
-  timeSlots: Joi.array()
-    .items(
-      Joi.object({
-        startTime: Joi.string()
-          .pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
-          .required()
-          .messages({
-            "string.pattern.base": "Start time must be in HH:MM format (24-hour)",
-            "any.required": "Start time is required",
-          }),
-        endTime: Joi.string()
-          .pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
-          .required()
-          .messages({
-            "string.pattern.base": "End time must be in HH:MM format (24-hour)",
-            "any.required": "End time is required",
-          }),
-        sessionDuration: Joi.number()
-          .integer()
-          .min(15)
-          .max(480)
-          .optional()
-          .default(60)
-          .messages({
-            "number.min": "Session duration must be at least 15 minutes",
-            "number.max": "Session duration cannot exceed 8 hours",
-          }),
-        maxBookings: Joi.number()
-          .integer()
-          .min(1)
-          .max(10)
-          .optional()
-          .default(1)
-          .messages({
-            "number.min": "Max bookings must be at least 1",
-            "number.max": "Max bookings cannot exceed 10",
-          }),
-      })
-    )
-    .min(1)
+// Time slot schema (reusable)
+const timeSlotSchema = Joi.object({
+  startTime: Joi.string()
+    .pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
     .required()
     .messages({
-      "array.min": "At least one time slot is required",
-      "any.required": "Time slots are required",
+      "string.pattern.base": "Start time must be in HH:MM format (24-hour)",
+      "any.required": "Start time is required",
     }),
-  timezone: Joi.string()
-    .optional()
-    .default("UTC"),
-  isRecurring: Joi.boolean()
-    .optional()
-    .default(true),
-  specificDate: Joi.date()
-    .min('now')
-    .optional()
+  endTime: Joi.string()
+    .pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/)
+    .required()
     .messages({
-      "date.min": "Specific date cannot be in the past",
+      "string.pattern.base": "End time must be in HH:MM format (24-hour)",
+      "any.required": "End time is required",
     }),
-  courseSpecific: Joi.string()
-    .pattern(/^[0-9a-fA-F]{24}$/)
+  sessionDuration: Joi.number()
+    .integer()
+    .min(15)
+    .max(480)
     .optional()
+    .default(60)
     .messages({
-      "string.pattern.base": "Invalid course ID format",
+      "number.min": "Session duration must be at least 15 minutes",
+      "number.max": "Session duration cannot exceed 8 hours",
     }),
-  hourlyRate: Joi.object({
-    amount: Joi.number()
-      .min(0)
+  maxBookings: Joi.number()
+    .integer()
+    .min(1)
+    .max(10)
+    .optional()
+    .default(1)
+    .messages({
+      "number.min": "Max bookings must be at least 1",
+      "number.max": "Max bookings cannot exceed 10",
+    }),
+});
+
+// Set tutor availability validation - supports both legacy and new formats
+export const setAvailabilitySchema = Joi.alternatives().try(
+  // Format 1: Legacy format with dayOfWeek
+  Joi.object({
+    dayOfWeek: Joi.string()
+      .valid("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+      .required()
+      .messages({
+        "any.only": "Day of week must be a valid day (monday-sunday)",
+        "any.required": "Day of week is required",
+      }),
+    timeSlots: Joi.array()
+      .items(timeSlotSchema)
+      .min(1)
+      .required()
+      .messages({
+        "array.min": "At least one time slot is required",
+        "any.required": "Time slots are required",
+      }),
+    timezone: Joi.string()
       .optional()
-      .default(0),
-    currency: Joi.string()
+      .default("UTC"),
+    isRecurring: Joi.boolean()
       .optional()
-      .default("USD"),
-  }).optional(),
-  description: Joi.string()
-    .max(500)
-    .optional()
-    .messages({
-      "string.max": "Description cannot exceed 500 characters",
-    }),
+      .default(true),
+    specificDate: Joi.date()
+      .min('now')
+      .optional()
+      .messages({
+        "date.min": "Specific date cannot be in the past",
+      }),
+    courseSpecific: Joi.string()
+      .pattern(/^[0-9a-fA-F]{24}$/)
+      .optional()
+      .messages({
+        "string.pattern.base": "Invalid course ID format",
+      }),
+    hourlyRate: Joi.object({
+      amount: Joi.number()
+        .min(0)
+        .optional()
+        .default(0),
+      currency: Joi.string()
+        .optional()
+        .default("USD"),
+    }).optional(),
+    description: Joi.string()
+      .max(500)
+      .optional()
+      .messages({
+        "string.max": "Description cannot exceed 500 characters",
+      }),
+  }),
+  // Format 2: New format with selectedDates array
+  Joi.object({
+    selectedDates: Joi.array()
+      .items(
+        Joi.object({
+          date: Joi.string()
+            .pattern(/^\d{4}-\d{2}-\d{2}$/)
+            .required()
+            .messages({
+              "string.pattern.base": "Date must be in YYYY-MM-DD format",
+              "any.required": "Date is required for each selected date",
+            }),
+          timeSlots: Joi.array()
+            .items(timeSlotSchema)
+            .min(1)
+            .required()
+            .messages({
+              "array.min": "At least one time slot is required per date",
+              "any.required": "Time slots are required for each date",
+            }),
+        })
+      )
+      .min(1)
+      .required()
+      .messages({
+        "array.min": "At least one date is required",
+        "any.required": "Selected dates are required",
+      }),
+    timezone: Joi.string()
+      .optional()
+      .default("UTC"),
+    isRecurring: Joi.boolean()
+      .optional()
+      .default(false), // Default to false for selectedDates format
+    courseSpecific: Joi.string()
+      .pattern(/^[0-9a-fA-F]{24}$/)
+      .optional()
+      .messages({
+        "string.pattern.base": "Invalid course ID format",
+      }),
+    hourlyRate: Joi.object({
+      amount: Joi.number()
+        .min(0)
+        .optional()
+        .default(0),
+      currency: Joi.string()
+        .optional()
+        .default("USD"),
+    }).optional(),
+    description: Joi.string()
+      .max(500)
+      .optional()
+      .messages({
+        "string.max": "Description cannot exceed 500 characters",
+      }),
+  })
+).messages({
+  "alternatives.match": "Request must include either 'dayOfWeek' with 'timeSlots' or 'selectedDates' array",
 });
 
 // Book session validation

@@ -59,6 +59,110 @@ class BookingService {
         throw new Error("Only tutors and admins can set availability");
       }
 
+      // Check if using new selectedDates format
+      if (availabilityData.selectedDates && Array.isArray(availabilityData.selectedDates)) {
+        // Handle new format with selectedDates array
+        return await this.setAvailabilityBySelectedDates(tutorId, availabilityData, tutor);
+      } else {
+        // Handle legacy format with dayOfWeek
+        return await this.setAvailabilityByDayOfWeek(tutorId, availabilityData, tutor);
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Helper method: Set availability using selectedDates format (new)
+  async setAvailabilityBySelectedDates(tutorId, availabilityData, tutor) {
+    try {
+      const { selectedDates, timezone, isRecurring, description, courseSpecific, hourlyRate } = availabilityData;
+
+      // Validate course if specified
+      if (courseSpecific) {
+        const course = await Course.findById(courseSpecific);
+        if (!course) {
+          throw new Error("Course not found");
+        }
+        if (
+          course.instructor.toString() !== tutorId &&
+          tutor.role !== "super admin"
+        ) {
+          throw new Error("You can only set availability for your own courses");
+        }
+      }
+
+      const createdAvailabilities = [];
+
+      // Loop through each selected date
+      for (const dateEntry of selectedDates) {
+        const { date, timeSlots } = dateEntry;
+
+        // Parse the date and extract dayOfWeek
+        const parsedDate = new Date(date);
+        const dayOfWeek = parsedDate.toLocaleDateString("en-US", { weekday: "long" }).toLowerCase();
+
+        // Process time slots with defaults
+        const processedTimeSlots = timeSlots.map((slot) => ({
+          ...slot,
+          maxBookings: slot.maxBookings || 5,
+          currentBookings: slot.currentBookings || 0,
+        }));
+
+        // Create processed data for this date
+        const processedData = {
+          tutorId,
+          dayOfWeek,
+          timeSlots: processedTimeSlots,
+          timezone: timezone || "UTC",
+          isRecurring: isRecurring !== undefined ? isRecurring : false, // Default to false for specific dates
+          specificDate: parsedDate,
+          description: description || "",
+          courseSpecific: courseSpecific || null,
+          hourlyRate: hourlyRate || null,
+          isActive: true,
+        };
+
+        // Check for existing availability on the same specific date
+        const existingAvailability = await TutorAvailability.findOne({
+          tutorId,
+          specificDate: parsedDate,
+          courseSpecific: courseSpecific || null,
+        });
+
+        if (existingAvailability) {
+          // Update existing availability
+          existingAvailability.timeSlots = processedTimeSlots;
+          existingAvailability.timezone = processedData.timezone;
+          existingAvailability.dayOfWeek = dayOfWeek;
+          existingAvailability.isRecurring = processedData.isRecurring;
+          existingAvailability.hourlyRate = processedData.hourlyRate || existingAvailability.hourlyRate;
+          existingAvailability.description = processedData.description || existingAvailability.description;
+          existingAvailability.isActive = true;
+
+          await existingAvailability.save();
+          createdAvailabilities.push(existingAvailability);
+        } else {
+          // Create new availability
+          const availability = new TutorAvailability(processedData);
+          await availability.save();
+          
+          const populatedAvailability = await TutorAvailability.findById(availability._id)
+            .populate("tutorId", "firstName lastName email")
+            .populate("courseSpecific", "title");
+          
+          createdAvailabilities.push(populatedAvailability);
+        }
+      }
+
+      return createdAvailabilities;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Helper method: Set availability using dayOfWeek format (legacy)
+  async setAvailabilityByDayOfWeek(tutorId, availabilityData, tutor) {
+    try {
       // Validate and set defaults for availability data
       const processedData = {
         timeSlots: availabilityData.timeSlots.map((slot) => ({
