@@ -68,7 +68,7 @@ class CertificateService {
         };
       }
 
-      // Check if certificate already exists
+      // Check if certificate already exists - return it but still allow regeneration
       const existingCertificate = await Certificate.findOne({
         userId,
         courseId,
@@ -77,9 +77,11 @@ class CertificateService {
 
       if (existingCertificate) {
         return {
-          eligible: false,
-          reason: "Certificate already issued",
-          certificate: existingCertificate
+          eligible: true,
+          reason: "You can regenerate your certificate",
+          existingCertificate,
+          progress,
+          subscription
         };
       }
 
