@@ -535,6 +535,7 @@ class BookingService {
         startTime: slotDetails.startTime,
         endTime: slotDetails.endTime,
         courseId,
+        topics,
         notes: studentNotes,
       };
 
@@ -648,7 +649,7 @@ class BookingService {
   // Book a session
   async bookSession(bookingData) {
     try {
-      const { studentId, tutorId, date, startTime, endTime, courseId, notes } =
+      const { studentId, tutorId, date, startTime, endTime, courseId, topics, notes } =
         bookingData;
 
       // Verify student exists
@@ -763,7 +764,7 @@ class BookingService {
         duration,
         timezone: availability.timezone,
         sessionType,
-        topics: [],
+        topics: topics || [],
         studentNotes: notes,
         meetingDetails,
         pricing: {
