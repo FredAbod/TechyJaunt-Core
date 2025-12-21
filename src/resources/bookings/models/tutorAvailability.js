@@ -52,8 +52,16 @@ const tutorAvailabilitySchema = new mongoose.Schema(
       type: Date, // For one-time availability
       validate: {
         validator: function(value) {
+          // Skip validation if this is an update (document already exists)
+          if (!this.isNew) {
+            return true;
+          }
           if (value) {
-            return value >= new Date().setHours(0, 0, 0, 0); // Must be today or future date
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const inputDate = new Date(value);
+            inputDate.setHours(0, 0, 0, 0);
+            return inputDate >= today; // Must be today or future date
           }
           return true;
         },
