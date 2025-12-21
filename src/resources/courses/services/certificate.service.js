@@ -296,33 +296,64 @@ class CertificateService {
         resource_type: 'image'
       });
 
-      // Create certificate record
-      const certificate = new Certificate({
-        userId,
-        courseId,
-        certificateNumber,
-        verificationCode,
-        issueDate: certificateData.issueDate,
-        completionDate: certificateData.completionDate,
-        studentName: certificateData.studentName,
-        studentEmail: certificateData.studentEmail,
-        courseTitle: certificateData.courseTitle,
-        courseCategory: certificateData.courseCategory,
-        courseLevel: certificateData.courseLevel,
-        courseDuration: certificateData.courseDuration,
-        finalScore: certificateData.finalScore,
-        totalModules: certificateData.totalModules,
-        totalLessons: certificateData.totalLessons,
-        totalWatchTime: certificateData.totalWatchTime,
-        certificateUrl: uploadResult.secure_url,
-        certificatePublicId: uploadResult.public_id,
-        status: 'active',
-        isVerified: true
-      });
+      // Check if certificate already exists and update it, otherwise create new
+      const existingCertificate = await Certificate.findOne({ userId, courseId });
+      
+      let certificate;
+      if (existingCertificate) {
+        // Update existing certificate (regeneration)
+        existingCertificate.certificateNumber = certificateNumber;
+        existingCertificate.verificationCode = verificationCode;
+        existingCertificate.issueDate = certificateData.issueDate;
+        existingCertificate.completionDate = certificateData.completionDate;
+        existingCertificate.studentName = certificateData.studentName;
+        existingCertificate.studentEmail = certificateData.studentEmail;
+        existingCertificate.courseTitle = certificateData.courseTitle;
+        existingCertificate.courseCategory = certificateData.courseCategory;
+        existingCertificate.courseLevel = certificateData.courseLevel;
+        existingCertificate.courseDuration = certificateData.courseDuration;
+        existingCertificate.finalScore = certificateData.finalScore;
+        existingCertificate.totalModules = certificateData.totalModules;
+        existingCertificate.totalLessons = certificateData.totalLessons;
+        existingCertificate.totalWatchTime = certificateData.totalWatchTime;
+        existingCertificate.certificateUrl = uploadResult.secure_url;
+        existingCertificate.certificatePublicId = uploadResult.public_id;
+        existingCertificate.status = 'active';
+        existingCertificate.isVerified = true;
+        
+        await existingCertificate.save();
+        certificate = existingCertificate;
+        
+        logger.info(`Certificate regenerated for user ${userId} in course ${courseId}: ${certificateNumber}`);
+      } else {
+        // Create new certificate record
+        certificate = new Certificate({
+          userId,
+          courseId,
+          certificateNumber,
+          verificationCode,
+          issueDate: certificateData.issueDate,
+          completionDate: certificateData.completionDate,
+          studentName: certificateData.studentName,
+          studentEmail: certificateData.studentEmail,
+          courseTitle: certificateData.courseTitle,
+          courseCategory: certificateData.courseCategory,
+          courseLevel: certificateData.courseLevel,
+          courseDuration: certificateData.courseDuration,
+          finalScore: certificateData.finalScore,
+          totalModules: certificateData.totalModules,
+          totalLessons: certificateData.totalLessons,
+          totalWatchTime: certificateData.totalWatchTime,
+          certificateUrl: uploadResult.secure_url,
+          certificatePublicId: uploadResult.public_id,
+          status: 'active',
+          isVerified: true
+        });
 
-      await certificate.save();
-
-      logger.info(`Certificate generated for user ${userId} in course ${courseId}: ${certificateNumber}`);
+        await certificate.save();
+        
+        logger.info(`Certificate generated for user ${userId} in course ${courseId}: ${certificateNumber}`);
+      }
 
       return certificate;
     } catch (error) {
