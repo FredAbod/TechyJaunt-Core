@@ -10,7 +10,7 @@ import logger from "../../../utils/log/logger.js";
 export const generateCertificate = async (req, res, next) => {
   try {
     const { courseId } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.userId;
 
     logger.info(`Certificate generation requested by user ${userId} for course ${courseId}`);
 
@@ -32,7 +32,7 @@ export const generateCertificate = async (req, res, next) => {
  */
 export const getMyCertificates = async (req, res, next) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.userId;
     const { status } = req.query;
 
     const certificates = await certificateService.getUserCertificates(userId, { status });
@@ -55,7 +55,7 @@ export const getMyCertificates = async (req, res, next) => {
 export const getCertificateById = async (req, res, next) => {
   try {
     const { certificateId } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.userId;
 
     const certificate = await certificateService.getCertificateById(certificateId, userId);
 
@@ -100,7 +100,7 @@ export const verifyCertificate = async (req, res, next) => {
 export const checkCertificateEligibility = async (req, res, next) => {
   try {
     const { courseId } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.userId;
 
     const eligibility = await certificateService.checkEligibility(userId, courseId);
 
