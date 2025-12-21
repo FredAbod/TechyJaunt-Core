@@ -779,16 +779,54 @@ class BookingService {
         paymentStatus: calculatedAmount > 0 ? "pending" : "free"
       });
 
-      await booking.save();
+      console.log('Full booking object before save:', JSON.stringify({
+        studentId: booking.studentId,
+        tutorId: booking.tutorId,
+        courseId: booking.courseId,
+        sessionDate: booking.sessionDate,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        duration: booking.duration,
+        timezone: booking.timezone,
+        sessionType: booking.sessionType,
+        topics: booking.topics,
+        studentNotes: booking.studentNotes,
+        meetingDetails: booking.meetingDetails,
+        pricing: booking.pricing
+      }, null, 2));
+
+      try {
+        await booking.save();
+        console.log('Booking saved successfully with ID:', booking._id);
+      } catch (saveError) {
+        console.error('Error saving booking:', saveError.message);
+        console.error('Validation errors:', saveError.errors);
+        throw saveError;
+      }
 
       // Update availability slot booking count
-      availableSlot.currentBookings += 1;
-      await availability.save();
+      console.log('Updating availability slot booking count...');
+      try {
+        availableSlot.currentBookings += 1;
+        await availability.save();
+        console.log('Availability slot updated successfully');
+      } catch (availError) {
+        console.error('Error updating availability:', availError.message);
+        // Don't throw - booking is already saved
+      }
 
+      console.log('Populating booking...');
       const populatedBooking = await BookingSession.findById(booking._id)
         .populate("studentId", "firstName lastName email")
         .populate("tutorId", "firstName lastName email")
         .populate("courseId", "title");
+      
+      console.log('Populated booking:', populatedBooking ? 'Success' : 'Failed to find booking');
+      
+      if (!populatedBooking) {
+        console.error('Could not find booking after save, returning basic booking');
+        return booking;
+      }
 
       // Send email notifications
       try {
