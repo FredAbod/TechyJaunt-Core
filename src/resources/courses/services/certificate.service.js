@@ -15,12 +15,36 @@ class CertificateService {
    */
   async checkEligibility(userId, courseId) {
     try {
+      console.log('=== CHECK ELIGIBILITY START ===');
+      console.log('userId:', userId, 'courseId:', courseId);
+      
       // Check if user has completed the course
       const progress = await Progress.findOne({
         userId,
         courseId,
         isCompleted: true
       });
+
+      console.log('Progress query result:', progress ? {
+        id: progress._id,
+        isCompleted: progress.isCompleted,
+        overallProgress: progress.overallProgress,
+        completedAt: progress.completedAt,
+        modulesCount: progress.modules?.length
+      } : 'No progress found with isCompleted: true');
+      
+      // Also check if there's any progress at all
+      if (!progress) {
+        const anyProgress = await Progress.findOne({ userId, courseId });
+        console.log('Any progress for user/course:', anyProgress ? {
+          id: anyProgress._id,
+          isCompleted: anyProgress.isCompleted,
+          overallProgress: anyProgress.overallProgress,
+          completedAt: anyProgress.completedAt,
+          modulesCount: anyProgress.modules?.length,
+          modulesCompleted: anyProgress.modules?.filter(m => m.isCompleted).length
+        } : 'No progress at all');
+      }
 
       if (!progress) {
         return {
