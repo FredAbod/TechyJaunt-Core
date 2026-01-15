@@ -13,7 +13,10 @@ class CourseService {
   async createCourse(courseData, instructorId) {
     try {
       const instructor = await User.findById(instructorId);
-      if (!instructor || !["admin", "tutor", "super admin"].includes(instructor.role)) {
+      if (
+        !instructor ||
+        !["admin", "tutor", "super admin"].includes(instructor.role)
+      ) {
         throw new Error("Only admins and tutors can create courses");
       }
 
@@ -23,8 +26,8 @@ class CourseService {
       });
 
       await course.save();
-      await course.populate('instructor', 'firstName lastName email');
-      
+      await course.populate("instructor", "firstName lastName email");
+
       return course;
     } catch (error) {
       throw error;
@@ -49,7 +52,7 @@ class CourseService {
         courseId,
         updateData,
         { new: true, runValidators: true }
-      ).populate('instructor', 'firstName lastName email');
+      ).populate("instructor", "firstName lastName email");
 
       return updatedCourse;
     } catch (error) {
@@ -72,7 +75,9 @@ class CourseService {
       }
 
       // Check if course has enrolled students
-      const enrolledStudents = await UserCourseProgress.countDocuments({ courseId });
+      const enrolledStudents = await UserCourseProgress.countDocuments({
+        courseId,
+      });
       if (enrolledStudents > 0) {
         throw new Error("Cannot delete course with enrolled students");
       }
@@ -99,25 +104,25 @@ class CourseService {
 
       // Check if order already exists and auto-adjust if needed
       if (moduleData.order) {
-        const existingModule = await Module.findOne({ 
-          courseId: moduleData.courseId, 
-          order: moduleData.order 
+        const existingModule = await Module.findOne({
+          courseId: moduleData.courseId,
+          order: moduleData.order,
         });
-        
+
         if (existingModule) {
           // Find the next available order number
-          const highestOrder = await Module.findOne({ 
-            courseId: moduleData.courseId 
+          const highestOrder = await Module.findOne({
+            courseId: moduleData.courseId,
           }).sort({ order: -1 });
-          
+
           moduleData.order = highestOrder ? highestOrder.order + 1 : 1;
         }
       } else {
         // If no order specified, set to next available
-        const highestOrder = await Module.findOne({ 
-          courseId: moduleData.courseId 
+        const highestOrder = await Module.findOne({
+          courseId: moduleData.courseId,
         }).sort({ order: -1 });
-        
+
         moduleData.order = highestOrder ? highestOrder.order + 1 : 1;
       }
 
@@ -136,25 +141,30 @@ class CourseService {
 
   async updateModule(moduleId, updateData, userId) {
     try {
-      const module = await Module.findById(moduleId).populate('courseId');
-      if (!module) throw new Error('Module not found');
+      const module = await Module.findById(moduleId).populate("courseId");
+      if (!module) throw new Error("Module not found");
 
       const course = module.courseId;
       const user = await User.findById(userId);
-      if (!user || !['admin', 'super admin'].includes(user.role)) {
+      if (!user || !["admin", "super admin"].includes(user.role)) {
         if (course.instructor.toString() !== userId) {
-          throw new Error('You can only update modules in your own courses');
+          throw new Error("You can only update modules in your own courses");
         }
       }
 
       // If order is changed, adjust other modules ordering
       if (updateData.order && updateData.order !== module.order) {
         // clamp to positive
-        const newOrder = Math.max(1, parseInt(updateData.order, 10) || module.order);
+        const newOrder = Math.max(
+          1,
+          parseInt(updateData.order, 10) || module.order
+        );
         // shift other modules accordingly
-        const modules = await Module.find({ courseId: course._id }).sort({ order: 1 });
+        const modules = await Module.find({ courseId: course._id }).sort({
+          order: 1,
+        });
         // remove current module from list
-        const others = modules.filter(m => m._id.toString() !== moduleId);
+        const others = modules.filter((m) => m._id.toString() !== moduleId);
         // insert module placeholder at new position
         others.splice(Math.max(0, newOrder - 1), 0, module);
         // reassign orders
@@ -170,7 +180,7 @@ class CourseService {
       }
 
       // Apply other updates
-      const updatable = ['title', 'description', 'duration', 'isActive'];
+      const updatable = ["title", "description", "duration", "isActive"];
       updatable.forEach((field) => {
         if (Object.prototype.hasOwnProperty.call(updateData, field)) {
           module[field] = updateData[field];
@@ -204,37 +214,46 @@ class CourseService {
 
       // Check if lesson order already exists and auto-adjust if needed
       if (lessonData.order) {
-        const existingLesson = await Lesson.findOne({ 
-          moduleId: lessonData.moduleId, 
-          order: lessonData.order 
+        const existingLesson = await Lesson.findOne({
+          moduleId: lessonData.moduleId,
+          order: lessonData.order,
         });
-        
+
         if (existingLesson) {
           // Find the next available order number
-          const highestOrder = await Lesson.findOne({ 
-            moduleId: lessonData.moduleId 
+          const highestOrder = await Lesson.findOne({
+            moduleId: lessonData.moduleId,
           }).sort({ order: -1 });
-          
+
           lessonData.order = highestOrder ? highestOrder.order + 1 : 1;
         }
       } else {
         // If no order specified, set to next available
-        const highestOrder = await Lesson.findOne({ 
-          moduleId: lessonData.moduleId 
+        const highestOrder = await Lesson.findOne({
+          moduleId: lessonData.moduleId,
         }).sort({ order: -1 });
-        
+
         lessonData.order = highestOrder ? highestOrder.order + 1 : 1;
       }
 
       // Auto-fetch video duration from Cloudinary if video URL is provided
-      if (lessonData.content && lessonData.content.videoUrl && !lessonData.content.videoDuration) {
+      if (
+        lessonData.content &&
+        lessonData.content.videoUrl &&
+        !lessonData.content.videoDuration
+      ) {
         try {
-          const duration = await getVideoDurationFromUrl(lessonData.content.videoUrl);
+          const duration = await getVideoDurationFromUrl(
+            lessonData.content.videoUrl
+          );
           if (duration > 0) {
             lessonData.content.videoDuration = duration;
           }
         } catch (error) {
-          console.warn('Could not fetch video duration automatically:', error.message);
+          console.warn(
+            "Could not fetch video duration automatically:",
+            error.message
+          );
           // Continue without video duration - not a critical error
         }
       }
@@ -269,34 +288,35 @@ class CourseService {
 
       // Fetch courses and populate modules and lessons
       const courses = await Course.find(query)
-        .populate('instructor', 'firstName lastName')
+        .populate("instructor", "firstName lastName")
         .populate({
-          path: 'modules',
+          path: "modules",
           populate: {
-            path: 'lessons',
-            select: 'title description type order isFree content.videoUrl content.videoDuration',
+            path: "lessons",
+            select:
+              "title description type order isFree content.videoUrl content.videoDuration",
           },
-          select: 'title description order duration isActive',
+          select: "title description order duration isActive",
         })
         .sort({ featured: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit);
-      
-        // Ensure we never return lessons that don't exist in DB (filter out nulls from populate)
-        courses.forEach((course) => {
-          if (Array.isArray(course.modules)) {
-            course.modules.forEach((mod) => {
-              if (Array.isArray(mod.lessons)) {
-                mod.lessons = mod.lessons.filter(Boolean);
-              }
-            });
-          }
-        });
 
-        // Additional validation to ensure no non-existent lessons are returned
-        for (const course of courses) {
-          await CourseDataValidator.validateAndCleanCourse(course, course._id);
+      // Ensure we never return lessons that don't exist in DB (filter out nulls from populate)
+      courses.forEach((course) => {
+        if (Array.isArray(course.modules)) {
+          course.modules.forEach((mod) => {
+            if (Array.isArray(mod.lessons)) {
+              mod.lessons = mod.lessons.filter(Boolean);
+            }
+          });
         }
+      });
+
+      // Additional validation to ensure no non-existent lessons are returned
+      for (const course of courses) {
+        await CourseDataValidator.validateAndCleanCourse(course, course._id);
+      }
 
       const total = await Course.countDocuments(query);
 
@@ -336,7 +356,8 @@ class CourseService {
           path: "modules",
           populate: {
             path: "lessons",
-            select: "title description type order isFree content.videoUrl content.videoDuration",
+            select:
+              "title description type order isFree content.videoUrl content.videoDuration",
           },
           select: "title description order duration isActive",
         })
@@ -345,22 +366,22 @@ class CourseService {
         .skip(skip)
         .limit(parseInt(limit));
 
-        // Ensure we never return lessons that don't exist in DB (filter out nulls from populate)
-        courses.forEach((course) => {
-          if (Array.isArray(course.modules)) {
-            course.modules.forEach((mod) => {
-              if (Array.isArray(mod.lessons)) {
-                mod.lessons = mod.lessons.filter(Boolean);
-              }
-            });
-          }
-        });
-
-        // Additional validation to ensure no non-existent lessons are returned
-        for (const course of courses) {
-          await CourseDataValidator.validateAndCleanCourse(course, course._id);
+      // Ensure we never return lessons that don't exist in DB (filter out nulls from populate)
+      courses.forEach((course) => {
+        if (Array.isArray(course.modules)) {
+          course.modules.forEach((mod) => {
+            if (Array.isArray(mod.lessons)) {
+              mod.lessons = mod.lessons.filter(Boolean);
+            }
+          });
         }
-        
+      });
+
+      // Additional validation to ensure no non-existent lessons are returned
+      for (const course of courses) {
+        await CourseDataValidator.validateAndCleanCourse(course, course._id);
+      }
+
       const total = await Course.countDocuments(query);
 
       return {
@@ -379,30 +400,30 @@ class CourseService {
   async getCourseById(courseId) {
     try {
       const course = await Course.findById(courseId)
-        .populate('instructor', 'firstName lastName email')
+        .populate("instructor", "firstName lastName email")
         .populate({
-          path: 'modules',
+          path: "modules",
           populate: {
-            path: 'lessons',
-            select: 'title description type isFree order',
+            path: "lessons",
+            select: "title description type isFree order",
           },
         });
 
       if (!course) {
         throw new Error("Course not found");
       }
-      
-        // Filter out any lessons that did not populate (deleted or missing)
-        if (Array.isArray(course.modules)) {
-          course.modules.forEach((mod) => {
-            if (Array.isArray(mod.lessons)) {
-              mod.lessons = mod.lessons.filter(Boolean);
-            }
-          });
-        }
 
-        // Additional validation to ensure no non-existent lessons are returned
-        await CourseDataValidator.validateAndCleanCourse(course, course._id);
+      // Filter out any lessons that did not populate (deleted or missing)
+      if (Array.isArray(course.modules)) {
+        course.modules.forEach((mod) => {
+          if (Array.isArray(mod.lessons)) {
+            mod.lessons = mod.lessons.filter(Boolean);
+          }
+        });
+      }
+
+      // Additional validation to ensure no non-existent lessons are returned
+      await CourseDataValidator.validateAndCleanCourse(course, course._id);
 
       return course;
     } catch (error) {
@@ -429,7 +450,10 @@ class CourseService {
 
       // Check if course is paid and verify payment
       if (course.price > 0) {
-        const hasPaid = await PaymentService.getCoursePaymentStatus(userId, courseId);
+        const hasPaid = await PaymentService.getCoursePaymentStatus(
+          userId,
+          courseId
+        );
         if (!hasPaid) {
           throw new Error("Please purchase this course before enrolling");
         }
@@ -459,10 +483,13 @@ class CourseService {
     try {
       // Use the new Progress model instead of UserCourseProgress
       const ProgressService = (await import("./progress.service.js")).default;
-      
+
       // Get comprehensive progress data including lessons and modules
-      const progressData = await ProgressService.getUserProgress(userId, courseId);
-      
+      const progressData = await ProgressService.getUserProgress(
+        userId,
+        courseId
+      );
+
       if (!progressData) {
         throw new Error("You are not enrolled in this course");
       }
@@ -509,7 +536,10 @@ class CourseService {
       progress.lastAccessedAt = new Date();
 
       // Check if course is completed
-      if (progress.progress.completedLessonsCount >= progress.progress.totalLessons) {
+      if (
+        progress.progress.completedLessonsCount >=
+        progress.progress.totalLessons
+      ) {
         progress.status = "completed";
         progress.completionDate = new Date();
       } else {
@@ -528,28 +558,35 @@ class CourseService {
     try {
       // Get enrolled courses from Progress collection (active subscriptions)
       const Progress = (await import("../models/progress.js")).default;
-      
+
       const enrolledCourses = await Progress.find({ userId })
         .populate({
-          path: 'courseId',
-          select: 'title description thumbnail category level instructor duration price',
+          path: "courseId",
+          select:
+            "title description thumbnail category level instructor duration price",
           populate: {
-            path: 'instructor',
-            select: 'firstName lastName'
-          }
+            path: "instructor",
+            select: "firstName lastName",
+          },
         })
-        .populate('subscriptionId', 'plan status endDate')
+        .populate("subscriptionId", "plan status endDate")
         .sort({ lastActivityAt: -1 });
 
-      console.log(`Found ${enrolledCourses.length} enrolled courses for user ${userId}`);
+      console.log(
+        `Found ${enrolledCourses.length} enrolled courses for user ${userId}`
+      );
 
       // Calculate statistics
-      const validEnrolledCourses = enrolledCourses.filter(progress => progress.courseId); // Only count courses that populated successfully
-      
+      const validEnrolledCourses = enrolledCourses.filter(
+        (progress) => progress.courseId
+      ); // Only count courses that populated successfully
+
       const stats = {
         totalCourses: validEnrolledCourses.length,
-        completedCourses: validEnrolledCourses.filter(p => p.isCompleted).length,
-        inProgressCourses: validEnrolledCourses.filter(p => !p.isCompleted).length,
+        completedCourses: validEnrolledCourses.filter((p) => p.isCompleted)
+          .length,
+        inProgressCourses: validEnrolledCourses.filter((p) => !p.isCompleted)
+          .length,
         overallProgress: 0,
         totalWatchTime: 0,
       };
@@ -566,34 +603,44 @@ class CourseService {
         );
       }
 
+      // Calculate learning streak
+      const learningStreak = this.calculateLearningStreak(validEnrolledCourses);
+
       // Format enrolled courses data for frontend
       const formattedCourses = enrolledCourses
-        .filter(progress => progress.courseId) // Filter out any courses that failed to populate
-        .map(progress => ({
+        .filter((progress) => progress.courseId) // Filter out any courses that failed to populate
+        .map((progress) => ({
           courseId: progress.courseId._id,
           title: progress.courseId.title,
           description: progress.courseId.description,
           thumbnail: progress.courseId.thumbnail,
           category: progress.courseId.category,
           level: progress.courseId.level,
-          instructor: progress.courseId.instructor ? {
-            name: `${progress.courseId.instructor.firstName || ''} ${progress.courseId.instructor.lastName || ''}`.trim() || 'Unknown Instructor',
-            id: progress.courseId.instructor._id
-          } : {
-            name: 'Unknown Instructor',
-            id: null
-          },
+          instructor: progress.courseId.instructor
+            ? {
+                name:
+                  `${progress.courseId.instructor.firstName || ""} ${
+                    progress.courseId.instructor.lastName || ""
+                  }`.trim() || "Unknown Instructor",
+                id: progress.courseId.instructor._id,
+              }
+            : {
+                name: "Unknown Instructor",
+                id: null,
+              },
           duration: progress.courseId.duration,
           price: progress.courseId.price,
-          subscription: progress.subscriptionId ? {
-            plan: progress.subscriptionId.plan,
-            status: progress.subscriptionId.status,
-            endDate: progress.subscriptionId.endDate
-          } : {
-            plan: 'unknown',
-            status: 'inactive',
-            endDate: null
-          },
+          subscription: progress.subscriptionId
+            ? {
+                plan: progress.subscriptionId.plan,
+                status: progress.subscriptionId.status,
+                endDate: progress.subscriptionId.endDate,
+              }
+            : {
+                plan: "unknown",
+                status: "inactive",
+                endDate: null,
+              },
           progress: {
             overallProgress: progress.overallProgress || 0,
             currentModuleIndex: progress.currentModuleIndex || 0,
@@ -601,19 +648,132 @@ class CourseService {
             isCompleted: progress.isCompleted || false,
             completedAt: progress.completedAt,
             lastActivityAt: progress.lastActivityAt,
-            totalWatchTime: progress.totalWatchTime || 0
-          }
+            totalWatchTime: progress.totalWatchTime || 0,
+          },
         }));
 
       return {
-        stats,
+        stats: {
+          ...stats,
+          learningStreak,
+        },
         recentCourses: formattedCourses.slice(0, 5),
         enrolledCourses: formattedCourses,
       };
     } catch (error) {
-      console.error('Dashboard error details:', error);
+      console.error("Dashboard error details:", error);
       throw error;
     }
+  }
+
+  /**
+   * Calculate learning streak based on consecutive days of activity
+   * @param {Array} courses - Array of enrolled course progress records
+   * @returns {Object} - Streak information including current streak, longest streak, and last activity
+   */
+  calculateLearningStreak(courses) {
+    if (!courses || courses.length === 0) {
+      return {
+        currentStreak: 0,
+        longestStreak: 0,
+        lastActivityDate: null,
+        isActiveToday: false,
+      };
+    }
+
+    // Get all lastActivityAt dates from all courses
+    const activityDates = courses
+      .filter((course) => course.lastActivityAt)
+      .map((course) => {
+        const date = new Date(course.lastActivityAt);
+        // Normalize to start of day (UTC)
+        return new Date(
+          Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+        );
+      });
+
+    if (activityDates.length === 0) {
+      return {
+        currentStreak: 0,
+        longestStreak: 0,
+        lastActivityDate: null,
+        isActiveToday: false,
+      };
+    }
+
+    // Get unique dates sorted in descending order (most recent first)
+    const uniqueDates = [...new Set(activityDates.map((d) => d.getTime()))]
+      .sort((a, b) => b - a)
+      .map((timestamp) => new Date(timestamp));
+
+    const today = new Date();
+    const todayNormalized = new Date(
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+    );
+    const yesterdayNormalized = new Date(
+      todayNormalized.getTime() - 24 * 60 * 60 * 1000
+    );
+
+    const lastActivityDate = uniqueDates[0];
+    const isActiveToday =
+      lastActivityDate.getTime() === todayNormalized.getTime();
+
+    // Check if streak is still active (activity today or yesterday)
+    const isStreakActive =
+      isActiveToday ||
+      lastActivityDate.getTime() === yesterdayNormalized.getTime();
+
+    let currentStreak = 0;
+    let longestStreak = 0;
+    let tempStreak = 0;
+
+    // Calculate streaks
+    for (let i = 0; i < uniqueDates.length; i++) {
+      if (i === 0) {
+        tempStreak = 1;
+      } else {
+        const dayDiff =
+          (uniqueDates[i - 1].getTime() - uniqueDates[i].getTime()) /
+          (24 * 60 * 60 * 1000);
+        if (dayDiff === 1) {
+          tempStreak++;
+        } else {
+          // Streak broken, save and reset
+          if (tempStreak > longestStreak) {
+            longestStreak = tempStreak;
+          }
+          tempStreak = 1;
+        }
+      }
+    }
+
+    // Final check for longest streak
+    if (tempStreak > longestStreak) {
+      longestStreak = tempStreak;
+    }
+
+    // Current streak is only valid if user was active today or yesterday
+    if (isStreakActive) {
+      // Recalculate from the most recent date
+      currentStreak = 1;
+      for (let i = 1; i < uniqueDates.length; i++) {
+        const dayDiff =
+          (uniqueDates[i - 1].getTime() - uniqueDates[i].getTime()) /
+          (24 * 60 * 60 * 1000);
+        if (dayDiff === 1) {
+          currentStreak++;
+        } else {
+          break;
+        }
+      }
+    }
+
+    return {
+      currentStreak,
+      longestStreak,
+      lastActivityDate: lastActivityDate.toISOString(),
+      isActiveToday,
+    };
   }
 
   // Brochure management methods
@@ -633,14 +793,14 @@ class CourseService {
 
       const updatedCourse = await Course.findByIdAndUpdate(
         courseId,
-        { 
+        {
           brochure: {
             ...brochureData,
-            uploadedAt: new Date()
-          }
+            uploadedAt: new Date(),
+          },
         },
         { new: true, runValidators: true }
-      ).populate('instructor', 'firstName lastName email');
+      ).populate("instructor", "firstName lastName email");
 
       return updatedCourse;
     } catch (error) {
@@ -650,7 +810,7 @@ class CourseService {
 
   async getBrochure(courseId) {
     try {
-      const course = await Course.findById(courseId).select('brochure title');
+      const course = await Course.findById(courseId).select("brochure title");
       if (!course) {
         throw new Error("Course not found");
       }
@@ -663,7 +823,7 @@ class CourseService {
 
   async updateLesson(lessonId, updateData, userId) {
     try {
-      const lesson = await Lesson.findById(lessonId).populate('courseId');
+      const lesson = await Lesson.findById(lessonId).populate("courseId");
       if (!lesson) {
         throw new Error("Lesson not found");
       }
@@ -677,14 +837,23 @@ class CourseService {
       }
 
       // Auto-fetch video duration if video URL is updated and duration not provided
-      if (updateData.content && updateData.content.videoUrl && !updateData.content.videoDuration) {
+      if (
+        updateData.content &&
+        updateData.content.videoUrl &&
+        !updateData.content.videoDuration
+      ) {
         try {
-          const duration = await getVideoDurationFromUrl(updateData.content.videoUrl);
+          const duration = await getVideoDurationFromUrl(
+            updateData.content.videoUrl
+          );
           if (duration > 0) {
             updateData.content.videoDuration = duration;
           }
         } catch (error) {
-          console.warn('Could not fetch video duration automatically:', error.message);
+          console.warn(
+            "Could not fetch video duration automatically:",
+            error.message
+          );
           // Continue without video duration - not a critical error
         }
       }
@@ -693,7 +862,7 @@ class CourseService {
         lessonId,
         updateData,
         { new: true, runValidators: true }
-      ).populate('moduleId courseId');
+      ).populate("moduleId courseId");
 
       return updatedLesson;
     } catch (error) {
@@ -703,7 +872,7 @@ class CourseService {
 
   async deleteLesson(lessonId, userId) {
     try {
-      const lesson = await Lesson.findById(lessonId).populate('courseId');
+      const lesson = await Lesson.findById(lessonId).populate("courseId");
       if (!lesson) {
         throw new Error("Lesson not found");
       }
@@ -717,10 +886,9 @@ class CourseService {
       }
 
       // Remove lesson from module
-      await Module.findByIdAndUpdate(
-        lesson.moduleId,
-        { $pull: { lessons: lessonId } }
-      );
+      await Module.findByIdAndUpdate(lesson.moduleId, {
+        $pull: { lessons: lessonId },
+      });
 
       // Delete the lesson
       await Lesson.findByIdAndDelete(lessonId);
@@ -733,7 +901,7 @@ class CourseService {
 
   async deleteModule(moduleId, userId) {
     try {
-      const module = await Module.findById(moduleId).populate('courseId');
+      const module = await Module.findById(moduleId).populate("courseId");
       if (!module) {
         throw new Error("Module not found");
       }
@@ -752,10 +920,9 @@ class CourseService {
       }
 
       // Remove module from course
-      await Course.findByIdAndUpdate(
-        module.courseId,
-        { $pull: { modules: moduleId } }
-      );
+      await Course.findByIdAndUpdate(module.courseId, {
+        $pull: { modules: moduleId },
+      });
 
       // Update any progress records that reference this module
       const Progress = (await import("../models/progress.js")).default;
@@ -763,7 +930,7 @@ class CourseService {
         { courseId: module.courseId },
         {
           $pull: { modules: { moduleId: moduleId } },
-          $set: { updatedAt: new Date() }
+          $set: { updatedAt: new Date() },
         }
       );
 
