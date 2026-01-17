@@ -14,7 +14,7 @@ const createTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.EMAIL_HOST || "smtp.gmail.com",
     port: process.env.EMAIL_PORT || 587,
-    secure: false, // true for 465, false for other ports
+    secure: process.env.EMAIL_SECURE === "true", // true for 465, false for other ports
     auth: {
       user: process.env.EMAIL_NODEMAILER,
       pass: process.env.PASSWORD_NODEMAILER,
@@ -37,7 +37,7 @@ const sendOtpEmail = async (email, otp, firstName = "") => {
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `${new Date().toLocaleString()} - OTP Email sent successfully:`,
-      info.response
+      info.response,
     );
   } catch (error) {
     console.log("OTP Email error:", error.message);
@@ -60,7 +60,7 @@ const sendWelcomeOnboardingEmail = async (email, firstName) => {
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `${new Date().toLocaleString()} - Welcome Email sent successfully:`,
-      info.response
+      info.response,
     );
   } catch (error) {
     console.log("Welcome Email error:", error.message);
@@ -83,7 +83,7 @@ const sendResetPasswordEmail = async (email, firstName, resetToken) => {
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `${new Date().toLocaleString()} - Reset password email sent successfully:`,
-      info.response
+      info.response,
     );
   } catch (error) {
     console.log("Reset password email error:", error.message);
@@ -106,7 +106,7 @@ const sendPasswordResetConfirmationEmail = async (email, firstName) => {
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `${new Date().toLocaleString()} - Password reset confirmation email sent successfully:`,
-      info.response
+      info.response,
     );
   } catch (error) {
     console.log("Password reset confirmation email error:", error.message);
@@ -140,9 +140,9 @@ const sendMail = async (to, subject, text, html = null) => {
 const sendPasswordResetEmail = async (email, resetToken, firstName = "") => {
   try {
     const transporter = createTransporter();
-    
+
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    
+
     const mailOptions = {
       from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
       to: email,
@@ -164,7 +164,7 @@ const sendPasswordResetEmail = async (email, resetToken, firstName = "") => {
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `${new Date().toLocaleString()} - Password reset email sent successfully:`,
-      info.response
+      info.response,
     );
   } catch (error) {
     console.log("Password reset email error:", error.message);
@@ -201,7 +201,7 @@ const sendServerFailure = async (email, errorMessage) => {
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `${new Date().toLocaleString()} - Server failure email sent successfully:`,
-      info.response
+      info.response,
     );
   } catch (error) {
     console.log("Server failure email error:", error.message);
@@ -210,7 +210,12 @@ const sendServerFailure = async (email, errorMessage) => {
 };
 
 // Send session booking confirmation email to student
-const sendSessionBookingStudentEmail = async (studentEmail, studentName, tutorName, sessionDetails) => {
+const sendSessionBookingStudentEmail = async (
+  studentEmail,
+  studentName,
+  tutorName,
+  sessionDetails,
+) => {
   try {
     const transporter = createTransporter();
 
@@ -218,22 +223,33 @@ const sendSessionBookingStudentEmail = async (studentEmail, studentName, tutorNa
       from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
       to: studentEmail,
       subject: "Session Booking Confirmed - TechyJaunt",
-      html: sessionBookingStudentTemplate(studentName, tutorName, sessionDetails),
+      html: sessionBookingStudentTemplate(
+        studentName,
+        tutorName,
+        sessionDetails,
+      ),
     };
 
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `${new Date().toLocaleString()} - Session booking student email sent successfully:`,
-      info.response
+      info.response,
     );
   } catch (error) {
     console.log("Session booking student email error:", error.message);
-    throw new Error("Couldn't send session booking confirmation email to student.");
+    throw new Error(
+      "Couldn't send session booking confirmation email to student.",
+    );
   }
 };
 
 // Send session booking notification email to tutor
-const sendSessionBookingTutorEmail = async (tutorEmail, tutorName, studentName, sessionDetails) => {
+const sendSessionBookingTutorEmail = async (
+  tutorEmail,
+  tutorName,
+  studentName,
+  sessionDetails,
+) => {
   try {
     const transporter = createTransporter();
 
@@ -247,16 +263,23 @@ const sendSessionBookingTutorEmail = async (tutorEmail, tutorName, studentName, 
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `${new Date().toLocaleString()} - Session booking tutor email sent successfully:`,
-      info.response
+      info.response,
     );
   } catch (error) {
     console.log("Session booking tutor email error:", error.message);
-    throw new Error("Couldn't send session booking notification email to tutor.");
+    throw new Error(
+      "Couldn't send session booking notification email to tutor.",
+    );
   }
 };
 
 // Send session booking notification email to admin
-const sendSessionBookingAdminEmail = async (adminEmail, studentName, tutorName, sessionDetails) => {
+const sendSessionBookingAdminEmail = async (
+  adminEmail,
+  studentName,
+  tutorName,
+  sessionDetails,
+) => {
   try {
     const transporter = createTransporter();
 
@@ -270,7 +293,7 @@ const sendSessionBookingAdminEmail = async (adminEmail, studentName, tutorName, 
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `${new Date().toLocaleString()} - Session booking admin email sent successfully:`,
-      info.response
+      info.response,
     );
   } catch (error) {
     console.log("Session booking admin email error:", error.message);
@@ -279,7 +302,13 @@ const sendSessionBookingAdminEmail = async (adminEmail, studentName, tutorName, 
 };
 
 // Send session reminder email to student (2d / 1d / 1h / 10min)
-const sendSessionReminderStudentEmail = async (studentEmail, studentName, tutorName, sessionDetails, reminderType) => {
+const sendSessionReminderStudentEmail = async (
+  studentEmail,
+  studentName,
+  tutorName,
+  sessionDetails,
+  reminderType,
+) => {
   try {
     const transporter = createTransporter();
 
@@ -287,13 +316,18 @@ const sendSessionReminderStudentEmail = async (studentEmail, studentName, tutorN
       from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
       to: studentEmail,
       subject: `Session Reminder - ${reminderType} - TechyJaunt`,
-      html: sessionReminderStudentTemplate(studentName, tutorName, sessionDetails, reminderType),
+      html: sessionReminderStudentTemplate(
+        studentName,
+        tutorName,
+        sessionDetails,
+        reminderType,
+      ),
     };
 
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `${new Date().toLocaleString()} - Session reminder (student) email sent successfully:`,
-      info.response
+      info.response,
     );
   } catch (error) {
     console.log("Session reminder (student) email error:", error.message);
@@ -302,7 +336,13 @@ const sendSessionReminderStudentEmail = async (studentEmail, studentName, tutorN
 };
 
 // Send session reminder email to tutor (2d / 1d / 1h / 10min)
-const sendSessionReminderTutorEmail = async (tutorEmail, tutorName, studentName, sessionDetails, reminderType) => {
+const sendSessionReminderTutorEmail = async (
+  tutorEmail,
+  tutorName,
+  studentName,
+  sessionDetails,
+  reminderType,
+) => {
   try {
     const transporter = createTransporter();
 
@@ -310,13 +350,18 @@ const sendSessionReminderTutorEmail = async (tutorEmail, tutorName, studentName,
       from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
       to: tutorEmail,
       subject: `Session Reminder - ${reminderType} - TechyJaunt`,
-      html: sessionReminderTutorTemplate(tutorName, studentName, sessionDetails, reminderType),
+      html: sessionReminderTutorTemplate(
+        tutorName,
+        studentName,
+        sessionDetails,
+        reminderType,
+      ),
     };
 
     const info = await transporter.sendMail(mailOptions);
     console.log(
       `${new Date().toLocaleString()} - Session reminder (tutor) email sent successfully:`,
-      info.response
+      info.response,
     );
   } catch (error) {
     console.log("Session reminder (tutor) email error:", error.message);
