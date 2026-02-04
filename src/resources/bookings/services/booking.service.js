@@ -1478,34 +1478,111 @@ class BookingService {
     }
   }
 
-  // Complete session
+  // Complete session - supports both booking session ID and time slot ID
   async completeSession(bookingId, tutorId, notes) {
     try {
-      const booking = await BookingSession.findById(bookingId);
+      // First, try to find as a booking session
+      let booking = await BookingSession.findById(bookingId);
 
-      if (!booking) {
-        throw new Error("Booking not found");
+      if (booking) {
+        // Found as booking session - use original logic
+        if (booking.tutorId.toString() !== tutorId) {
+          throw new Error("Only the assigned tutor can complete the session");
+        }
+
+        if (booking.status !== "confirmed") {
+          throw new Error("Only confirmed bookings can be completed");
+        }
+
+        booking.status = "completed";
+        booking.completedAt = new Date();
+        booking.sessionNotes = notes;
+
+        await booking.save();
+
+        return await BookingSession.findById(bookingId)
+          .populate("studentId", "firstName lastName email")
+          .populate("tutorId", "firstName lastName email")
+          .populate("courseId", "title");
       }
 
-      if (booking.tutorId.toString() !== tutorId) {
-        throw new Error("Only the assigned tutor can complete the session");
+      // Not found as booking - try as time slot ID
+      const availability = await TutorAvailability.findOne({
+        "timeSlots._id": bookingId,
+      });
+
+      if (!availability) {
+        throw new Error("Booking or time slot not found");
       }
 
-      if (booking.status !== "confirmed") {
-        throw new Error("Only confirmed bookings can be completed");
+      // Verify tutor owns this availability
+      if (availability.tutorId.toString() !== tutorId) {
+        throw new Error(
+          "Only the assigned tutor can complete sessions for this time slot",
+        );
       }
 
-      // Update booking
-      booking.status = "completed";
-      booking.completedAt = new Date();
-      booking.sessionNotes = notes;
+      // Find the specific time slot
+      const timeSlot = availability.timeSlots.find(
+        (slot) => slot._id.toString() === bookingId,
+      );
 
-      await booking.save();
+      if (!timeSlot) {
+        throw new Error("Time slot not found");
+      }
 
-      return await BookingSession.findById(bookingId)
+      // Build query to find matching booking sessions
+      // Match by tutor, time range, and confirmed status
+      const query = {
+        tutorId: availability.tutorId,
+        startTime: timeSlot.startTime,
+        endTime: timeSlot.endTime,
+        status: "confirmed",
+      };
+
+      // If availability has a specific date, match that date
+      if (availability.specificDate) {
+        const startOfDay = new Date(availability.specificDate);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(availability.specificDate);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        query.sessionDate = {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        };
+      }
+
+      // Use updateMany for optimal bulk update
+      const updateResult = await BookingSession.updateMany(query, {
+        $set: {
+          status: "completed",
+          completedAt: new Date(),
+          sessionNotes: notes || "",
+        },
+      });
+
+      if (updateResult.matchedCount === 0) {
+        throw new Error(
+          "No confirmed booking sessions found for this time slot",
+        );
+      }
+
+      // Return updated sessions with populated fields
+      const completedSessions = await BookingSession.find({
+        tutorId: availability.tutorId,
+        startTime: timeSlot.startTime,
+        endTime: timeSlot.endTime,
+        status: "completed",
+        completedAt: { $gte: new Date(Date.now() - 5000) }, // Sessions completed in last 5 seconds
+      })
         .populate("studentId", "firstName lastName email")
         .populate("tutorId", "firstName lastName email")
         .populate("courseId", "title");
+
+      return completedSessions.length === 1
+        ? completedSessions[0]
+        : completedSessions;
     } catch (error) {
       throw error;
     }
