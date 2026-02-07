@@ -7,7 +7,7 @@ import AppError from "../../../utils/lib/appError.js";
 import { generateRandomString } from "../../../utils/helper/helper.js";
 import logger from "../../../utils/log/logger.js";
 import PDFDocument from "pdfkit";
-import { uploadDocument } from "../../../utils/image/cloudinary.js";
+import { uploadDocument } from "../../../utils/image/s3.js";
 
 class CertificateService {
   /**
@@ -35,7 +35,7 @@ class CertificateService {
               completedAt: progress.completedAt,
               modulesCount: progress.modules?.length,
             }
-          : "No progress found with isCompleted: true"
+          : "No progress found with isCompleted: true",
       );
 
       // Also check if there's any progress at all
@@ -51,10 +51,10 @@ class CertificateService {
                 completedAt: anyProgress.completedAt,
                 modulesCount: anyProgress.modules?.length,
                 modulesCompleted: anyProgress.modules?.filter(
-                  (m) => m.isCompleted
+                  (m) => m.isCompleted,
                 ).length,
               }
-            : "No progress at all"
+            : "No progress at all",
         );
       }
 
@@ -107,7 +107,7 @@ class CertificateService {
     } catch (error) {
       throw new AppError(
         error.message || "Failed to check certificate eligibility",
-        500
+        500,
       );
     }
   }
@@ -241,7 +241,7 @@ class CertificateService {
 
         // Completion date
         const formattedCompletionDate = new Date(
-          completionDate
+          completionDate,
         ).toLocaleDateString("en-US", {
           year: "numeric",
           month: "long",
@@ -298,7 +298,7 @@ class CertificateService {
             year: "numeric",
             month: "long",
             day: "numeric",
-          }
+          },
         );
         doc
           .fontSize(10)
@@ -310,7 +310,7 @@ class CertificateService {
         doc.text(
           `Certificate No: ${certificateNumber}`,
           pageWidth - 250,
-          pageHeight - 60
+          pageHeight - 60,
         );
 
         doc.end();
@@ -360,16 +360,15 @@ class CertificateService {
         totalModules: progress.modules.length,
         totalLessons: progress.modules.reduce(
           (sum, mod) => sum + mod.lessons.length,
-          0
+          0,
         ),
         totalWatchTime: progress.totalWatchTime,
         finalScore: progress.overallProgress,
       };
 
       // Generate certificate PDF
-      const certificateBuffer = await this.generateCertificatePDF(
-        certificateData
-      );
+      const certificateBuffer =
+        await this.generateCertificatePDF(certificateData);
 
       // Upload to Cloudinary
       const uploadResult = await uploadDocument(certificateBuffer, {
@@ -409,7 +408,7 @@ class CertificateService {
         certificate = existingCertificate;
 
         logger.info(
-          `Certificate regenerated for user ${userId} in course ${courseId}: ${certificateNumber}`
+          `Certificate regenerated for user ${userId} in course ${courseId}: ${certificateNumber}`,
         );
       } else {
         // Create new certificate record
@@ -439,7 +438,7 @@ class CertificateService {
         await certificate.save();
 
         logger.info(
-          `Certificate generated for user ${userId} in course ${courseId}: ${certificateNumber}`
+          `Certificate generated for user ${userId} in course ${courseId}: ${certificateNumber}`,
         );
       }
 
@@ -449,7 +448,7 @@ class CertificateService {
       logger.error(`Generate certificate error: ${error.message}`);
       throw new AppError(
         error.message || "Failed to generate certificate",
-        500
+        500,
       );
     }
   }
@@ -474,7 +473,7 @@ class CertificateService {
     } catch (error) {
       throw new AppError(
         error.message || "Failed to get user certificates",
-        500
+        500,
       );
     }
   }
@@ -518,7 +517,7 @@ class CertificateService {
       if (Object.keys(query).length === 0) {
         throw new AppError(
           "Certificate number or verification code required",
-          400
+          400,
         );
       }
 

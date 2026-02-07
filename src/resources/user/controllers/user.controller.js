@@ -1,7 +1,7 @@
 import User from "../models/user.js";
 import CourseService from "../../courses/services/course.service.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
-import { uploadImage } from "../../../utils/image/cloudinary.js";
+import { uploadImage } from "../../../utils/image/s3.js";
 import logger from "../../../utils/log/logger.js";
 import { passwordHash } from "../../../middleware/hashing.js";
 import { sendMail } from "../../../utils/email/email-sender.js";
@@ -24,7 +24,11 @@ export const addProfile = async (req, res) => {
 
     // Check if profile is already completed
     if (user.profileCompleted) {
-      return errorResMsg(res, 400, "Profile already completed. Use update profile endpoint.");
+      return errorResMsg(
+        res,
+        400,
+        "Profile already completed. Use update profile endpoint.",
+      );
     }
 
     // Update user with profile data
@@ -32,15 +36,18 @@ export const addProfile = async (req, res) => {
       userId,
       {
         ...profileData,
-        profileCompleted: isProfileComplete({ ...user.toObject(), ...profileData })
+        profileCompleted: isProfileComplete({
+          ...user.toObject(),
+          ...profileData,
+        }),
       },
-      { new: true, runValidators: true }
-    );    logger.info(`Profile completed for user: ${user.email}`);
+      { new: true, runValidators: true },
+    );
+    logger.info(`Profile completed for user: ${user.email}`);
     return successResMsg(res, 200, {
       message: "Profile completed successfully",
-      user: updatedUser.toJSON()
+      user: updatedUser.toJSON(),
     });
-
   } catch (error) {
     logger.error(`Add profile error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to complete profile");
@@ -54,11 +61,11 @@ export const getProfile = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) {
       return errorResMsg(res, 404, "User not found");
-    }    return successResMsg(res, 200, {
+    }
+    return successResMsg(res, 200, {
       message: "Profile retrieved successfully",
-      user: user.toJSON()
+      user: user.toJSON(),
     });
-
   } catch (error) {
     logger.error(`Get profile error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to retrieve profile");
@@ -87,20 +94,19 @@ export const updateProfile = async (req, res) => {
     const mergedData = { ...currentUser.toObject(), ...updateData };
     updateData.profileCompleted = isProfileComplete(mergedData);
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { new: true, runValidators: true }
-    );
+    const updatedUser = await User.findByIdAndUpdate(userId, updateData, {
+      new: true,
+      runValidators: true,
+    });
 
     if (!updatedUser) {
       return errorResMsg(res, 500, "Failed to update user");
-    }    logger.info(`Profile updated for user: ${updatedUser.email}`);
+    }
+    logger.info(`Profile updated for user: ${updatedUser.email}`);
     return successResMsg(res, 200, {
       message: "Profile updated successfully",
-      user: updatedUser.toJSON()
+      user: updatedUser.toJSON(),
     });
-
   } catch (error) {
     logger.error(`Update profile error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to update profile");
@@ -129,9 +135,8 @@ export const getDashboard = async (req, res) => {
 
     return successResMsg(res, 200, {
       message: "Dashboard data retrieved successfully",
-      ...dashboardData
+      ...dashboardData,
     });
-
   } catch (error) {
     logger.error(`Get dashboard error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to retrieve dashboard data");
@@ -160,9 +165,8 @@ export const getUserDashboard = async (req, res) => {
 
     return successResMsg(res, 200, {
       message: "Dashboard data retrieved successfully",
-      ...dashboardData
+      ...dashboardData,
     });
-
   } catch (error) {
     logger.error(`Get dashboard error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to retrieve dashboard data");
@@ -176,21 +180,24 @@ export const promoteUserRole = async (req, res) => {
     const userId = req.user.userId;
 
     if (!["admin", "super admin", "tutor"].includes(role)) {
-      return errorResMsg(res, 400, "Invalid role. Use: admin, super admin, or tutor");
+      return errorResMsg(
+        res,
+        400,
+        "Invalid role. Use: admin, super admin, or tutor",
+      );
     }
 
     const user = await User.findByIdAndUpdate(
-      userId, 
-      { role }, 
-      { new: true }
-    ).select('-password -__v');
+      userId,
+      { role },
+      { new: true },
+    ).select("-password -__v");
 
     logger.info(`User role updated: ${userId} to ${role}`);
-    return successResMsg(res, 200, { 
-      message: `Role updated to ${role} successfully`, 
-      user 
+    return successResMsg(res, 200, {
+      message: `Role updated to ${role} successfully`,
+      user,
     });
-
   } catch (error) {
     logger.error(`Promote user error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to update user role");
@@ -212,20 +219,20 @@ export const uploadProfilePicture = async (req, res) => {
       transformation: [
         { width: 400, height: 400, crop: "fill", gravity: "face" },
         { quality: "auto:good" },
-        { fetch_format: "auto" }
+        { fetch_format: "auto" },
       ],
-      public_id: `profile_${userId}_${Date.now()}`
+      public_id: `profile_${userId}_${Date.now()}`,
     });
 
     // Update user profile with new picture URL
     const user = await User.findByIdAndUpdate(
       userId,
-      { 
+      {
         profilePic: uploadResult.secure_url,
-        profilePicPublicId: uploadResult.public_id // Store for deletion if needed
+        profilePicPublicId: uploadResult.public_id, // Store for deletion if needed
       },
-      { new: true }
-    ).select('-password -__v');
+      { new: true },
+    ).select("-password -__v");
 
     if (!user) {
       return errorResMsg(res, 404, "User not found");
@@ -235,9 +242,8 @@ export const uploadProfilePicture = async (req, res) => {
     return successResMsg(res, 200, {
       message: "Profile picture uploaded successfully",
       profilePic: uploadResult.secure_url,
-      user: user
+      user: user,
     });
-
   } catch (error) {
     logger.error(`Upload profile picture error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to upload profile picture");
@@ -257,9 +263,9 @@ export const updateProfileWithPicture = async (req, res) => {
         transformation: [
           { width: 400, height: 400, crop: "fill", gravity: "face" },
           { quality: "auto:good" },
-          { fetch_format: "auto" }
+          { fetch_format: "auto" },
         ],
-        public_id: `profile_${userId}_${Date.now()}`
+        public_id: `profile_${userId}_${Date.now()}`,
       });
 
       profileData.profilePic = uploadResult.secure_url;
@@ -276,11 +282,10 @@ export const updateProfileWithPicture = async (req, res) => {
     const mergedData = { ...currentUser.toObject(), ...profileData };
     profileData.profileCompleted = isProfileComplete(mergedData);
 
-    const user = await User.findByIdAndUpdate(
-      userId,
-      profileData,
-      { new: true, runValidators: true }
-    ).select('-password -__v');
+    const user = await User.findByIdAndUpdate(userId, profileData, {
+      new: true,
+      runValidators: true,
+    }).select("-password -__v");
 
     if (!user) {
       return errorResMsg(res, 404, "User not found");
@@ -289,13 +294,12 @@ export const updateProfileWithPicture = async (req, res) => {
     logger.info(`Profile updated with picture for user: ${userId}`);
     return successResMsg(res, 200, {
       message: "Profile updated successfully",
-      user: user
+      user: user,
     });
-
   } catch (error) {
     console.log(error);
     logger.error(`Update profile with picture error: ${error.message}`);
-    if (error.name === 'ValidationError') {
+    if (error.name === "ValidationError") {
       return errorResMsg(res, 400, error.message);
     }
     return errorResMsg(res, 500, "Failed to update profile");
@@ -316,13 +320,13 @@ export const getAllStudents = async (req, res) => {
 
     // Build query for students
     const query = { role: "user" };
-    
+
     // Add search functionality
     if (search) {
       query.$or = [
         { firstName: { $regex: search, $options: "i" } },
         { lastName: { $regex: search, $options: "i" } },
-        { email: { $regex: search, $options: "i" } }
+        { email: { $regex: search, $options: "i" } },
       ];
     }
 
@@ -333,14 +337,17 @@ export const getAllStudents = async (req, res) => {
 
     // Execute query with pagination
     const studentsPromise = User.find(query)
-      .select('-password -emailOtp -resetPasswordToken -resetPasswordExpiry')
+      .select("-password -emailOtp -resetPasswordToken -resetPasswordExpiry")
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
 
     const totalCountPromise = User.countDocuments(query);
 
-    const [students, totalStudents] = await Promise.all([studentsPromise, totalCountPromise]);
+    const [students, totalStudents] = await Promise.all([
+      studentsPromise,
+      totalCountPromise,
+    ]);
 
     // Get enrollment statistics for each student (optimized with fallback)
     let studentsWithStats;
@@ -349,8 +356,10 @@ export const getAllStudents = async (req, res) => {
         students.map(async (student) => {
           try {
             // Use a more efficient query to get basic enrollment stats
-            const UserCourseProgress = (await import("../../courses/models/userCourseProgress.js")).default;
-            
+            const UserCourseProgress = (
+              await import("../../courses/models/userCourseProgress.js")
+            ).default;
+
             const enrollmentStats = await UserCourseProgress.aggregate([
               { $match: { userId: student._id } },
               {
@@ -358,21 +367,23 @@ export const getAllStudents = async (req, res) => {
                   _id: null,
                   totalCourses: { $sum: 1 },
                   completedCourses: {
-                    $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] }
+                    $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] },
                   },
                   inProgressCourses: {
-                    $sum: { $cond: [{ $eq: ["$status", "in-progress"] }, 1, 0] }
+                    $sum: {
+                      $cond: [{ $eq: ["$status", "in-progress"] }, 1, 0],
+                    },
                   },
-                  avgProgress: { $avg: "$progress.progressPercentage" }
-                }
-              }
+                  avgProgress: { $avg: "$progress.progressPercentage" },
+                },
+              },
             ]);
 
             const stats = enrollmentStats[0] || {
               totalCourses: 0,
               completedCourses: 0,
               inProgressCourses: 0,
-              avgProgress: 0
+              avgProgress: 0,
             };
 
             return {
@@ -381,35 +392,39 @@ export const getAllStudents = async (req, res) => {
                 totalCourses: stats.totalCourses || 0,
                 completedCourses: stats.completedCourses || 0,
                 inProgressCourses: stats.inProgressCourses || 0,
-                overallProgress: Math.round(stats.avgProgress || 0)
-              }
+                overallProgress: Math.round(stats.avgProgress || 0),
+              },
             };
           } catch (error) {
             // If stats retrieval fails for this student, return student without stats
-            logger.warn(`Failed to get stats for student ${student._id}: ${error.message}`);
+            logger.warn(
+              `Failed to get stats for student ${student._id}: ${error.message}`,
+            );
             return {
               ...student.toJSON(),
               enrollmentStats: {
                 totalCourses: 0,
                 completedCourses: 0,
                 inProgressCourses: 0,
-                overallProgress: 0
-              }
+                overallProgress: 0,
+              },
             };
           }
-        })
+        }),
       );
     } catch (error) {
       // Fallback: if getting stats fails entirely, return students without stats
-      logger.warn(`Failed to get enrollment stats, returning students without stats: ${error.message}`);
-      studentsWithStats = students.map(student => ({
+      logger.warn(
+        `Failed to get enrollment stats, returning students without stats: ${error.message}`,
+      );
+      studentsWithStats = students.map((student) => ({
         ...student.toJSON(),
         enrollmentStats: {
           totalCourses: 0,
           completedCourses: 0,
           inProgressCourses: 0,
-          overallProgress: 0
-        }
+          overallProgress: 0,
+        },
       }));
     }
 
@@ -418,16 +433,15 @@ export const getAllStudents = async (req, res) => {
       totalPages: Math.ceil(totalStudents / limit),
       totalStudents,
       hasNext: page < Math.ceil(totalStudents / limit),
-      hasPrev: page > 1
+      hasPrev: page > 1,
     };
 
     logger.info(`Admin ${userId} retrieved students list`);
     return successResMsg(res, 200, {
       message: "Students retrieved successfully",
       students: studentsWithStats,
-      pagination
+      pagination,
     });
-
   } catch (error) {
     logger.error(`Get all students error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to retrieve students");
@@ -447,8 +461,9 @@ export const getStudentById = async (req, res) => {
     }
 
     // Find the student
-    const student = await User.findById(studentId)
-      .select('-password -emailOtp -resetPasswordToken -resetPasswordExpiry');
+    const student = await User.findById(studentId).select(
+      "-password -emailOtp -resetPasswordToken -resetPasswordExpiry",
+    );
 
     if (!student) {
       return errorResMsg(res, 404, "Student not found");
@@ -462,35 +477,43 @@ export const getStudentById = async (req, res) => {
     // Get detailed enrollment statistics
     let studentWithStats;
     try {
-      const UserCourseProgress = (await import("../../courses/models/userCourseProgress.js")).default;
-      
+      const UserCourseProgress = (
+        await import("../../courses/models/userCourseProgress.js")
+      ).default;
+
       const enrollmentStats = await UserCourseProgress.aggregate([
         { $match: { userId: student._id } },
         {
           $group: {
             _id: null,
             totalCourses: { $sum: 1 },
-            completedCourses: { 
-              $sum: { $cond: [{ $eq: ["$completionStatus", "completed"] }, 1, 0] } 
+            completedCourses: {
+              $sum: {
+                $cond: [{ $eq: ["$completionStatus", "completed"] }, 1, 0],
+              },
             },
-            inProgressCourses: { 
-              $sum: { $cond: [{ $eq: ["$completionStatus", "in-progress"] }, 1, 0] } 
+            inProgressCourses: {
+              $sum: {
+                $cond: [{ $eq: ["$completionStatus", "in-progress"] }, 1, 0],
+              },
             },
-            averageProgress: { $avg: "$progressPercentage" }
-          }
-        }
+            averageProgress: { $avg: "$progressPercentage" },
+          },
+        },
       ]);
 
       const stats = enrollmentStats[0] || {
         totalCourses: 0,
         completedCourses: 0,
         inProgressCourses: 0,
-        averageProgress: 0
+        averageProgress: 0,
       };
 
       // Get detailed course progress
-      const courseProgress = await UserCourseProgress.find({ userId: student._id })
-        .populate('courseId', 'title description thumbnail category level')
+      const courseProgress = await UserCourseProgress.find({
+        userId: student._id,
+      })
+        .populate("courseId", "title description thumbnail category level")
         .sort({ updatedAt: -1 });
 
       studentWithStats = {
@@ -499,31 +522,31 @@ export const getStudentById = async (req, res) => {
           totalCourses: stats.totalCourses,
           completedCourses: stats.completedCourses,
           inProgressCourses: stats.inProgressCourses,
-          overallProgress: Math.round(stats.averageProgress || 0)
+          overallProgress: Math.round(stats.averageProgress || 0),
         },
-        courseProgress: courseProgress
+        courseProgress: courseProgress,
       };
-
     } catch (error) {
-      logger.warn(`Failed to get enrollment stats for student ${studentId}: ${error.message}`);
+      logger.warn(
+        `Failed to get enrollment stats for student ${studentId}: ${error.message}`,
+      );
       studentWithStats = {
         ...student.toJSON(),
         enrollmentStats: {
           totalCourses: 0,
           completedCourses: 0,
           inProgressCourses: 0,
-          overallProgress: 0
+          overallProgress: 0,
         },
-        courseProgress: []
+        courseProgress: [],
       };
     }
 
     logger.info(`Admin ${userId} retrieved student details for ${studentId}`);
     return successResMsg(res, 200, {
       message: "Student details retrieved successfully",
-      student: studentWithStats
+      student: studentWithStats,
     });
-
   } catch (error) {
     logger.error(`Get student by ID error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to retrieve student details");
@@ -537,48 +560,50 @@ export const getAllTutors = async (req, res) => {
 
     // Get all users with tutor or admin roles
     const query = {
-      role: { $in: ["tutor", "admin", "super admin"] }
+      role: { $in: ["tutor", "admin", "super admin"] },
     };
 
     // Execute query with pagination
     const tutorsPromise = User.find(query)
-      .select('-password -emailOtp -resetPasswordToken -resetPasswordExpiry')
+      .select("-password -emailOtp -resetPasswordToken -resetPasswordExpiry")
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
 
     const totalCountPromise = User.countDocuments(query);
 
-    const [tutors, totalTutors] = await Promise.all([tutorsPromise, totalCountPromise]);
+    const [tutors, totalTutors] = await Promise.all([
+      tutorsPromise,
+      totalCountPromise,
+    ]);
 
     // Get courses for each tutor
     const Course = (await import("../../courses/models/course.js")).default;
-    
+
     const tutorsWithCourses = await Promise.all(
       tutors.map(async (tutor) => {
         try {
           const courses = await Course.find({
-            $or: [
-              { instructor: tutor._id },
-              { assistants: tutor._id }
-            ],
-            isActive: true
-          }).select('_id title category level price thumbnail description');
+            $or: [{ instructor: tutor._id }, { assistants: tutor._id }],
+            isActive: true,
+          }).select("_id title category level price thumbnail description");
 
           return {
             ...tutor.toJSON(),
             courses: courses || [],
-            totalCourses: courses?.length || 0
+            totalCourses: courses?.length || 0,
           };
         } catch (error) {
-          logger.warn(`Failed to get courses for tutor ${tutor._id}: ${error.message}`);
+          logger.warn(
+            `Failed to get courses for tutor ${tutor._id}: ${error.message}`,
+          );
           return {
             ...tutor.toJSON(),
             courses: [],
-            totalCourses: 0
+            totalCourses: 0,
           };
         }
-      })
+      }),
     );
 
     const pagination = {
@@ -586,16 +611,15 @@ export const getAllTutors = async (req, res) => {
       totalPages: Math.ceil(totalTutors / limit),
       totalTutors,
       hasNext: page < Math.ceil(totalTutors / limit),
-      hasPrev: page > 1
+      hasPrev: page > 1,
     };
 
     logger.info(`Retrieved tutors list (${totalTutors} total)`);
     return successResMsg(res, 200, {
       message: "Tutors retrieved successfully",
       tutors: tutorsWithCourses,
-      pagination
+      pagination,
     });
-
   } catch (error) {
     logger.error(`Get all tutors error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to retrieve tutors");
@@ -606,7 +630,14 @@ export const getAllTutors = async (req, res) => {
 export const inviteUser = async (req, res) => {
   try {
     const adminId = req.user.userId;
-    const { firstName, lastName, email, password, role = 'user', courseId } = req.body;
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      role = "user",
+      courseId,
+    } = req.body;
 
     // Check admin privileges
     const adminUser = await User.findById(adminId);
@@ -615,17 +646,32 @@ export const inviteUser = async (req, res) => {
     }
 
     if (!firstName || !lastName || !email || !password) {
-      return errorResMsg(res, 400, "Missing required fields: firstName, lastName, email, password");
+      return errorResMsg(
+        res,
+        400,
+        "Missing required fields: firstName, lastName, email, password",
+      );
     }
 
     // Require courseId for tutors and admins
     if (["admin", "tutor"].includes(role) && !courseId) {
-      return errorResMsg(res, 400, "courseId is required when inviting tutors or admins");
+      return errorResMsg(
+        res,
+        400,
+        "courseId is required when inviting tutors or admins",
+      );
     }
 
     // Don't allow creating higher-privilege roles unless super admin
-    if (["admin", "super admin"].includes(role) && adminUser.role !== 'super admin') {
-      return errorResMsg(res, 403, "Only super admin can invite admin or super admin users.");
+    if (
+      ["admin", "super admin"].includes(role) &&
+      adminUser.role !== "super admin"
+    ) {
+      return errorResMsg(
+        res,
+        403,
+        "Only super admin can invite admin or super admin users.",
+      );
     }
 
     // If courseId is provided, verify the course exists
@@ -636,14 +682,20 @@ export const inviteUser = async (req, res) => {
       if (!course) {
         return errorResMsg(res, 404, "Course not found");
       }
-      
+
       // Verify the admin has permission for this course (unless super admin)
-      if (adminUser.role !== 'super admin') {
+      if (adminUser.role !== "super admin") {
         const isInstructor = course.instructor.toString() === adminId;
-        const isAssistant = course.assistants.some(assistantId => assistantId.toString() === adminId);
-        
+        const isAssistant = course.assistants.some(
+          (assistantId) => assistantId.toString() === adminId,
+        );
+
         if (!isInstructor && !isAssistant) {
-          return errorResMsg(res, 403, "You don't have permission to invite users to this course");
+          return errorResMsg(
+            res,
+            403,
+            "You don't have permission to invite users to this course",
+          );
         }
       }
     }
@@ -657,7 +709,7 @@ export const inviteUser = async (req, res) => {
     // Hash password
     const hashed = await passwordHash(password);
     if (!hashed) {
-      logger.error('Failed to hash password during invite');
+      logger.error("Failed to hash password during invite");
       return errorResMsg(res, 500, "Failed to create user");
     }
 
@@ -667,9 +719,9 @@ export const inviteUser = async (req, res) => {
       email: email.toLowerCase(),
       password: hashed,
       role,
-      status: 'active',
+      status: "active",
       emailVerified: true,
-      profileCompleted: false
+      profileCompleted: false,
     });
 
     const saved = await newUser.save();
@@ -677,43 +729,47 @@ export const inviteUser = async (req, res) => {
     // If courseId is provided and role is tutor or admin, add them to the course
     if (courseId && course && ["admin", "tutor"].includes(role)) {
       const Course = (await import("../../courses/models/course.js")).default;
-      
-      if (role === 'tutor') {
+
+      if (role === "tutor") {
         // Add as assistant/tutor to the course
         if (!course.assistants.includes(saved._id)) {
           await Course.findByIdAndUpdate(
             courseId,
             { $addToSet: { assistants: saved._id } },
-            { new: true }
+            { new: true },
           );
-          logger.info(`Added tutor ${saved._id} to course ${courseId} as assistant`);
+          logger.info(
+            `Added tutor ${saved._id} to course ${courseId} as assistant`,
+          );
         }
-      } else if (role === 'admin') {
+      } else if (role === "admin") {
         // For admin role, add as assistant (they can also be instructor if needed)
         if (!course.assistants.includes(saved._id)) {
           await Course.findByIdAndUpdate(
             courseId,
             { $addToSet: { assistants: saved._id } },
-            { new: true }
+            { new: true },
           );
-          logger.info(`Added admin ${saved._id} to course ${courseId} as assistant`);
+          logger.info(
+            `Added admin ${saved._id} to course ${courseId} as assistant`,
+          );
         }
       }
     }
 
     // Send invite email with credentials (avoid including raw password in logs)
     try {
-      const subject = 'You have been invited to TechyJaunt';
-      let courseInfo = '';
+      const subject = "You have been invited to TechyJaunt";
+      let courseInfo = "";
       if (course) {
         courseInfo = `<p>You have been assigned to the course: <strong>${course.title}</strong></p>`;
       }
-      
-      const text = `Hello ${firstName},\n\nYou have been invited to TechyJaunt${course ? ` for the course: ${course.title}` : ''}. Use the credentials below to login:\nEmail: ${email}\nPassword: ${password}\n\nPlease change your password after first login.`;
+
+      const text = `Hello ${firstName},\n\nYou have been invited to TechyJaunt${course ? ` for the course: ${course.title}` : ""}. Use the credentials below to login:\nEmail: ${email}\nPassword: ${password}\n\nPlease change your password after first login.`;
       const html = `
         <div style="font-family: Arial, sans-serif; max-width:600px; margin:0 auto;">
           <h2>Hello ${firstName},</h2>
-          <p>You have been invited to TechyJaunt${course ? ` as a ${role}` : ''}. Use the login details below:</p>
+          <p>You have been invited to TechyJaunt${course ? ` as a ${role}` : ""}. Use the login details below:</p>
           ${courseInfo}
           <p><strong>Email:</strong> ${email}</p>
           <p><strong>Password:</strong> ${password}</p>
@@ -724,18 +780,21 @@ export const inviteUser = async (req, res) => {
 
       await sendMail(email, subject, text, html);
     } catch (emailErr) {
-      logger.warn(`Invite email failed to send to ${email}: ${emailErr.message}`);
+      logger.warn(
+        `Invite email failed to send to ${email}: ${emailErr.message}`,
+      );
       // continue; user was still created
     }
 
-    logger.info(`Admin ${adminId} invited user ${saved._id}${courseId ? ` to course ${courseId}` : ''}`);
-    return successResMsg(res, 201, { 
-      message: 'User invited successfully', 
+    logger.info(
+      `Admin ${adminId} invited user ${saved._id}${courseId ? ` to course ${courseId}` : ""}`,
+    );
+    return successResMsg(res, 201, {
+      message: "User invited successfully",
       user: saved.toJSON(),
       courseAssigned: courseId ? true : false,
-      courseId: courseId || null
+      courseId: courseId || null,
     });
-
   } catch (error) {
     logger.error(`Invite user error: ${error.message}`);
     return errorResMsg(res, 500, "Failed to invite user");

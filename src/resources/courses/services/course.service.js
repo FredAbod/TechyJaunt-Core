@@ -5,7 +5,7 @@ import Lesson from "../models/lesson.js";
 import UserCourseProgress from "../models/userCourseProgress.js";
 import User from "../../user/models/user.js";
 import PaymentService from "../../payments/services/payment.service.js";
-import { getVideoDurationFromUrl } from "../../../utils/image/cloudinary.js";
+import { getVideoDurationFromUrl } from "../../../utils/image/s3.js";
 import CourseDataValidator from "../../../utils/helper/courseDataValidator.js";
 
 class CourseService {
@@ -51,7 +51,7 @@ class CourseService {
       const updatedCourse = await Course.findByIdAndUpdate(
         courseId,
         updateData,
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       ).populate("instructor", "firstName lastName email");
 
       return updatedCourse;
@@ -157,7 +157,7 @@ class CourseService {
         // clamp to positive
         const newOrder = Math.max(
           1,
-          parseInt(updateData.order, 10) || module.order
+          parseInt(updateData.order, 10) || module.order,
         );
         // shift other modules accordingly
         const modules = await Module.find({ courseId: course._id }).sort({
@@ -236,7 +236,7 @@ class CourseService {
         lessonData.order = highestOrder ? highestOrder.order + 1 : 1;
       }
 
-      // Auto-fetch video duration from Cloudinary if video URL is provided
+      // Auto-fetch video duration from S3/FFmpeg if video URL is provided
       if (
         lessonData.content &&
         lessonData.content.videoUrl &&
@@ -244,7 +244,7 @@ class CourseService {
       ) {
         try {
           const duration = await getVideoDurationFromUrl(
-            lessonData.content.videoUrl
+            lessonData.content.videoUrl,
           );
           if (duration > 0) {
             lessonData.content.videoDuration = duration;
@@ -252,7 +252,7 @@ class CourseService {
         } catch (error) {
           console.warn(
             "Could not fetch video duration automatically:",
-            error.message
+            error.message,
           );
           // Continue without video duration - not a critical error
         }
@@ -452,7 +452,7 @@ class CourseService {
       if (course.price > 0) {
         const hasPaid = await PaymentService.getCoursePaymentStatus(
           userId,
-          courseId
+          courseId,
         );
         if (!hasPaid) {
           throw new Error("Please purchase this course before enrolling");
@@ -487,7 +487,7 @@ class CourseService {
       // Get comprehensive progress data including lessons and modules
       const progressData = await ProgressService.getUserProgress(
         userId,
-        courseId
+        courseId,
       );
 
       if (!progressData) {
@@ -518,7 +518,7 @@ class CourseService {
 
       // Check if lesson is already completed
       const alreadyCompleted = progress.progress.completedLessons.some(
-        (completed) => completed.lessonId.toString() === lessonId
+        (completed) => completed.lessonId.toString() === lessonId,
       );
 
       if (alreadyCompleted) {
@@ -573,12 +573,12 @@ class CourseService {
         .sort({ lastActivityAt: -1 });
 
       console.log(
-        `Found ${enrolledCourses.length} enrolled courses for user ${userId}`
+        `Found ${enrolledCourses.length} enrolled courses for user ${userId}`,
       );
 
       // Calculate statistics
       const validEnrolledCourses = enrolledCourses.filter(
-        (progress) => progress.courseId
+        (progress) => progress.courseId,
       ); // Only count courses that populated successfully
 
       const stats = {
@@ -594,12 +594,12 @@ class CourseService {
       if (stats.totalCourses > 0) {
         const totalProgress = validEnrolledCourses.reduce(
           (sum, course) => sum + (course.overallProgress || 0),
-          0
+          0,
         );
         stats.overallProgress = Math.round(totalProgress / stats.totalCourses);
         stats.totalWatchTime = validEnrolledCourses.reduce(
           (sum, course) => sum + (course.totalWatchTime || 0),
-          0
+          0,
         );
       }
 
@@ -688,7 +688,11 @@ class CourseService {
         const date = new Date(course.lastActivityAt);
         // Normalize to start of day (UTC)
         return new Date(
-          Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+          Date.UTC(
+            date.getUTCFullYear(),
+            date.getUTCMonth(),
+            date.getUTCDate(),
+          ),
         );
       });
 
@@ -708,10 +712,10 @@ class CourseService {
 
     const today = new Date();
     const todayNormalized = new Date(
-      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate())
+      Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
     );
     const yesterdayNormalized = new Date(
-      todayNormalized.getTime() - 24 * 60 * 60 * 1000
+      todayNormalized.getTime() - 24 * 60 * 60 * 1000,
     );
 
     const lastActivityDate = uniqueDates[0];
@@ -799,7 +803,7 @@ class CourseService {
             uploadedAt: new Date(),
           },
         },
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       ).populate("instructor", "firstName lastName email");
 
       return updatedCourse;
@@ -844,7 +848,7 @@ class CourseService {
       ) {
         try {
           const duration = await getVideoDurationFromUrl(
-            updateData.content.videoUrl
+            updateData.content.videoUrl,
           );
           if (duration > 0) {
             updateData.content.videoDuration = duration;
@@ -852,7 +856,7 @@ class CourseService {
         } catch (error) {
           console.warn(
             "Could not fetch video duration automatically:",
-            error.message
+            error.message,
           );
           // Continue without video duration - not a critical error
         }
@@ -861,7 +865,7 @@ class CourseService {
       const updatedLesson = await Lesson.findByIdAndUpdate(
         lessonId,
         updateData,
-        { new: true, runValidators: true }
+        { new: true, runValidators: true },
       ).populate("moduleId courseId");
 
       return updatedLesson;
@@ -931,7 +935,7 @@ class CourseService {
         {
           $pull: { modules: { moduleId: moduleId } },
           $set: { updatedAt: new Date() },
-        }
+        },
       );
 
       // Delete the module
