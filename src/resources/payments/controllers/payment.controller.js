@@ -27,7 +27,11 @@ export const initializePayment = asyncHandler(async (req, res) => {
   }
 
   // Initialize payment
-  const payment = await PaymentService.initializePayment(user, course, paymentMethod);
+  const payment = await PaymentService.initializePayment(
+    user,
+    course,
+    paymentMethod,
+  );
 
   res.status(200).json({
     status: "success",
@@ -98,5 +102,21 @@ export const getUserPaymentStatus = asyncHandler(async (req, res) => {
   res.status(200).json({
     status: "success",
     data: paymentStatus,
+  });
+});
+
+export const getPaymentHistory = asyncHandler(async (req, res) => {
+  const { userId } = req.user;
+  const { page, limit, status } = req.query;
+
+  const history = await PaymentService.getUserPaymentHistory(userId, {
+    page,
+    limit,
+    status,
+  });
+
+  res.status(200).json({
+    status: "success",
+    data: history,
   });
 });

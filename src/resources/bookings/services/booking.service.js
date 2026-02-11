@@ -800,6 +800,8 @@ class BookingService {
         endTime,
         duration,
         timezone: availability.timezone,
+        status: "confirmed",
+        confirmedAt: new Date(),
         sessionType,
         topics: topics || [],
         studentNotes: notes,
