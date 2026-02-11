@@ -2,7 +2,7 @@ import PrerecordedClass from "../models/prerecordedClass.js";
 import ClassResource from "../models/classResource.js";
 import Course from "../models/course.js";
 import User from "../../user/models/user.js";
-import UserCourseProgress from "../models/userCourseProgress.js";
+import Progress from "../models/progress.js";
 import {
   uploadVideo,
   uploadImage,
@@ -130,20 +130,35 @@ class PrerecordedContentService {
 
       // If user is provided, check their progress for each video
       if (userId) {
-        const userProgress = await UserCourseProgress.findOne({
+        const userProgress = await Progress.findOne({
           userId,
           courseId,
         });
 
         if (userProgress) {
+          // Create a map of lesson progress for efficient lookup
+          const lessonProgressMap = {};
+          if (userProgress.modules) {
+            userProgress.modules.forEach((module) => {
+              if (module.lessons) {
+                module.lessons.forEach((lesson) => {
+                  lessonProgressMap[lesson.lessonId.toString()] = lesson;
+                });
+              }
+            });
+          }
+
           const videoClassesWithProgress = videoClasses.map((video) => {
             const videoObj = video.toObject();
-            const completed = userProgress.progress.completedLessons.find(
-              (lesson) => lesson.lessonId.toString() === video._id.toString(),
-            );
-            videoObj.isCompleted = !!completed;
-            videoObj.completedAt = completed?.completedAt;
-            videoObj.timeSpent = completed?.timeSpent || 0;
+            const lessonProgress = lessonProgressMap[video._id.toString()];
+
+            videoObj.isCompleted = lessonProgress
+              ? lessonProgress.isCompleted
+              : false;
+            videoObj.completedAt = lessonProgress
+              ? lessonProgress.completedAt
+              : null;
+            videoObj.timeSpent = lessonProgress ? lessonProgress.watchTime : 0;
             return videoObj;
           });
           return videoClassesWithProgress;
@@ -413,7 +428,7 @@ class PrerecordedContentService {
             filteredResources.push(resource);
           } else if (resource.accessLevel === "enrolled_only") {
             // Check if user is enrolled in the course
-            const enrollment = await UserCourseProgress.findOne({
+            const enrollment = await Progress.findOne({
               userId,
               courseId: resource.courseId,
             });
@@ -444,7 +459,7 @@ class PrerecordedContentService {
 
       // Check access permissions
       if (resource.accessLevel === "enrolled_only") {
-        const enrollment = await UserCourseProgress.findOne({
+        const enrollment = await Progress.findOne({
           userId,
           courseId: resource.courseId,
         });

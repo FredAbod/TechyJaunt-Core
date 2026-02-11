@@ -10,7 +10,7 @@ import logger from "../../../utils/log/logger.js";
 
 class ProgressService {
   // Initialize progress when user subscribes to a course
-  async initializeProgress(userId, courseId, subscriptionId) {
+  async initializeProgress(userId, courseId, subscriptionId = null) {
     try {
       // Check if progress already exists
       const existingProgress = await Progress.findOne({ userId, courseId });
@@ -81,7 +81,7 @@ class ProgressService {
     courseId,
     lessonId,
     watchTime,
-    totalDuration
+    totalDuration,
   ) {
     const startTime = Date.now();
     logger.info(`[SERVICE] updateVideoProgress started`, {
@@ -89,23 +89,27 @@ class ProgressService {
       courseId,
       lessonId,
       watchTime,
-      totalDuration
+      totalDuration,
     });
 
     try {
       // Step 1: Find user progress
-      logger.info(`[SERVICE] Step 1: Finding user progress`, { userId, courseId });
+      logger.info(`[SERVICE] Step 1: Finding user progress`, {
+        userId,
+        courseId,
+      });
       const progress = await Progress.findOne({ userId, courseId });
-      
+
       if (!progress) {
-        logger.error(`[SERVICE] Progress not found`, { 
-          userId, 
+        logger.error(`[SERVICE] Progress not found`, {
+          userId,
           courseId,
-          message: "No progress document exists for this user-course combination"
+          message:
+            "No progress document exists for this user-course combination",
         });
         throw new AppError(
           "Progress not found. Please ensure you have an active subscription.",
-          404
+          404,
         );
       }
 
@@ -115,15 +119,15 @@ class ProgressService {
         progressId: progress._id,
         totalModules: progress.modules.length,
         currentModuleIndex: progress.currentModuleIndex,
-        overallProgress: progress.overallProgress
+        overallProgress: progress.overallProgress,
       });
 
       // Step 2: Find the lesson in user's progress
-      logger.info(`[SERVICE] Step 2: Searching for lesson in user progress`, { 
-        lessonId, 
-        totalModules: progress.modules.length 
+      logger.info(`[SERVICE] Step 2: Searching for lesson in user progress`, {
+        lessonId,
+        totalModules: progress.modules.length,
       });
-      
+
       let moduleIndex = -1;
       let lessonFound = false;
       let moduleWithLesson = null;
@@ -132,11 +136,11 @@ class ProgressService {
         const module = progress.modules[i];
         logger.debug(`[SERVICE] Checking module ${i}`, {
           moduleId: module.moduleId,
-          lessonsCount: module.lessons.length
+          lessonsCount: module.lessons.length,
         });
 
         const lesson = module.lessons.find(
-          (l) => l.lessonId.toString() === lessonId
+          (l) => l.lessonId.toString() === lessonId,
         );
 
         if (lesson) {
@@ -148,54 +152,76 @@ class ProgressService {
             moduleIndex,
             moduleId: module.moduleId,
             currentWatchTime: lesson.watchTime,
-            isCompleted: lesson.isCompleted
+            isCompleted: lesson.isCompleted,
           });
           break;
         }
       }
 
       if (!lessonFound) {
-        logger.warn(`[SERVICE] Step 3: Lesson not found in progress, searching database`, { 
-          lessonId,
-          userId,
-          courseId 
-        });
-        
+        logger.warn(
+          `[SERVICE] Step 3: Lesson not found in progress, searching database`,
+          {
+            lessonId,
+            userId,
+            courseId,
+          },
+        );
+
         // Try to find the lesson in the database and add it to progress
-        logger.info(`[SERVICE] Searching for lesson in Lesson collection`, { lessonId });
-        
+        logger.info(`[SERVICE] Searching for lesson in Lesson collection`, {
+          lessonId,
+        });
+
         // Use Lesson model instead of PrerecordedClass
         const lesson = await Lesson.findById(lessonId);
         if (!lesson) {
-          logger.warn(`[SERVICE] Lesson not found in Lesson collection, checking details`, { lessonId });
+          logger.warn(
+            `[SERVICE] Lesson not found in Lesson collection, checking details`,
+            { lessonId },
+          );
 
           // Let's check if the lesson exists with different criteria
-          const allLessons = await Lesson.find({ courseId, isActive: true }).select(
-            "_id title moduleId"
-          );
-          logger.info(`[SERVICE] Found ${allLessons.length} active lessons for course ${courseId}:`, {
+          const allLessons = await Lesson.find({
             courseId,
-            totalLessons: allLessons.length,
-            lessonIds: allLessons.map(l => l._id.toString())
-          });
-          
+            isActive: true,
+          }).select("_id title moduleId");
+          logger.info(
+            `[SERVICE] Found ${allLessons.length} active lessons for course ${courseId}:`,
+            {
+              courseId,
+              totalLessons: allLessons.length,
+              lessonIds: allLessons.map((l) => l._id.toString()),
+            },
+          );
+
           allLessons.forEach((l) =>
-            logger.debug(`[SERVICE] Lesson in DB: ${l._id}: ${l.title} (module: ${l.moduleId})`)
+            logger.debug(
+              `[SERVICE] Lesson in DB: ${l._id}: ${l.title} (module: ${l.moduleId})`,
+            ),
           );
 
           // Also check PrerecordedClass for backward compatibility
-          logger.info(`[SERVICE] Checking PrerecordedClass collection for backward compatibility`, { lessonId });
-          const legacyLessons = await PrerecordedClass.find({ courseId }).select(
-            "_id title moduleId"
+          logger.info(
+            `[SERVICE] Checking PrerecordedClass collection for backward compatibility`,
+            { lessonId },
           );
-          logger.info(`[SERVICE] Found ${legacyLessons.length} legacy lessons in PrerecordedClass for course ${courseId}:`, {
+          const legacyLessons = await PrerecordedClass.find({
             courseId,
-            totalLegacyLessons: legacyLessons.length,
-            legacyLessonIds: legacyLessons.map(l => l._id.toString())
-          });
-          
+          }).select("_id title moduleId");
+          logger.info(
+            `[SERVICE] Found ${legacyLessons.length} legacy lessons in PrerecordedClass for course ${courseId}:`,
+            {
+              courseId,
+              totalLegacyLessons: legacyLessons.length,
+              legacyLessonIds: legacyLessons.map((l) => l._id.toString()),
+            },
+          );
+
           legacyLessons.forEach((l) =>
-            logger.debug(`[SERVICE] Legacy lesson in DB: ${l._id}: ${l.title} (module: ${l.moduleId})`)
+            logger.debug(
+              `[SERVICE] Legacy lesson in DB: ${l._id}: ${l.title} (module: ${l.moduleId})`,
+            ),
           );
 
           logger.error(`[SERVICE] Lesson not found in any collection`, {
@@ -203,7 +229,7 @@ class ProgressService {
             courseId,
             activeLesson: allLessons.length,
             legacyLessons: legacyLessons.length,
-            searchedCollections: ['Lesson', 'PrerecordedClass']
+            searchedCollections: ["Lesson", "PrerecordedClass"],
           });
 
           throw new AppError("Lesson not found", 404);
@@ -215,43 +241,47 @@ class ProgressService {
           moduleId: lesson.moduleId,
           duration: lesson.content?.videoDuration || lesson.duration,
           type: lesson.type,
-          isActive: lesson.isActive
+          isActive: lesson.isActive,
         });
 
         // Step 4: Find the module this lesson belongs to
-        logger.info(`[SERVICE] Step 4: Finding module in progress for lesson`, { 
-          lessonModuleId: lesson.moduleId 
+        logger.info(`[SERVICE] Step 4: Finding module in progress for lesson`, {
+          lessonModuleId: lesson.moduleId,
         });
-        
+
         const moduleProgressIndex = progress.modules.findIndex(
-          (m) => m.moduleId.toString() === lesson.moduleId.toString()
+          (m) => m.moduleId.toString() === lesson.moduleId.toString(),
         );
 
         if (moduleProgressIndex === -1) {
           logger.error(`[SERVICE] Module not found in user progress`, {
             lessonModuleId: lesson.moduleId,
-            userProgressModules: progress.modules.map(m => ({
+            userProgressModules: progress.modules.map((m) => ({
               moduleId: m.moduleId.toString(),
-              lessonsCount: m.lessons.length
-            }))
+              lessonsCount: m.lessons.length,
+            })),
           });
           throw new AppError(
             "Module not found in your progress. Please sync your progress.",
-            404
+            404,
           );
         }
 
-        logger.info(`[SERVICE] Module found in progress, adding missing lesson`, {
-          moduleProgressIndex,
-          moduleId: lesson.moduleId,
-          lessonId: lesson._id
-        });
+        logger.info(
+          `[SERVICE] Module found in progress, adding missing lesson`,
+          {
+            moduleProgressIndex,
+            moduleId: lesson.moduleId,
+            lessonId: lesson._id,
+          },
+        );
 
         // Step 5: Add the missing lesson to the module
         const newLessonProgress = {
           lessonId: lesson._id,
           watchTime: 0,
-          totalDuration: lesson.content?.videoDuration || lesson.duration || totalDuration,
+          totalDuration:
+            lesson.content?.videoDuration || lesson.duration || totalDuration,
           isCompleted: false,
           lastWatchedAt: new Date(),
         };
@@ -266,25 +296,25 @@ class ProgressService {
           courseId,
           lessonId,
           moduleIndex,
-          newLessonDuration: newLessonProgress.totalDuration
+          newLessonDuration: newLessonProgress.totalDuration,
         });
       }
 
       // Step 6: Check module access
-      logger.info(`[SERVICE] Step 6: Checking module access`, { 
+      logger.info(`[SERVICE] Step 6: Checking module access`, {
         moduleIndex,
-        currentModuleIndex: progress.currentModuleIndex 
+        currentModuleIndex: progress.currentModuleIndex,
       });
-      
+
       if (!progress.canAccessModule(moduleIndex)) {
         logger.warn(`[SERVICE] Access denied to module`, {
           moduleIndex,
           currentModuleIndex: progress.currentModuleIndex,
-          canAccess: false
+          canAccess: false,
         });
         throw new AppError(
           "You don't have access to this module yet. Complete the previous module first.",
-          403
+          403,
         );
       }
 
@@ -294,44 +324,49 @@ class ProgressService {
       logger.info(`[SERVICE] Step 7: Updating lesson progress`, {
         moduleIndex,
         lessonId,
-        previousWatchTime: moduleWithLesson.lessons.find(l => l.lessonId.toString() === lessonId)?.watchTime || 0,
+        previousWatchTime:
+          moduleWithLesson.lessons.find(
+            (l) => l.lessonId.toString() === lessonId,
+          )?.watchTime || 0,
         newWatchTime: watchTime,
-        totalDuration
+        totalDuration,
       });
 
       const updated = progress.updateLessonProgress(
         moduleIndex,
         lessonId,
         watchTime,
-        totalDuration
+        totalDuration,
       );
-      
+
       if (!updated) {
         logger.error(`[SERVICE] Failed to update lesson progress`, {
           moduleIndex,
           lessonId,
           watchTime,
-          totalDuration
+          totalDuration,
         });
         throw new AppError("Failed to update lesson progress", 500);
       }
 
-      logger.info(`[SERVICE] Lesson progress updated successfully`, { 
-        moduleIndex, 
+      logger.info(`[SERVICE] Lesson progress updated successfully`, {
+        moduleIndex,
         lessonId,
-        updated: true
+        updated: true,
       });
 
       // Step 8: Check if module is completed and unlock next module
-      logger.info(`[SERVICE] Step 8: Checking module completion`, { moduleIndex });
-      
+      logger.info(`[SERVICE] Step 8: Checking module completion`, {
+        moduleIndex,
+      });
+
       if (progress.isModuleCompleted(moduleIndex)) {
         const module = progress.modules[moduleIndex];
         logger.info(`[SERVICE] Module is completed`, {
           moduleIndex,
-          wasAlreadyMarkedComplete: module.isCompleted
+          wasAlreadyMarkedComplete: module.isCompleted,
         });
-        
+
         if (!module.isCompleted) {
           module.isCompleted = true;
           module.completedAt = new Date();
@@ -342,7 +377,7 @@ class ProgressService {
           logger.info(`[SERVICE] Next module unlock attempted`, {
             moduleIndex,
             nextModuleUnlocked,
-            newCurrentModuleIndex: progress.currentModuleIndex
+            newCurrentModuleIndex: progress.currentModuleIndex,
           });
         }
       } else {
@@ -352,7 +387,7 @@ class ProgressService {
       // Step 9: Update total watch time
       logger.info(`[SERVICE] Step 9: Calculating total watch time`);
       const previousTotalWatchTime = progress.totalWatchTime;
-      
+
       progress.totalWatchTime = progress.modules.reduce((total, module) => {
         return (
           total +
@@ -365,33 +400,33 @@ class ProgressService {
       logger.info(`[SERVICE] Total watch time updated`, {
         previousTotal: previousTotalWatchTime,
         newTotal: progress.totalWatchTime,
-        difference: progress.totalWatchTime - previousTotalWatchTime
+        difference: progress.totalWatchTime - previousTotalWatchTime,
       });
 
       // Step 10: Calculate overall progress
       logger.info(`[SERVICE] Step 10: Calculating overall progress`);
       const previousOverallProgress = progress.overallProgress;
       progress.calculateOverallProgress();
-      
+
       logger.info(`[SERVICE] Overall progress calculated`, {
         previousProgress: previousOverallProgress,
         newProgress: progress.overallProgress,
-        difference: progress.overallProgress - previousOverallProgress
+        difference: progress.overallProgress - previousOverallProgress,
       });
 
       // Step 11: Check if course is completed
       logger.info(`[SERVICE] Step 11: Checking course completion`);
       const allModulesCompleted = progress.modules.every(
-        (module) => module.isCompleted
+        (module) => module.isCompleted,
       );
-      
+
       if (allModulesCompleted && !progress.isCompleted) {
         progress.isCompleted = true;
         progress.completedAt = new Date();
         logger.info(`[SERVICE] Course marked as completed!`, {
           userId,
           courseId,
-          completedAt: progress.completedAt
+          completedAt: progress.completedAt,
         });
       }
 
@@ -407,7 +442,7 @@ class ProgressService {
         lessonId,
         processingTimeMs: processingTime,
         finalOverallProgress: progress.overallProgress,
-        isCompleted: progress.isCompleted
+        isCompleted: progress.isCompleted,
       });
 
       return {
@@ -416,8 +451,14 @@ class ProgressService {
           lessonId,
           watchTime,
           totalDuration,
-          progressPercentage: totalDuration > 0 ? Math.round((watchTime / totalDuration) * 100) : 0,
-          isCompleted: progress.modules[moduleIndex].lessons.find(l => l.lessonId.toString() === lessonId)?.isCompleted || false,
+          progressPercentage:
+            totalDuration > 0
+              ? Math.round((watchTime / totalDuration) * 100)
+              : 0,
+          isCompleted:
+            progress.modules[moduleIndex].lessons.find(
+              (l) => l.lessonId.toString() === lessonId,
+            )?.isCompleted || false,
         },
         module: {
           moduleId: progress.modules[moduleIndex].moduleId,
@@ -436,9 +477,9 @@ class ProgressService {
         error: error.message,
         stack: error.stack,
         processingTimeMs: processingTime,
-        errorType: error.constructor.name
+        errorType: error.constructor.name,
       });
-      
+
       if (error instanceof AppError) throw error;
       throw new AppError("Failed to update video progress", 500);
     }
@@ -470,28 +511,33 @@ class ProgressService {
         throw new AppError("Failed to populate progress data", 500);
       }
 
-
       // Fetch all lessons for the course in one query
       const allLessons = await Lesson.find({ courseId, isActive: true });
       const lessonMap = {};
-      allLessons.forEach(l => lessonMap[l._id.toString()] = l);
+      allLessons.forEach((l) => (lessonMap[l._id.toString()] = l));
 
       // Process each module and validate lessons exist in DB
       for (let i = 0; i < populatedProgress.modules.length; i++) {
         const module = populatedProgress.modules[i];
         const validLessons = [];
-        
+
         // Filter out lessons that don't exist in DB and populate valid ones
         for (let j = 0; j < module.lessons.length; j++) {
           const lesson = module.lessons[j];
           const lessonData = lessonMap[lesson.lessonId.toString()];
-          
+
           if (lessonData) {
             // Lesson exists in DB - populate it
             lesson.title = lessonData.title;
             lesson.description = lessonData.description;
-            lesson.duration = lessonData.content?.videoDuration || lessonData.duration || lesson.totalDuration;
-            lesson.totalDuration = lessonData.content?.videoDuration || lessonData.duration || lesson.totalDuration;
+            lesson.duration =
+              lessonData.content?.videoDuration ||
+              lessonData.duration ||
+              lesson.totalDuration;
+            lesson.totalDuration =
+              lessonData.content?.videoDuration ||
+              lessonData.duration ||
+              lesson.totalDuration;
             lesson.type = lessonData.type;
             lesson.isFree = lessonData.isFree;
             lesson.videoUrl = lessonData.content?.videoUrl || null;
@@ -500,22 +546,25 @@ class ProgressService {
             validLessons.push(lesson);
           } else {
             // Lesson doesn't exist in DB - log warning and skip
-            console.warn(`Lesson ${lesson.lessonId} in progress not found in DB for course ${courseId}, module ${module.moduleId._id}`);
+            console.warn(
+              `Lesson ${lesson.lessonId} in progress not found in DB for course ${courseId}, module ${module.moduleId._id}`,
+            );
           }
         }
-        
+
         // Replace lessons array with only valid lessons
         module.lessons = validLessons;
       }
 
       // Always fetch course details before returning response
-      const course = await Course.findById(courseId).select("title description");
+      const course =
+        await Course.findById(courseId).select("title description");
 
       // Determine next module information
       const currentIndex = populatedProgress.currentModuleIndex;
       const nextModuleIndex = currentIndex + 1;
       const hasNextModule = nextModuleIndex < populatedProgress.modules.length;
-      
+
       let nextModule = null;
       if (hasNextModule) {
         const nextModuleData = populatedProgress.modules[nextModuleIndex];
@@ -526,7 +575,7 @@ class ProgressService {
           order: nextModuleData.moduleId.order,
           isUnlocked: nextModuleData.unlockedAt !== null,
           unlockedAt: nextModuleData.unlockedAt,
-          canAccess: nextModuleIndex <= populatedProgress.currentModuleIndex
+          canAccess: nextModuleIndex <= populatedProgress.currentModuleIndex,
         };
       }
 
@@ -535,7 +584,8 @@ class ProgressService {
       for (let i = populatedProgress.modules.length - 1; i >= 0; i--) {
         const module = populatedProgress.modules[i];
         if (module.assessmentAttempts && module.assessmentAttempts.length > 0) {
-          const lastAttempt = module.assessmentAttempts[module.assessmentAttempts.length - 1];
+          const lastAttempt =
+            module.assessmentAttempts[module.assessmentAttempts.length - 1];
           lastQuizAttempt = {
             moduleId: module.moduleId._id,
             moduleTitle: module.moduleId.title,
@@ -543,7 +593,7 @@ class ProgressService {
             score: lastAttempt.score,
             passed: lastAttempt.passed,
             attemptedAt: lastAttempt.attemptedAt,
-            totalAttempts: module.assessmentAttempts.length
+            totalAttempts: module.assessmentAttempts.length,
           };
           break;
         }
@@ -566,7 +616,7 @@ class ProgressService {
 
           // Determine lesson status for frontend
           const hasLessons = module.lessons && module.lessons.length > 0;
-          const lessonStatus = hasLessons ? 'has_lessons' : 'no_lessons';
+          const lessonStatus = hasLessons ? "has_lessons" : "no_lessons";
 
           return {
             moduleId: module.moduleId._id,
@@ -579,25 +629,29 @@ class ProgressService {
             canAccess: canAccess,
             lessonStatus: lessonStatus, // 'has_lessons' or 'no_lessons'
             totalLessons: module.lessons ? module.lessons.length : 0,
-            lessons: hasLessons ? module.lessons.map((lesson) => ({
-              lessonId: lesson.lessonId,
-              title: lesson.title,
-              description: lesson.description,
-              duration: lesson.duration || lesson.totalDuration,
-              watchTime: lesson.watchTime,
-              totalDuration: lesson.totalDuration,
-              isCompleted: lesson.isCompleted,
-              completedAt: lesson.completedAt,
-              progressPercentage:
-                lesson.totalDuration > 0
-                  ? Math.round((lesson.watchTime / lesson.totalDuration) * 100)
-                  : 0,
-              resources: lesson.resources || [],
-              type: lesson.type,
-              isFree: lesson.isFree,
-              videoUrl: lesson.videoUrl,
-              order: lesson.order,
-            })) : [], // Empty array when no lessons, but lessonStatus indicates this
+            lessons: hasLessons
+              ? module.lessons.map((lesson) => ({
+                  lessonId: lesson.lessonId,
+                  title: lesson.title,
+                  description: lesson.description,
+                  duration: lesson.duration || lesson.totalDuration,
+                  watchTime: lesson.watchTime,
+                  totalDuration: lesson.totalDuration,
+                  isCompleted: lesson.isCompleted,
+                  completedAt: lesson.completedAt,
+                  progressPercentage:
+                    lesson.totalDuration > 0
+                      ? Math.round(
+                          (lesson.watchTime / lesson.totalDuration) * 100,
+                        )
+                      : 0,
+                  resources: lesson.resources || [],
+                  type: lesson.type,
+                  isFree: lesson.isFree,
+                  videoUrl: lesson.videoUrl,
+                  order: lesson.order,
+                }))
+              : [], // Empty array when no lessons, but lessonStatus indicates this
             assessmentAttempts: module.assessmentAttempts.map((attempt) => ({
               assessmentId: attempt.assessmentId,
               score: attempt.score,
@@ -612,7 +666,7 @@ class ProgressService {
       if (error instanceof AppError) throw error;
       throw new AppError(
         `Failed to fetch user progress: ${error.message}`,
-        500
+        500,
       );
     }
   }
@@ -674,7 +728,7 @@ class ProgressService {
 
               // Calculate module progress percentage
               const completedLessons = moduleProgress.lessons.filter(
-                (l) => l.isCompleted
+                (l) => l.isCompleted,
               ).length;
               const totalLessons = moduleProgress.lessons.length;
               const progressPercentage =
@@ -698,7 +752,7 @@ class ProgressService {
         totalStudents: stats.totalStudents,
         completedStudents: stats.completedStudents,
         completionRate: Math.round(
-          (stats.completedStudents / stats.totalStudents) * 100
+          (stats.completedStudents / stats.totalStudents) * 100,
         ),
         averageProgress: Math.round(stats.averageProgress),
         averageWatchTime: Math.round(stats.averageWatchTime / 3600), // Convert to hours
@@ -761,7 +815,7 @@ class ProgressService {
       }
 
       const moduleIndex = progress.modules.findIndex(
-        (m) => m.moduleId.toString() === moduleId
+        (m) => m.moduleId.toString() === moduleId,
       );
 
       if (moduleIndex === -1) {
@@ -790,7 +844,7 @@ class ProgressService {
   async addMissingLessonsToProgress(userId, courseId, moduleId = null) {
     try {
       console.log(
-        `Starting addMissingLessonsToProgress for user: ${userId}, course: ${courseId}, module: ${moduleId}`
+        `Starting addMissingLessonsToProgress for user: ${userId}, course: ${courseId}, module: ${moduleId}`,
       );
 
       // Validate ObjectIds
@@ -810,7 +864,7 @@ class ProgressService {
       }
 
       console.log(
-        `Found progress document with ${progress.modules.length} modules`
+        `Found progress document with ${progress.modules.length} modules`,
       );
 
       let modulesToUpdate = [];
@@ -823,7 +877,7 @@ class ProgressService {
           throw new AppError("Module not found", 404);
         }
         console.log(
-          `Found module: ${module.title}, courseId: ${module.courseId}`
+          `Found module: ${module.title}, courseId: ${module.courseId}`,
         );
 
         if (module.courseId.toString() !== courseId.toString()) {
@@ -837,7 +891,7 @@ class ProgressService {
           order: 1,
         });
         console.log(
-          `Found ${modulesToUpdate.length} active modules for course`
+          `Found ${modulesToUpdate.length} active modules for course`,
         );
       }
 
@@ -855,7 +909,7 @@ class ProgressService {
 
         // Find the module in progress
         const moduleProgressIndex = progress.modules.findIndex(
-          (m) => m.moduleId.toString() === module._id.toString()
+          (m) => m.moduleId.toString() === module._id.toString(),
         );
 
         console.log(`Module progress index: ${moduleProgressIndex}`);
@@ -863,7 +917,7 @@ class ProgressService {
         if (moduleProgressIndex === -1) {
           // Module not in progress, add it
           console.log(
-            `Module not found in progress, adding new module progress`
+            `Module not found in progress, adding new module progress`,
           );
 
           const lessons = await Lesson.find({
@@ -872,7 +926,7 @@ class ProgressService {
           }).select("_id duration");
 
           console.log(
-            `Found ${lessons.length} lessons for module ${module._id}`
+            `Found ${lessons.length} lessons for module ${module._id}`,
           );
 
           const moduleData = {
@@ -895,16 +949,16 @@ class ProgressService {
         } else {
           // Module exists, check for missing lessons
           console.log(
-            `Module exists in progress, checking for missing lessons`
+            `Module exists in progress, checking for missing lessons`,
           );
 
           const moduleProgress = progress.modules[moduleProgressIndex];
           const existingLessonIds = moduleProgress.lessons.map((l) =>
-            l.lessonId.toString()
+            l.lessonId.toString(),
           );
 
           console.log(
-            `Existing lessons in progress: ${existingLessonIds.length}`
+            `Existing lessons in progress: ${existingLessonIds.length}`,
           );
 
           const allLessons = await Lesson.find({
@@ -930,7 +984,7 @@ class ProgressService {
           }
 
           console.log(
-            `Added ${lessonsAdded} missing lessons to existing module`
+            `Added ${lessonsAdded} missing lessons to existing module`,
           );
         }
       }
@@ -952,7 +1006,7 @@ class ProgressService {
       if (error instanceof AppError) throw error;
       throw new AppError(
         `Failed to add missing lessons to progress: ${error.message}`,
-        500
+        500,
       );
     }
   }

@@ -356,25 +356,24 @@ export const getAllStudents = async (req, res) => {
         students.map(async (student) => {
           try {
             // Use a more efficient query to get basic enrollment stats
-            const UserCourseProgress = (
-              await import("../../courses/models/userCourseProgress.js")
-            ).default;
+            const Progress = (await import("../../courses/models/progress.js"))
+              .default;
 
-            const enrollmentStats = await UserCourseProgress.aggregate([
+            const enrollmentStats = await Progress.aggregate([
               { $match: { userId: student._id } },
               {
                 $group: {
                   _id: null,
                   totalCourses: { $sum: 1 },
                   completedCourses: {
-                    $sum: { $cond: [{ $eq: ["$status", "completed"] }, 1, 0] },
+                    $sum: { $cond: [{ $eq: ["$isCompleted", true] }, 1, 0] },
                   },
                   inProgressCourses: {
                     $sum: {
-                      $cond: [{ $eq: ["$status", "in-progress"] }, 1, 0],
+                      $cond: [{ $eq: ["$isCompleted", false] }, 1, 0],
                     },
                   },
-                  avgProgress: { $avg: "$progress.progressPercentage" },
+                  avgProgress: { $avg: "$overallProgress" },
                 },
               },
             ]);
@@ -477,11 +476,10 @@ export const getStudentById = async (req, res) => {
     // Get detailed enrollment statistics
     let studentWithStats;
     try {
-      const UserCourseProgress = (
-        await import("../../courses/models/userCourseProgress.js")
-      ).default;
+      const Progress = (await import("../../courses/models/progress.js"))
+        .default;
 
-      const enrollmentStats = await UserCourseProgress.aggregate([
+      const enrollmentStats = await Progress.aggregate([
         { $match: { userId: student._id } },
         {
           $group: {
@@ -489,15 +487,15 @@ export const getStudentById = async (req, res) => {
             totalCourses: { $sum: 1 },
             completedCourses: {
               $sum: {
-                $cond: [{ $eq: ["$completionStatus", "completed"] }, 1, 0],
+                $cond: [{ $eq: ["$isCompleted", true] }, 1, 0],
               },
             },
             inProgressCourses: {
               $sum: {
-                $cond: [{ $eq: ["$completionStatus", "in-progress"] }, 1, 0],
+                $cond: [{ $eq: ["$isCompleted", false] }, 1, 0],
               },
             },
-            averageProgress: { $avg: "$progressPercentage" },
+            averageProgress: { $avg: "$overallProgress" },
           },
         },
       ]);
@@ -510,7 +508,7 @@ export const getStudentById = async (req, res) => {
       };
 
       // Get detailed course progress
-      const courseProgress = await UserCourseProgress.find({
+      const courseProgress = await Progress.find({
         userId: student._id,
       })
         .populate("courseId", "title description thumbnail category level")

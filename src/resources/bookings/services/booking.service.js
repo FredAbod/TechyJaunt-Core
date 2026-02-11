@@ -1015,9 +1015,12 @@ class BookingService {
 
       const skip = (page - 1) * limit;
       const bookings = await BookingSession.find(query)
-        .populate("studentId", "firstName lastName email")
-        .populate("tutorId", "firstName lastName email")
-        .populate("courseId", "title")
+        .populate("studentId", "firstName lastName email profilePic")
+        .populate("tutorId", "firstName lastName email profilePic headline")
+        .populate(
+          "courseId",
+          "title description thumbnail level category price",
+        )
         .sort({ sessionDate: -1, startTime: -1 })
         .skip(skip)
         .limit(parseInt(limit));
@@ -1248,9 +1251,12 @@ class BookingService {
   async getBookingDetails(bookingId, userId) {
     try {
       const booking = await BookingSession.findById(bookingId)
-        .populate("studentId", "firstName lastName email")
-        .populate("tutorId", "firstName lastName email")
-        .populate("courseId", "title");
+        .populate("studentId", "firstName lastName email profilePic")
+        .populate("tutorId", "firstName lastName email profilePic headline")
+        .populate(
+          "courseId",
+          "title description thumbnail level category price",
+        );
 
       if (!booking) {
         throw new Error("Booking not found");

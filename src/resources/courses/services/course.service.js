@@ -2,7 +2,7 @@
 import Course from "../models/course.js";
 import Module from "../models/module.js";
 import Lesson from "../models/lesson.js";
-import UserCourseProgress from "../models/userCourseProgress.js";
+import Progress from "../models/progress.js";
 import User from "../../user/models/user.js";
 import PaymentService from "../../payments/services/payment.service.js";
 import { getVideoDurationFromUrl } from "../../../utils/image/s3.js";
@@ -75,7 +75,7 @@ class CourseService {
       }
 
       // Check if course has enrolled students
-      const enrolledStudents = await UserCourseProgress.countDocuments({
+      const enrolledStudents = await Progress.countDocuments({
         courseId,
       });
       if (enrolledStudents > 0) {
@@ -439,7 +439,7 @@ class CourseService {
       }
 
       // Check if user is already enrolled
-      const existingProgress = await UserCourseProgress.findOne({
+      const existingProgress = await Progress.findOne({
         userId,
         courseId,
       });
@@ -459,15 +459,12 @@ class CourseService {
         }
       }
 
-      // Create progress tracking for user
-      const progress = new UserCourseProgress({
+      // Initialize progress using ProgressService
+      const ProgressService = (await import("./progress.service.js")).default;
+      const progress = await ProgressService.initializeProgress(
         userId,
         courseId,
-        startDate: new Date(),
-        status: "in_progress",
-      });
-
-      await progress.save();
+      );
 
       // Increment total students count
       course.totalStudents += 1;
@@ -507,48 +504,23 @@ class CourseService {
         throw new Error("Lesson not found");
       }
 
-      const progress = await UserCourseProgress.findOne({
+      const ProgressService = (await import("./progress.service.js")).default;
+
+      // Calculate total duration if not available
+      const totalDuration =
+        lesson.content?.videoDuration || lesson.duration || 0;
+
+      // Use updateVideoProgress to handle everything (validation, progress update, completion check)
+      // Setting watchTime = totalDuration to imply completion
+      const result = await ProgressService.updateVideoProgress(
         userId,
-        courseId: lesson.courseId,
-      });
-
-      if (!progress) {
-        throw new Error("You are not enrolled in this course");
-      }
-
-      // Check if lesson is already completed
-      const alreadyCompleted = progress.progress.completedLessons.some(
-        (completed) => completed.lessonId.toString() === lessonId,
+        lesson.courseId,
+        lessonId,
+        timeSpent > 0 ? timeSpent : totalDuration, // Use provided timeSpent or assume full duration
+        totalDuration,
       );
 
-      if (alreadyCompleted) {
-        throw new Error("Lesson already completed");
-      }
-
-      // Add to completed lessons
-      progress.progress.completedLessons.push({
-        lessonId,
-        timeSpent,
-      });
-
-      progress.progress.completedLessonsCount += 1;
-      progress.timeSpent.total += timeSpent;
-      progress.lastAccessedAt = new Date();
-
-      // Check if course is completed
-      if (
-        progress.progress.completedLessonsCount >=
-        progress.progress.totalLessons
-      ) {
-        progress.status = "completed";
-        progress.completionDate = new Date();
-      } else {
-        progress.status = "in-progress";
-      }
-
-      await progress.save();
-
-      return progress;
+      return result;
     } catch (error) {
       throw error;
     }
