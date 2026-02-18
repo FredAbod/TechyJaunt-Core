@@ -435,11 +435,38 @@ export const getAllStudents = async (req, res) => {
       hasPrev: page > 1,
     };
 
+    // Compute platform-wide stats
+    const Progress = (await import("../../courses/models/progress.js")).default;
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    const [totalRegisteredUsers, totalCompletedCourses, totalActiveUsers] =
+      await Promise.all([
+        User.countDocuments({ role: "user" }),
+        Progress.countDocuments({ isCompleted: true }),
+        User.countDocuments({
+          role: "user",
+          lastLogin: { $gte: thirtyDaysAgo },
+        }),
+      ]);
+
+    const activeUsersPercentage =
+      totalRegisteredUsers > 0
+        ? Math.round((totalActiveUsers / totalRegisteredUsers) * 100 * 10) / 10
+        : 0;
+
+    const platformStats = {
+      totalRegisteredUsers,
+      totalCompletedCourses,
+      totalActiveUsers,
+      activeUsersPercentage,
+    };
+
     logger.info(`Admin ${userId} retrieved students list`);
     return successResMsg(res, 200, {
       message: "Students retrieved successfully",
       students: studentsWithStats,
       pagination,
+      platformStats,
     });
   } catch (error) {
     logger.error(`Get all students error: ${error.message}`);
