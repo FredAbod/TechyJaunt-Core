@@ -662,6 +662,8 @@ export const inviteUser = async (req, res) => {
       password,
       role = "user",
       courseId,
+      about,
+      headline,
     } = req.body;
 
     // Check admin privileges
@@ -738,6 +740,27 @@ export const inviteUser = async (req, res) => {
       return errorResMsg(res, 500, "Failed to create user");
     }
 
+    // Handle profile image upload if provided
+    let profilePicUrl = null;
+    if (req.file) {
+      try {
+        const uploadResult = await uploadImage(req.file.buffer, {
+          folder: "techyjaunt/profile-pictures",
+          transformation: [
+            { width: 400, height: 400, crop: "fill", gravity: "face" },
+            { quality: "auto:good" },
+            { fetch_format: "auto" },
+          ],
+          public_id: `profile_invite_${Date.now()}`,
+        });
+        profilePicUrl = uploadResult.secure_url;
+      } catch (uploadErr) {
+        logger.warn(
+          `Profile image upload failed during invite: ${uploadErr.message}`,
+        );
+      }
+    }
+
     const newUser = new User({
       firstName,
       lastName,
@@ -747,6 +770,9 @@ export const inviteUser = async (req, res) => {
       status: "active",
       emailVerified: true,
       profileCompleted: false,
+      ...(profilePicUrl && { profilePic: profilePicUrl }),
+      ...(about && { about }),
+      ...(headline && { headline }),
     });
 
     const saved = await newUser.save();

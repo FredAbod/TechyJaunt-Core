@@ -1,9 +1,9 @@
 import express from "express";
 import rateLimit from "express-rate-limit";
-import { 
-  addProfile, 
-  getProfile, 
-  updateProfile, 
+import {
+  addProfile,
+  getProfile,
+  updateProfile,
   getDashboard,
   inviteUser,
   promoteUserRole,
@@ -11,7 +11,7 @@ import {
   updateProfileWithPicture,
   getAllStudents,
   getStudentById,
-  getAllTutors
+  getAllTutors,
 } from "../controllers/user.controller.js";
 import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
@@ -33,24 +33,59 @@ const profileLimiter = rateLimit({
 });
 
 // Profile routes (protected)
-router.post("/profile", profileLimiter, isAuthenticated, validateRequest(profileSchema), addProfile);
+router.post(
+  "/profile",
+  profileLimiter,
+  isAuthenticated,
+  validateRequest(profileSchema),
+  addProfile,
+);
 router.get("/profile", profileLimiter, isAuthenticated, getProfile);
-router.put("/profile", profileLimiter, isAuthenticated, validateRequest(profileSchema), updateProfile);
+router.put(
+  "/profile",
+  profileLimiter,
+  isAuthenticated,
+  validateRequest(profileSchema),
+  updateProfile,
+);
 router.get("/dashboard", profileLimiter, isAuthenticated, getDashboard);
 
 // Profile picture routes
-router.post("/profile/picture", profileLimiter, isAuthenticated, imageUpload.single('profilePicture'), uploadProfilePicture);
-router.put("/profile/with-picture", profileLimiter, isAuthenticated, imageUpload.single('profilePicture'), updateProfileWithPicture);
+router.post(
+  "/profile/picture",
+  profileLimiter,
+  isAuthenticated,
+  imageUpload.single("profilePicture"),
+  uploadProfilePicture,
+);
+router.put(
+  "/profile/with-picture",
+  profileLimiter,
+  isAuthenticated,
+  imageUpload.single("profilePicture"),
+  updateProfileWithPicture,
+);
 
 // Development endpoint to promote user role (remove in production)
 router.post("/promote-role", profileLimiter, isAuthenticated, promoteUserRole);
 
 // Admin routes
 router.get("/admin/students", profileLimiter, isAuthenticated, getAllStudents);
-router.get("/admin/students/:studentId", profileLimiter, isAuthenticated, getStudentById);
+router.get(
+  "/admin/students/:studentId",
+  profileLimiter,
+  isAuthenticated,
+  getStudentById,
+);
 // Get all tutors (accessible by any authenticated user)
 router.get("/tutors", profileLimiter, isAuthenticated, getAllTutors);
 // Admin invite route
-router.post("/admin/invite", profileLimiter, isAuthenticated, validateRequest(inviteSchema), inviteUser);
+router.post(
+  "/admin/invite",
+  profileLimiter,
+  isAuthenticated,
+  imageUpload.single("image"),
+  inviteUser,
+);
 
 export default router;

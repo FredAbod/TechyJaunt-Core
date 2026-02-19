@@ -15,14 +15,16 @@ class SubscriptionService {
       throw new Error("PAYSTACK_SECRET_KEY environment variable is required");
     }
 
-    if (!PAYSTACK_SECRET_KEY.startsWith('sk_')) {
-      throw new Error("Invalid PAYSTACK_SECRET_KEY format. Must start with 'sk_'");
+    if (!PAYSTACK_SECRET_KEY.startsWith("sk_")) {
+      throw new Error(
+        "Invalid PAYSTACK_SECRET_KEY format. Must start with 'sk_'",
+      );
     }
 
     this.paystackConfig = {
       headers: {
         Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       timeout: 30000,
     };
@@ -32,10 +34,10 @@ class SubscriptionService {
   async getSubscriptionPlans() {
     try {
       const plans = await SubscriptionPlan.getActivePlans();
-      
+
       // Convert to the expected format for backward compatibility
       const planMap = {};
-      plans.forEach(plan => {
+      plans.forEach((plan) => {
         planMap[plan.planType] = {
           id: plan._id,
           name: plan.name,
@@ -45,10 +47,10 @@ class SubscriptionService {
           description: plan.description,
           features: plan.features,
           metadata: plan.metadata,
-          formattedPrice: plan.formattedPrice
+          formattedPrice: plan.formattedPrice,
         };
       });
-      
+
       return planMap;
     } catch (error) {
       throw new AppError("Failed to fetch subscription plans", 500);
@@ -62,7 +64,7 @@ class SubscriptionService {
       if (!plan) {
         throw new AppError("Invalid subscription plan", 400);
       }
-      
+
       return {
         id: plan._id,
         name: plan.name,
@@ -72,7 +74,7 @@ class SubscriptionService {
         description: plan.description,
         features: plan.features,
         metadata: plan.metadata,
-        formattedPrice: plan.formattedPrice
+        formattedPrice: plan.formattedPrice,
       };
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -83,11 +85,20 @@ class SubscriptionService {
   /**
    * Initialize subscription payment
    */
-  async initializeSubscription(userId, planType, userEmail, userName, courseId) {
+  async initializeSubscription(
+    userId,
+    planType,
+    userEmail,
+    userName,
+    courseId,
+  ) {
     try {
       // Convert userId to ObjectId if it's a string
-      const userObjectId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
-      
+      const userObjectId =
+        typeof userId === "string"
+          ? new mongoose.Types.ObjectId(userId)
+          : userId;
+
       // Validate courseId and check if course exists
       if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {
         throw new AppError("Invalid course ID", 400);
@@ -105,70 +116,203 @@ class SubscriptionService {
         user: userObjectId,
         plan: planType,
         courseId: new mongoose.Types.ObjectId(courseId),
-        status: { $in: ['active', 'pending'] }
+        status: { $in: ["active", "pending"] },
       });
 
       if (existingSubscription) {
-        // Check if subscription is active and not expired
-        if (existingSubscription.status === 'active' && existingSubscription.endDate > new Date()) {
-          throw new AppError(`You already have an active ${planType} subscription for this course. Your subscription expires on ${existingSubscription.endDate.toLocaleDateString()}.`, 400);
+        // If subscription is active and not expired, extend it (subscription stacking)
+        if (
+          existingSubscription.status === "active" &&
+          existingSubscription.endDate > new Date()
+        ) {
+          const planDetails = await this.getPlanByType(planType);
+
+          // Calculate extended end date from current endDate
+          const newEndDate = new Date(existingSubscription.endDate);
+          if (planDetails.billing === "monthly") {
+            newEndDate.setMonth(newEndDate.getMonth() + 1);
+          } else {
+            // One-time (bronze) already has lifetime access, no need to extend further
+            throw new AppError(
+              `You already have lifetime access for this course with your ${planType} plan.`,
+              400,
+            );
+          }
+
+          // Generate new transaction reference for the renewal payment
+          const renewalReference = `TJ_SUB_RENEW_${generateRandomString(20)}`;
+
+          const paystackPayload = {
+            email: userEmail,
+            amount: planDetails.price,
+            currency: planDetails.currency,
+            reference: renewalReference,
+            callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/${courseId}/subscription/confirmation`,
+            metadata: {
+              custom_fields: [
+                {
+                  display_name: "Subscription Plan",
+                  variable_name: "subscription_plan",
+                  value: planDetails.name,
+                },
+                {
+                  display_name: "User Name",
+                  variable_name: "user_name",
+                  value: userName,
+                },
+                {
+                  display_name: "Plan Type",
+                  variable_name: "plan_type",
+                  value: planType,
+                },
+                {
+                  display_name: "Billing Type",
+                  variable_name: "billing_type",
+                  value: planDetails.billing,
+                },
+                {
+                  display_name: "Course",
+                  variable_name: "course_title",
+                  value: course.title,
+                },
+                {
+                  display_name: "Course ID",
+                  variable_name: "course_id",
+                  value: courseId,
+                },
+                {
+                  display_name: "Renewal",
+                  variable_name: "is_renewal",
+                  value: "true",
+                },
+                {
+                  display_name: "Original Subscription",
+                  variable_name: "original_subscription_id",
+                  value: existingSubscription._id.toString(),
+                },
+                {
+                  display_name: "New End Date",
+                  variable_name: "new_end_date",
+                  value: newEndDate.toISOString(),
+                },
+              ],
+            },
+          };
+
+          const response = await axios.post(
+            "https://api.paystack.co/transaction/initialize",
+            paystackPayload,
+            this.paystackConfig,
+          );
+
+          if (!response.data.status) {
+            throw new AppError(
+              "Failed to initialize renewal payment with Paystack",
+              500,
+            );
+          }
+
+          // Create a renewal subscription record linked to the original
+          const featureAccess = this.setupFeatureAccess(
+            planType,
+            existingSubscription.endDate,
+            newEndDate,
+          );
+
+          const renewalSubscription = new Subscription({
+            user: userObjectId,
+            plan: planType,
+            courseId: new mongoose.Types.ObjectId(courseId),
+            planDetails,
+            amount: planDetails.price,
+            currency: planDetails.currency,
+            paymentMethod: "card",
+            transactionReference: renewalReference,
+            startDate: existingSubscription.endDate,
+            endDate: newEndDate,
+            isRecurring: planDetails.billing === "monthly",
+            featureAccess,
+            status: "pending",
+            metadata: {
+              isRenewal: true,
+              originalSubscriptionId: existingSubscription._id,
+            },
+          });
+
+          await renewalSubscription.save();
+
+          logger.info(
+            `Renewal subscription created for user ${userId}, course ${courseId}. New end date: ${newEndDate.toISOString()}`,
+          );
+
+          return {
+            authorizationUrl: response.data.data.authorization_url,
+            reference: renewalReference,
+            subscription: renewalSubscription.toJSON(),
+            isRenewal: true,
+            previousEndDate: existingSubscription.endDate,
+            newEndDate,
+            message: `Subscription renewal initiated. Your access will be extended to ${newEndDate.toLocaleDateString()}.`,
+          };
         }
-        
+
         // Check if subscription is pending (payment not completed)
-        if (existingSubscription.status === 'pending') {
+        if (existingSubscription.status === "pending") {
           // Return the existing pending subscription's payment URL
-          logger.info(`User has pending subscription, returning existing payment URL. Reference: ${existingSubscription.transactionReference}`);
-          
+          logger.info(
+            `User has pending subscription, returning existing payment URL. Reference: ${existingSubscription.transactionReference}`,
+          );
+
           // Re-initialize payment with Paystack using the existing reference to get a fresh URL
           try {
             const planDetails = await this.getPlanByType(planType);
-            
+
             const paystackPayload = {
               email: userEmail,
               amount: planDetails.price,
               currency: planDetails.currency,
               reference: existingSubscription.transactionReference, // Use existing reference
-              callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/${courseId}/subscription/confirmation`,
+              callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/courses/${courseId}/subscription/confirmation`,
               metadata: {
                 custom_fields: [
                   {
                     display_name: "Subscription Plan",
                     variable_name: "subscription_plan",
-                    value: planDetails.name
+                    value: planDetails.name,
                   },
                   {
                     display_name: "User Name",
                     variable_name: "user_name",
-                    value: userName
+                    value: userName,
                   },
                   {
                     display_name: "Plan Type",
                     variable_name: "plan_type",
-                    value: planType
+                    value: planType,
                   },
                   {
                     display_name: "Billing Type",
                     variable_name: "billing_type",
-                    value: planDetails.billing
+                    value: planDetails.billing,
                   },
                   {
                     display_name: "Course",
                     variable_name: "course_title",
-                    value: course.title
+                    value: course.title,
                   },
                   {
                     display_name: "Course ID",
                     variable_name: "course_id",
-                    value: courseId
-                  }
-                ]
-              }
+                    value: courseId,
+                  },
+                ],
+              },
             };
 
             const response = await axios.post(
-              'https://api.paystack.co/transaction/initialize',
+              "https://api.paystack.co/transaction/initialize",
               paystackPayload,
-              this.paystackConfig
+              this.paystackConfig,
             );
 
             if (response.data.status) {
@@ -176,16 +320,19 @@ class SubscriptionService {
                 authorizationUrl: response.data.data.authorization_url,
                 reference: existingSubscription.transactionReference,
                 subscription: existingSubscription.toJSON(),
-                message: "Returning existing pending subscription payment link"
+                message: "Returning existing pending subscription payment link",
               };
             }
           } catch (paystackError) {
-            logger.error(`Failed to re-initialize payment for pending subscription: ${paystackError.message}`);
+            logger.error(
+              `Failed to re-initialize payment for pending subscription: ${paystackError.message}`,
+            );
             // If re-initialization fails, update the old subscription status and create a new one below
-            existingSubscription.status = 'failed';
+            existingSubscription.status = "failed";
             existingSubscription.metadata = {
               ...existingSubscription.metadata,
-              failureReason: 'Payment link re-initialization failed, new subscription created'
+              failureReason:
+                "Payment link re-initialization failed, new subscription created",
             };
             await existingSubscription.save();
           }
@@ -196,19 +343,24 @@ class SubscriptionService {
       const anyActiveSubscription = await Subscription.findOne({
         user: userObjectId,
         courseId: new mongoose.Types.ObjectId(courseId),
-        status: 'active',
-        endDate: { $gt: new Date() }
+        status: "active",
+        endDate: { $gt: new Date() },
       });
 
       if (anyActiveSubscription && anyActiveSubscription.plan !== planType) {
-        throw new AppError(`You already have an active ${anyActiveSubscription.plan} subscription for this course. You cannot subscribe to multiple plans for the same course.`, 400);
+        throw new AppError(
+          `You already have an active ${anyActiveSubscription.plan} subscription for this course. You cannot subscribe to multiple plans for the same course.`,
+          400,
+        );
       }
 
       // Get plan details from database
       const planDetails = await this.getPlanByType(planType);
 
       // Debug logging
-      logger.info(`Subscription Debug - Plan: ${planType}, Course: ${courseId}, Plan Price: ${planDetails.price}, Course Price: ${course.price}`);
+      logger.info(
+        `Subscription Debug - Plan: ${planType}, Course: ${courseId}, Plan Price: ${planDetails.price}, Course Price: ${course.price}`,
+      );
 
       // Generate unique transaction reference
       const transactionReference = `TJ_SUB_${generateRandomString(20)}`;
@@ -216,7 +368,7 @@ class SubscriptionService {
       // Calculate subscription period
       const startDate = new Date();
       const endDate = new Date();
-      
+
       if (planDetails.billing === "monthly") {
         endDate.setMonth(endDate.getMonth() + 1);
       } else {
@@ -236,45 +388,47 @@ class SubscriptionService {
             {
               display_name: "Subscription Plan",
               variable_name: "subscription_plan",
-              value: planDetails.name
+              value: planDetails.name,
             },
             {
               display_name: "User Name",
               variable_name: "user_name",
-              value: userName
+              value: userName,
             },
             {
               display_name: "Plan Type",
               variable_name: "plan_type",
-              value: planType
+              value: planType,
             },
             {
               display_name: "Billing Type",
               variable_name: "billing_type",
-              value: planDetails.billing
+              value: planDetails.billing,
             },
             {
               display_name: "Course",
               variable_name: "course_title",
-              value: course.title
+              value: course.title,
             },
             {
               display_name: "Course ID",
               variable_name: "course_id",
-              value: courseId
-            }
-          ]
-        }
+              value: courseId,
+            },
+          ],
+        },
       };
 
       // Debug logging before Paystack call
-      logger.info(`Paystack payload - Amount: ${paystackPayload.amount}, Plan: ${planType}, Reference: ${transactionReference}`);
+      logger.info(
+        `Paystack payload - Amount: ${paystackPayload.amount}, Plan: ${planType}, Reference: ${transactionReference}`,
+      );
 
       // Initialize payment with Paystack
       const response = await axios.post(
-        'https://api.paystack.co/transaction/initialize',
+        "https://api.paystack.co/transaction/initialize",
         paystackPayload,
-        this.paystackConfig
+        this.paystackConfig,
       );
 
       if (!response.data.status) {
@@ -282,7 +436,11 @@ class SubscriptionService {
       }
 
       // Setup feature access based on plan
-      const featureAccess = this.setupFeatureAccess(planType, startDate, endDate);
+      const featureAccess = this.setupFeatureAccess(
+        planType,
+        startDate,
+        endDate,
+      );
 
       // Create subscription record
       const subscription = new Subscription({
@@ -298,7 +456,7 @@ class SubscriptionService {
         endDate,
         isRecurring: planDetails.billing === "monthly",
         featureAccess,
-        status: "pending"
+        status: "pending",
       });
 
       await subscription.save();
@@ -306,28 +464,43 @@ class SubscriptionService {
       return {
         authorizationUrl: response.data.data.authorization_url,
         reference: transactionReference,
-        subscription: subscription.toJSON()
+        subscription: subscription.toJSON(),
       };
-
     } catch (error) {
       if (error instanceof AppError) {
         throw error;
       }
-      
+
       // Enhanced error handling for Paystack-specific errors
       if (error.response) {
-        const errorMessage = error.response.data?.message || "Payment initialization failed";
+        const errorMessage =
+          error.response.data?.message || "Payment initialization failed";
         if (error.response.status === 401) {
-          if (errorMessage.includes('IP address') || errorMessage.includes('not allowed')) {
-            throw new AppError("Your IP address is not whitelisted in Paystack. Please add your IP to the Paystack dashboard or disable IP whitelisting for development.", 403);
+          if (
+            errorMessage.includes("IP address") ||
+            errorMessage.includes("not allowed")
+          ) {
+            throw new AppError(
+              "Your IP address is not whitelisted in Paystack. Please add your IP to the Paystack dashboard or disable IP whitelisting for development.",
+              403,
+            );
           }
-          throw new AppError("Invalid Paystack API key. Please check your configuration.", 401);
+          throw new AppError(
+            "Invalid Paystack API key. Please check your configuration.",
+            401,
+          );
         } else if (error.response.status === 400) {
-          throw new AppError(`Payment initialization failed: ${errorMessage}`, 400);
+          throw new AppError(
+            `Payment initialization failed: ${errorMessage}`,
+            400,
+          );
         }
       }
-      
-      throw new AppError(error.message || "Failed to initialize subscription payment", error.status || 500);
+
+      throw new AppError(
+        error.message || "Failed to initialize subscription payment",
+        error.status || 500,
+      );
     }
   }
 
@@ -346,37 +519,68 @@ class SubscriptionService {
       certificate: { hasAccess: false },
       alumniCommunity: { hasAccess: false },
       linkedinOptimization: { hasAccess: false },
-      networking: { hasAccess: false }
+      networking: { hasAccess: false },
     };
 
     switch (planType) {
-      case 'bronze':
+      case "bronze":
         featureAccess.courseAccess.hasLifetimeAccess = true;
         featureAccess.certificate.hasAccess = true;
-        featureAccess.aiTutor = { hasAccess: true, expiresAt: oneMonthFromStart };
+        featureAccess.aiTutor = {
+          hasAccess: true,
+          expiresAt: oneMonthFromStart,
+        };
         featureAccess.premiumResources.hasAccess = true;
         featureAccess.linkedinOptimization.hasAccess = true;
         featureAccess.networking.hasAccess = true;
         featureAccess.alumniCommunity.hasAccess = true;
         break;
-        
-      case 'silver':
-        featureAccess.aiTutor = { hasAccess: true, expiresAt: oneMonthFromStart };
-        featureAccess.mentorship = { hasAccess: true, expiresAt: oneMonthFromStart, sessionsUsed: 0, sessionsLimit: 4 };
-        featureAccess.alumniCommunity = { hasAccess: true, expiresAt: oneMonthFromStart };
+
+      case "silver":
+        featureAccess.aiTutor = {
+          hasAccess: true,
+          expiresAt: oneMonthFromStart,
+        };
+        featureAccess.mentorship = {
+          hasAccess: true,
+          expiresAt: oneMonthFromStart,
+          sessionsUsed: 0,
+          sessionsLimit: 4,
+        };
+        featureAccess.alumniCommunity = {
+          hasAccess: true,
+          expiresAt: oneMonthFromStart,
+        };
         featureAccess.linkedinOptimization.hasAccess = true;
-        featureAccess.networking = { hasAccess: true, expiresAt: oneMonthFromStart };
+        featureAccess.networking = {
+          hasAccess: true,
+          expiresAt: oneMonthFromStart,
+        };
         break;
-        
-      case 'gold':
+
+      case "gold":
         featureAccess.courseAccess.hasLifetimeAccess = true;
         featureAccess.certificate.hasAccess = true;
-        featureAccess.aiTutor = { hasAccess: true, expiresAt: oneMonthFromStart };
-        featureAccess.mentorship = { hasAccess: true, expiresAt: oneMonthFromStart, sessionsUsed: 0, sessionsLimit: 4 };
+        featureAccess.aiTutor = {
+          hasAccess: true,
+          expiresAt: oneMonthFromStart,
+        };
+        featureAccess.mentorship = {
+          hasAccess: true,
+          expiresAt: oneMonthFromStart,
+          sessionsUsed: 0,
+          sessionsLimit: 4,
+        };
         featureAccess.premiumResources.hasAccess = true;
-        featureAccess.alumniCommunity = { hasAccess: true, expiresAt: oneMonthFromStart };
+        featureAccess.alumniCommunity = {
+          hasAccess: true,
+          expiresAt: oneMonthFromStart,
+        };
         featureAccess.linkedinOptimization.hasAccess = true;
-        featureAccess.networking = { hasAccess: true, expiresAt: oneMonthFromStart };
+        featureAccess.networking = {
+          hasAccess: true,
+          expiresAt: oneMonthFromStart,
+        };
         break;
     }
 
@@ -389,8 +593,10 @@ class SubscriptionService {
   async verifySubscription(reference) {
     try {
       // Find subscription by reference
-      const subscription = await Subscription.findOne({ transactionReference: reference });
-      
+      const subscription = await Subscription.findOne({
+        transactionReference: reference,
+      });
+
       if (!subscription) {
         throw new AppError("Subscription not found", 404);
       }
@@ -403,7 +609,7 @@ class SubscriptionService {
       // Verify with Paystack
       const response = await axios.get(
         `https://api.paystack.co/transaction/verify/${reference}`,
-        this.paystackConfig
+        this.paystackConfig,
       );
 
       if (!response.data.status) {
@@ -413,7 +619,8 @@ class SubscriptionService {
       const paymentData = response.data.data;
 
       // Update subscription status
-      subscription.status = paymentData.status === "success" ? "active" : "failed";
+      subscription.status =
+        paymentData.status === "success" ? "active" : "failed";
       subscription.paystackReference = paymentData.reference;
       subscription.paymentMethod = paymentData.channel;
       subscription.metadata = paymentData;
@@ -422,7 +629,10 @@ class SubscriptionService {
 
       return subscription;
     } catch (error) {
-      throw new AppError(error.message || "Subscription verification failed", error.status || 500);
+      throw new AppError(
+        error.message || "Subscription verification failed",
+        error.status || 500,
+      );
     }
   }
 
@@ -432,26 +642,31 @@ class SubscriptionService {
   async getUserSubscriptions(userId) {
     try {
       // Convert userId to ObjectId if it's a string
-      const userObjectId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
-      
-      const subscriptions = await Subscription.find({
-        user: userObjectId
-      })
-      .populate('courseId', 'title category level image thumbnail')
-      .sort({ createdAt: -1 });
+      const userObjectId =
+        typeof userId === "string"
+          ? new mongoose.Types.ObjectId(userId)
+          : userId;
 
-      return subscriptions.map(sub => ({
+      const subscriptions = await Subscription.find({
+        user: userObjectId,
+      })
+        .populate("courseId", "title category level image thumbnail")
+        .sort({ createdAt: -1 });
+
+      return subscriptions.map((sub) => ({
         id: sub._id,
         plan: sub.plan,
         planName: sub.planDetails.name,
-        course: sub.courseId ? {
-          id: sub.courseId._id,
-          title: sub.courseId.title,
-          category: sub.courseId.category,
-          level: sub.courseId.level,
-          image: sub.courseId.image,
-          thumbnail: sub.courseId.thumbnail
-        } : null,
+        course: sub.courseId
+          ? {
+              id: sub.courseId._id,
+              title: sub.courseId.title,
+              category: sub.courseId.category,
+              level: sub.courseId.level,
+              image: sub.courseId.image,
+              thumbnail: sub.courseId.thumbnail,
+            }
+          : null,
         status: sub.status,
         startDate: sub.startDate,
         endDate: sub.endDate,
@@ -460,10 +675,13 @@ class SubscriptionService {
         amount: sub.amount,
         currency: sub.currency,
         featureAccess: sub.featureAccess,
-        transactionReference: sub.transactionReference
+        transactionReference: sub.transactionReference,
       }));
     } catch (error) {
-      throw new AppError(error.message || "Failed to get user subscriptions", error.status || 500);
+      throw new AppError(
+        error.message || "Failed to get user subscriptions",
+        error.status || 500,
+      );
     }
   }
 
@@ -473,17 +691,19 @@ class SubscriptionService {
   async getUserSubscriptionStatus(userId) {
     try {
       // Convert userId to ObjectId if it's a string
-      const userObjectId = typeof userId === 'string' ? new mongoose.Types.ObjectId(userId) : userId;
-      
+      const userObjectId =
+        typeof userId === "string"
+          ? new mongoose.Types.ObjectId(userId)
+          : userId;
+
       const activeSubscriptions = await Subscription.find({
         user: userObjectId,
-        status: 'active',
-        endDate: { $gt: new Date() }
-      })
-      .populate('courseId', 'title category level image thumbnail');
+        status: "active",
+        endDate: { $gt: new Date() },
+      }).populate("courseId", "title category level image thumbnail");
 
       const hasActiveSubscription = activeSubscriptions.length > 0;
-      const activePlans = activeSubscriptions.map(sub => sub.plan);
+      const activePlans = activeSubscriptions.map((sub) => sub.plan);
 
       // Aggregate feature access from all active subscriptions
       const aggregatedFeatures = {
@@ -494,11 +714,11 @@ class SubscriptionService {
         certificate: false,
         alumniCommunity: false,
         linkedinOptimization: false,
-        networking: false
+        networking: false,
       };
 
-      activeSubscriptions.forEach(sub => {
-        Object.keys(aggregatedFeatures).forEach(feature => {
+      activeSubscriptions.forEach((sub) => {
+        Object.keys(aggregatedFeatures).forEach((feature) => {
           if (sub.hasFeatureAccess(feature)) {
             aggregatedFeatures[feature] = true;
           }
@@ -510,22 +730,27 @@ class SubscriptionService {
         activePlans,
         totalActiveSubscriptions: activeSubscriptions.length,
         featureAccess: aggregatedFeatures,
-        subscriptions: activeSubscriptions.map(sub => ({
+        subscriptions: activeSubscriptions.map((sub) => ({
           plan: sub.plan,
-          course: sub.courseId ? {
-            id: sub.courseId._id,
-            title: sub.courseId.title,
-            category: sub.courseId.category,
-            level: sub.courseId.level,
-            image: sub.courseId.image,
-            thumbnail: sub.courseId.thumbnail
-          } : null,
+          course: sub.courseId
+            ? {
+                id: sub.courseId._id,
+                title: sub.courseId.title,
+                category: sub.courseId.category,
+                level: sub.courseId.level,
+                image: sub.courseId.image,
+                thumbnail: sub.courseId.thumbnail,
+              }
+            : null,
           endDate: sub.endDate,
-          isRecurring: sub.isRecurring
-        }))
+          isRecurring: sub.isRecurring,
+        })),
       };
     } catch (error) {
-      throw new AppError(error.message || "Failed to get subscription status", error.status || 500);
+      throw new AppError(
+        error.message || "Failed to get subscription status",
+        error.status || 500,
+      );
     }
   }
 
@@ -535,87 +760,137 @@ class SubscriptionService {
   async handleSubscriptionWebhook(payload, signature) {
     try {
       // Verify webhook signature
-      const hash = crypto.createHmac('sha512', PAYSTACK_SECRET_KEY).update(JSON.stringify(payload)).digest('hex');
-      
+      const hash = crypto
+        .createHmac("sha512", PAYSTACK_SECRET_KEY)
+        .update(JSON.stringify(payload))
+        .digest("hex");
+
       if (hash !== signature) {
         throw new AppError("Invalid webhook signature", 400);
       }
 
       const { event, data } = payload;
-      logger.info(`Processing subscription webhook - Event: ${event}, Reference: ${data.reference}`);
+      logger.info(
+        `Processing subscription webhook - Event: ${event}, Reference: ${data.reference}`,
+      );
 
-      if (event === 'charge.success') {
+      if (event === "charge.success") {
         const reference = data.reference;
-        
+
         // Find and update subscription
-        const subscription = await Subscription.findOne({ transactionReference: reference });
-        
+        const subscription = await Subscription.findOne({
+          transactionReference: reference,
+        });
+
         if (!subscription) {
           logger.warn(`Subscription not found for reference: ${reference}`);
-          return { status: 'error', message: 'Subscription not found' };
+          return { status: "error", message: "Subscription not found" };
         }
 
         // Update subscription status
-        subscription.status = 'active';
+        subscription.status = "active";
         subscription.paystackReference = data.reference;
         subscription.paymentMethod = data.channel;
-        subscription.metadata = data;
+        subscription.metadata = { ...subscription.metadata, paymentData: data };
         await subscription.save();
 
-        logger.info(`Subscription ${subscription._id} activated for user ${subscription.user}`);
+        logger.info(
+          `Subscription ${subscription._id} activated for user ${subscription.user}`,
+        );
+
+        // If this is a renewal, extend the original subscription's endDate
+        if (
+          subscription.metadata?.isRenewal &&
+          subscription.metadata?.originalSubscriptionId
+        ) {
+          try {
+            const originalSubscription = await Subscription.findById(
+              subscription.metadata.originalSubscriptionId,
+            );
+            if (originalSubscription) {
+              originalSubscription.endDate = subscription.endDate;
+              originalSubscription.featureAccess = this.setupFeatureAccess(
+                originalSubscription.plan,
+                originalSubscription.startDate,
+                subscription.endDate,
+              );
+              await originalSubscription.save();
+              logger.info(
+                `✅ Original subscription ${originalSubscription._id} extended to ${subscription.endDate.toISOString()}`,
+              );
+            }
+          } catch (renewalError) {
+            logger.error(
+              `Failed to extend original subscription: ${renewalError.message}`,
+            );
+          }
+        }
 
         // Initialize progress tracking for the user
         try {
           // Import progress service dynamically to avoid circular dependencies
-          const progressService = (await import("../../courses/services/progress.service.js")).default;
-          
-          logger.info(`Initializing progress for user ${subscription.user} in course ${subscription.courseId}`);
-          
+          const progressService = (
+            await import("../../courses/services/progress.service.js")
+          ).default;
+
+          logger.info(
+            `Initializing progress for user ${subscription.user} in course ${subscription.courseId}`,
+          );
+
           await progressService.initializeProgress(
             subscription.user,
             subscription.courseId,
-            subscription._id
+            subscription._id,
           );
-          
-          logger.info(`✅ Progress successfully initialized for user ${subscription.user} in course ${subscription.courseId}`);
-          
-          return { 
-            status: 'success', 
-            message: 'Subscription activated and progress initialized',
+
+          logger.info(
+            `✅ Progress successfully initialized for user ${subscription.user} in course ${subscription.courseId}`,
+          );
+
+          return {
+            status: "success",
+            message: "Subscription activated and progress initialized",
             subscriptionId: subscription._id,
-            progressInitialized: true
+            progressInitialized: true,
           };
-          
         } catch (progressError) {
           // Log detailed error but don't fail the webhook - subscription is still valid
-          logger.error(`❌ Failed to initialize progress for subscription ${subscription._id}:`, {
-            error: progressError.message,
-            stack: progressError.stack,
-            userId: subscription.user,
-            courseId: subscription.courseId,
-            subscriptionId: subscription._id
-          });
-          
-          return { 
-            status: 'partial_success', 
-            message: 'Subscription activated but progress initialization failed',
+          logger.error(
+            `❌ Failed to initialize progress for subscription ${subscription._id}:`,
+            {
+              error: progressError.message,
+              stack: progressError.stack,
+              userId: subscription.user,
+              courseId: subscription.courseId,
+              subscriptionId: subscription._id,
+            },
+          );
+
+          return {
+            status: "partial_success",
+            message:
+              "Subscription activated but progress initialization failed",
             subscriptionId: subscription._id,
             progressInitialized: false,
-            progressError: progressError.message
+            progressError: progressError.message,
           };
         }
       } else {
-        logger.info(`Ignoring webhook event: ${event} for reference: ${data.reference}`);
-        return { status: 'ignored', message: `Event ${event} not processed` };
+        logger.info(
+          `Ignoring webhook event: ${event} for reference: ${data.reference}`,
+        );
+        return { status: "ignored", message: `Event ${event} not processed` };
       }
-
     } catch (error) {
       logger.error(`Webhook processing failed:`, {
         error: error.message,
         stack: error.stack,
-        payload: payload
+        payload: payload,
       });
-      throw new AppError(error.message || "Webhook processing failed", error.status || 500);
+      throw new AppError(
+        error.message || "Webhook processing failed",
+        error.status || 500,
+      );
     }
   }
 }

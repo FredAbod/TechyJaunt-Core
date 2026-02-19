@@ -38,7 +38,8 @@ export const setPasswordSchema = Joi.object({
     .required()
     .messages({
       "string.min": "Password must be at least 8 characters long",
-      "string.pattern.base": "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+      "string.pattern.base":
+        "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
       "any.required": "Password is required",
     }),
   // confirmPassword: Joi.string()
@@ -55,55 +56,36 @@ export const loginSchema = Joi.object({
   email: Joi.string()
     .email({ tlds: { allow: false } })
     .required(),
-  password: Joi.string()
-    .required()
-    .messages({
-      "any.required": "Password is required",
-    }),
+  password: Joi.string().required().messages({
+    "any.required": "Password is required",
+  }),
 });
 
 // Profile completion validation
 export const profileSchema = Joi.object({
-  firstName: Joi.string()
-    .min(2)
-    .max(50)
-    .required()
-    .messages({
-      "string.min": "First name must be at least 2 characters",
-      "string.max": "First name cannot exceed 50 characters",
-      "any.required": "First name is required",
-    }),
-  lastName: Joi.string()
-    .min(2)
-    .max(50)
-    .required()
-    .messages({
-      "string.min": "Last name must be at least 2 characters",
-      "string.max": "Last name cannot exceed 50 characters",
-      "any.required": "Last name is required",
-    }),
-  course: Joi.string()
-    .required()
-    .messages({
-      "any.required": "Course selection is required",
-    }),
-  courseDuration: Joi.string()
-    .required()
-    .messages({
-      "any.required": "Course duration is required",
-    }),
-  dateOfBirth: Joi.date()
-    .max("now")
-    .required()
-    .messages({
-      "date.max": "Date of birth cannot be in the future",
-      "any.required": "Date of birth is required",
-    }),
-  placeOfBirth: Joi.string()
-    .required()
-    .messages({
-      "any.required": "Place of birth is required",
-    }),
+  firstName: Joi.string().min(2).max(50).required().messages({
+    "string.min": "First name must be at least 2 characters",
+    "string.max": "First name cannot exceed 50 characters",
+    "any.required": "First name is required",
+  }),
+  lastName: Joi.string().min(2).max(50).required().messages({
+    "string.min": "Last name must be at least 2 characters",
+    "string.max": "Last name cannot exceed 50 characters",
+    "any.required": "Last name is required",
+  }),
+  course: Joi.string().required().messages({
+    "any.required": "Course selection is required",
+  }),
+  courseDuration: Joi.string().required().messages({
+    "any.required": "Course duration is required",
+  }),
+  dateOfBirth: Joi.date().max("now").required().messages({
+    "date.max": "Date of birth cannot be in the future",
+    "any.required": "Date of birth is required",
+  }),
+  placeOfBirth: Joi.string().required().messages({
+    "any.required": "Place of birth is required",
+  }),
   phone: Joi.string()
     .pattern(/^[+]?[1-9]\d{1,14}$/)
     .required()
@@ -136,24 +118,18 @@ export const profileSchema = Joi.object({
 
 // Forgot password validation schema
 export const forgotPasswordSchema = Joi.object({
-  email: Joi.string()
-    .email()
-    .required()
-    .messages({
-      "string.email": "Please provide a valid email address",
-      "any.required": "Email is required",
-    }),
+  email: Joi.string().email().required().messages({
+    "string.email": "Please provide a valid email address",
+    "any.required": "Email is required",
+  }),
 });
 
 // Reset password validation schema
 export const resetPasswordSchema = Joi.object({
-  email: Joi.string()
-    .email()
-    .required()
-    .messages({
-      "string.email": "Please provide a valid email address",
-      "any.required": "Email is required",
-    }),
+  email: Joi.string().email().required().messages({
+    "string.email": "Please provide a valid email address",
+    "any.required": "Email is required",
+  }),
   resetToken: Joi.string()
     .length(6)
     .pattern(/^[0-9]+$/)
@@ -165,11 +141,16 @@ export const resetPasswordSchema = Joi.object({
     }),
   newPassword: Joi.string()
     .min(8)
-    .pattern(new RegExp('^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]'))
+    .pattern(
+      new RegExp(
+        "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]",
+      ),
+    )
     .required()
     .messages({
       "string.min": "Password must be at least 8 characters long",
-      "string.pattern.base": "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+      "string.pattern.base":
+        "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
       "any.required": "New password is required",
     }),
 });
@@ -180,14 +161,23 @@ export const inviteSchema = Joi.object({
   lastName: Joi.string().min(2).max(50).required(),
   email: Joi.string().email().required(),
   password: Joi.string().min(8).required(),
-  role: Joi.string().valid('super admin','admin','tutor','user').optional(),
-  courseId: Joi.string().pattern(/^[0-9a-fA-F]{24}$/).when('role', {
-    is: Joi.string().valid('admin', 'tutor'),
-    then: Joi.required().messages({
-      'any.required': 'courseId is required when inviting tutors or admins'
+  role: Joi.string().valid("super admin", "admin", "tutor", "user").optional(),
+  courseId: Joi.string()
+    .pattern(/^[0-9a-fA-F]{24}$/)
+    .when("role", {
+      is: Joi.string().valid("admin", "tutor"),
+      then: Joi.required().messages({
+        "any.required": "courseId is required when inviting tutors or admins",
+      }),
+      otherwise: Joi.optional(),
+    })
+    .messages({
+      "string.pattern.base": "courseId must be a valid MongoDB ObjectId",
     }),
-    otherwise: Joi.optional()
-  }).messages({
-    'string.pattern.base': 'courseId must be a valid MongoDB ObjectId'
-  })
+  about: Joi.string().max(1000).optional().messages({
+    "string.max": "About must not exceed 1000 characters",
+  }),
+  headline: Joi.string().max(200).optional().messages({
+    "string.max": "Headline must not exceed 200 characters",
+  }),
 });

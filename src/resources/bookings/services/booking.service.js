@@ -1039,34 +1039,21 @@ class BookingService {
       const total = await BookingSession.countDocuments(query);
       console.log("Total count:", total);
 
-      // Look up enrolled courses for each student from Progress model
-      const Progress = (await import("../../courses/models/progress.js"))
-        .default;
-
+      // Look up courses taught by each tutor
       const enrichedBookings = await Promise.all(
         bookings.map(async (booking) => {
           const bookingObj = booking.toObject();
           try {
-            const studentId = booking.studentId?._id || booking.studentId;
-            const enrolledCourses = await Progress.find({ userId: studentId })
-              .populate(
-                "courseId",
-                "title description thumbnail category level price",
-              )
-              .select("courseId overallProgress isCompleted lastActivityAt")
-              .lean();
+            const tutorId = booking.tutorId?._id || booking.tutorId;
+            const tutorCourses = await Course.find({
+              $or: [{ instructor: tutorId }, { assistants: tutorId }],
+              isActive: true,
+            }).select("_id title category level price thumbnail description");
 
-            bookingObj.enrolledCourses = enrolledCourses.map((p) => ({
-              course: p.courseId,
-              progress: p.overallProgress,
-              isCompleted: p.isCompleted,
-              lastActivityAt: p.lastActivityAt,
-            }));
+            bookingObj.tutorCourses = tutorCourses || [];
           } catch (err) {
-            console.warn(
-              `Failed to get enrolled courses for student: ${err.message}`,
-            );
-            bookingObj.enrolledCourses = [];
+            console.warn(`Failed to get courses for tutor: ${err.message}`);
+            bookingObj.tutorCourses = [];
           }
           return bookingObj;
         }),

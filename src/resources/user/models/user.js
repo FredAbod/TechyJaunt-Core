@@ -21,7 +21,7 @@ const userSchema = new mongoose.Schema(
       type: String,
     },
     profilePicPublicId: {
-      type: String, 
+      type: String,
     },
     phone: {
       type: String,
@@ -90,11 +90,19 @@ const userSchema = new mongoose.Schema(
     resetPasswordExpiry: {
       type: Date,
     },
+    about: {
+      type: String,
+      maxlength: 1000,
+    },
+    headline: {
+      type: String,
+      maxlength: 200,
+    },
   },
   {
     timestamps: true,
     versionKey: false,
-  }
+  },
 );
 
 userSchema.methods.toJSON = function () {
