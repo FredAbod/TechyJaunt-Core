@@ -1,4 +1,4 @@
-import dotenv from 'dotenv';
+import dotenv from "dotenv";
 dotenv.config();
 
 import mongoose from "mongoose";
@@ -17,77 +17,152 @@ const subscriptionPlansData = [
   {
     planType: "bronze",
     name: "Bronze Plan",
-    price: 1580000, // ₦15,800 in kobo
+    price: 1000000, // ₦10,000 in kobo
     currency: "NGN",
     billing: "one-time",
-    description: "One-time payment with lifetime course access",
+    description: "For independent learners",
     sortOrder: 1,
     features: [
-      { feature: "Self-paced course with lifetime access", duration: "lifetime", included: true },
-      { feature: "Certificate upon course completion", duration: "lifetime", included: true },
-      { feature: "AI Tutor", duration: "1-month", included: true },
-      { feature: "Access to premium learning resources", duration: "lifetime", included: true },
-      { feature: "LinkedIn optimization Ebook", duration: "lifetime", included: true },
-      { feature: "Networking opportunities", duration: "lifetime", included: true },
-      { feature: "Access to our alumni community", duration: "lifetime", included: true }
+      {
+        feature: "Self-paced course with lifetime access",
+        duration: "lifetime",
+        included: true,
+      },
+      {
+        feature: "Certificate upon completion",
+        duration: "lifetime",
+        included: true,
+      },
+      { feature: "AI Tutor", duration: "lifetime", included: true },
+      {
+        feature: "Access to premium learning resources",
+        duration: "lifetime",
+        included: true,
+      },
+      {
+        feature: "LinkedIn optimization eBook",
+        duration: "lifetime",
+        included: true,
+      },
+      {
+        feature: "Networking opportunities",
+        duration: "lifetime",
+        included: true,
+      },
+      {
+        feature: "Access to our alumni community",
+        duration: "lifetime",
+        included: true,
+      },
     ],
-    metadata: { popular: false, recommended: false, lifetimeAccess: true }
+    metadata: { popular: false, recommended: false, lifetimeAccess: true },
   },
   {
     planType: "silver",
     name: "Silver Plan",
-    price: 3000000, // ₦30,000 in kobo
+    price: 1200000, // ₦12,000 in kobo
     currency: "NGN",
     billing: "monthly",
-    description: "Monthly subscription with mentorship and AI tutor",
+    description: "Mentorship-focused",
     sortOrder: 2,
     features: [
       { feature: "AI Tutor", duration: "1-month", included: true },
-      { feature: "Weekly one-on-one consultation with a mentor", duration: "1-month", included: true, limit: 4 },
-      { feature: "Access to our alumni community", duration: "1-month", included: true },
-      { feature: "LinkedIn optimization Ebook", duration: "lifetime", included: true },
-      { feature: "Networking opportunities", duration: "1-month", included: true }
+      {
+        feature: "Weekly one-on-one session with a mentor",
+        duration: "1-month",
+        included: true,
+        limit: 5,
+      },
+      {
+        feature: "LinkedIn optimization eBook",
+        duration: "lifetime",
+        included: true,
+      },
+      {
+        feature: "Networking opportunities",
+        duration: "1-month",
+        included: true,
+      },
+      {
+        feature: "Access to our alumni community",
+        duration: "1-month",
+        included: true,
+      },
     ],
-    metadata: { popular: true, recommended: false, lifetimeAccess: false }
+    metadata: { popular: true, recommended: false, lifetimeAccess: false },
   },
   {
     planType: "gold",
     name: "Gold Plan",
-    price: 4080000, // ₦40,800 in kobo
+    price: 2500000, // ₦25,000 in kobo
     currency: "NGN",
     billing: "monthly",
-    description: "Premium monthly subscription with full access",
+    description: "Full Access + Mentorship",
     sortOrder: 3,
     features: [
-      { feature: "Self-paced course with lifetime access", duration: "lifetime", included: true },
+      {
+        feature: "Self-paced course with lifetime access",
+        duration: "lifetime",
+        included: true,
+      },
+      {
+        feature: "Certificate upon completion",
+        duration: "lifetime",
+        included: true,
+      },
       { feature: "AI Tutor", duration: "1-month", included: true },
-      { feature: "Certificate upon course completion", duration: "lifetime", included: true },
-      { feature: "Weekly one-on-one consultation with a mentor", duration: "1-month", included: true, limit: 4 },
-      { feature: "Access to premium learning resources", duration: "lifetime", included: true },
-      { feature: "Access to our alumni community", duration: "1-month", included: true },
-      { feature: "LinkedIn optimization Ebook", duration: "lifetime", included: true },
-      { feature: "Networking opportunities", duration: "1-month", included: true }
+      {
+        feature: "Access to premium learning resources",
+        duration: "lifetime",
+        included: true,
+      },
+      {
+        feature: "LinkedIn optimization eBook",
+        duration: "lifetime",
+        included: true,
+      },
+      {
+        feature: "Networking opportunities",
+        duration: "1-month",
+        included: true,
+      },
+      {
+        feature: "Access to our alumni community",
+        duration: "1-month",
+        included: true,
+      },
+      {
+        feature: "Weekly one-on-one session with a mentor",
+        duration: "1-month",
+        included: true,
+        limit: 5,
+      },
     ],
-    metadata: { popular: false, recommended: true, lifetimeAccess: true }
-  }
+    metadata: { popular: false, recommended: true, lifetimeAccess: true },
+  },
 ];
 
 async function migrateSubscriptionPlans() {
   try {
     console.log("🔄 Starting subscription plans migration...");
-    console.log("Environment check - MONGO_URI exists:", !!process.env.MONGO_URI);
-    
+    console.log(
+      "Environment check - MONGO_URI exists:",
+      !!process.env.MONGO_URI,
+    );
+
     // Connect to database
     console.log("Attempting database connection...");
     await connectDB(process.env.MONGO_URI);
     console.log("✅ Database connected successfully");
-    
+
     let migrated = 0;
     let skipped = 0;
-    
+
     for (const planData of subscriptionPlansData) {
-      const existingPlan = await SubscriptionPlan.findOne({ planType: planData.planType });
-      
+      const existingPlan = await SubscriptionPlan.findOne({
+        planType: planData.planType,
+      });
+
       if (existingPlan) {
         console.log(`⏭️  Plan '${planData.name}' already exists, skipping...`);
         skipped++;
@@ -97,18 +172,19 @@ async function migrateSubscriptionPlans() {
         migrated++;
       }
     }
-    
+
     console.log(`\n📊 Migration Summary:`);
     console.log(`   - Plans created: ${migrated}`);
     console.log(`   - Plans skipped: ${skipped}`);
     console.log(`   - Total plans: ${migrated + skipped}`);
-    
+
     // Verify the migration
-    const totalPlans = await SubscriptionPlan.countDocuments({ isActive: true });
+    const totalPlans = await SubscriptionPlan.countDocuments({
+      isActive: true,
+    });
     console.log(`\n✅ Total active plans in database: ${totalPlans}`);
-    
+
     console.log("\n🎉 Subscription plans migration completed successfully!");
-    
   } catch (error) {
     console.error("❌ Error during migration:", error.message);
     logger.error(`Subscription plans migration error: ${error.message}`);
@@ -122,8 +198,8 @@ async function migrateSubscriptionPlans() {
 }
 
 // Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled Promise Rejection:', err.message);
+process.on("unhandledRejection", (err) => {
+  console.error("❌ Unhandled Promise Rejection:", err.message);
   process.exit(1);
 });
 
