@@ -147,7 +147,7 @@ class SubscriptionService {
             amount: planDetails.price,
             currency: planDetails.currency,
             reference: renewalReference,
-            callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/${courseId}/subscription/confirmation`,
+            callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/courses/${courseId}/subscription/confirmation`,
             metadata: {
               custom_fields: [
                 {
@@ -382,7 +382,7 @@ class SubscriptionService {
         amount: planDetails.price,
         currency: planDetails.currency,
         reference: transactionReference,
-        callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/${courseId}/subscription/confirmation`,
+        callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/courses/${courseId}/subscription/confirmation`,
         metadata: {
           custom_fields: [
             {
@@ -626,6 +626,36 @@ class SubscriptionService {
       subscription.metadata = paymentData;
 
       await subscription.save();
+
+      // If payment was successful, initialize progress and increment totalStudents
+      if (subscription.status === "active") {
+        try {
+          const progressService = (
+            await import("../../courses/services/progress.service.js")
+          ).default;
+
+          await progressService.initializeProgress(
+            subscription.user,
+            subscription.courseId,
+            subscription._id,
+          );
+
+          const Course = (await import("../../courses/models/course.js"))
+            .default;
+          await Course.findByIdAndUpdate(subscription.courseId, {
+            $inc: { totalStudents: 1 },
+          });
+
+          logger.info(
+            `✅ Progress initialized and course updated for verified subscription ${subscription._id}`,
+          );
+        } catch (progressError) {
+          // Don't fail verification if progress init fails (might already exist)
+          logger.error(
+            `Progress initialization during verify failed: ${progressError.message}`,
+          );
+        }
+      }
 
       return subscription;
     } catch (error) {
