@@ -847,6 +847,22 @@ class SubscriptionService {
             `✅ Progress successfully initialized for user ${subscription.user} in course ${subscription.courseId}`,
           );
 
+          // Increment totalStudents on the course
+          try {
+            const Course = (await import("../../courses/models/course.js"))
+              .default;
+            await Course.findByIdAndUpdate(subscription.courseId, {
+              $inc: { totalStudents: 1 },
+            });
+            logger.info(
+              `✅ Course ${subscription.courseId} totalStudents incremented`,
+            );
+          } catch (courseError) {
+            logger.error(
+              `Failed to increment totalStudents: ${courseError.message}`,
+            );
+          }
+
           return {
             status: "success",
             message: "Subscription activated and progress initialized",

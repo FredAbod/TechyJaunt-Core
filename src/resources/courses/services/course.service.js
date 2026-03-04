@@ -528,10 +528,17 @@ class CourseService {
 
   async getUserDashboard(userId) {
     try {
+      // Convert userId to ObjectId if it's a string (e.g. from JWT token)
+      const mongoose = (await import("mongoose")).default;
+      const userObjectId =
+        typeof userId === "string"
+          ? new mongoose.Types.ObjectId(userId)
+          : userId;
+
       // Get enrolled courses from Progress collection (active subscriptions)
       const Progress = (await import("../models/progress.js")).default;
 
-      const enrolledCourses = await Progress.find({ userId })
+      const enrolledCourses = await Progress.find({ userId: userObjectId })
         .populate({
           path: "courseId",
           select:
