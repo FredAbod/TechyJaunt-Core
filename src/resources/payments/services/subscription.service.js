@@ -939,6 +939,302 @@ class SubscriptionService {
       );
     }
   }
+
+  /**
+   * Get subscription status for a specific course
+   * Unlike getUserSubscriptionStatus which aggregates across all courses,
+   * this returns the subscription details for a single course context
+   * @param {string} userId - User ID
+   * @param {string} courseId - Course ID
+   * @returns {Object} Course-specific subscription status
+   */
+  async getCourseSubscriptionStatus(userId, courseId) {
+    try {
+      const userObjectId =
+        typeof userId === "string"
+          ? new mongoose.Types.ObjectId(userId)
+          : userId;
+
+      const courseObjectId =
+        typeof courseId === "string"
+          ? new mongoose.Types.ObjectId(courseId)
+          : courseId;
+
+      const subscription = await Subscription.findOne({
+        user: userObjectId,
+        courseId: courseObjectId,
+        status: "active",
+        endDate: { $gt: new Date() },
+      }).populate("courseId", "title category level");
+
+      if (!subscription) {
+        return {
+          hasSubscription: false,
+          plan: null,
+          featureAccess: {
+            aiTutor: false,
+            mentorship: false,
+            courseAccess: false,
+            premiumResources: false,
+            certificate: false,
+            alumniCommunity: false,
+            linkedinOptimization: false,
+            networking: false,
+          },
+          subscription: null,
+        };
+      }
+
+      // Build feature access object with detailed info
+      const featureAccess = {
+        aiTutor: subscription.hasFeatureAccess("aiTutor"),
+        mentorship: subscription.hasFeatureAccess("mentorship"),
+        courseAccess: subscription.hasFeatureAccess("courseAccess"),
+        premiumResources: subscription.hasFeatureAccess("premiumResources"),
+        certificate: subscription.hasFeatureAccess("certificate"),
+        alumniCommunity: subscription.hasFeatureAccess("alumniCommunity"),
+        linkedinOptimization: subscription.hasFeatureAccess("linkedinOptimization"),
+        networking: subscription.hasFeatureAccess("networking"),
+      };
+
+      // Include mentorship session tracking
+      const mentorshipDetails = subscription.featureAccess?.mentorship || {};
+
+      return {
+        hasSubscription: true,
+        plan: subscription.plan,
+        featureAccess,
+        mentorshipDetails: {
+          sessionsUsed: mentorshipDetails.sessionsUsed || 0,
+          sessionsLimit: mentorshipDetails.sessionsLimit || 0,
+          hasAccess: featureAccess.mentorship,
+          expiresAt: mentorshipDetails.expiresAt,
+        },
+        subscription: {
+          id: subscription._id,
+          plan: subscription.plan,
+          course: subscription.courseId,
+          startDate: subscription.startDate,
+          endDate: subscription.endDate,
+          isRecurring: subscription.isRecurring,
+        },
+      };
+    } catch (error) {
+      logger.error(`Error getting course subscription status:`, {
+        userId,
+        courseId,
+        error: error.message,
+      });
+      throw new AppError(
+        error.message || "Failed to get course subscription status",
+        error.status || 500,
+      );
+    }
+  }
+
+  /**
+   * Check if user has access to a specific feature for a course
+   * @param {string} userId - User ID
+   * @param {string} courseId - Course ID (optional - if not provided, checks across all subscriptions)
+   * @param {string} featureName - Feature to check (aiTutor, mentorship, etc.)
+   * @returns {Object} { allowed: boolean, reason: string, subscription?: object }
+   */
+  async checkFeatureAccessForCourse(userId, courseId, featureName) {
+    try {
+      // If no courseId provided, use global subscription status
+      if (!courseId) {
+        const globalStatus = await this.getUserSubscriptionStatus(userId);
+        
+        if (!globalStatus.hasActiveSubscription) {
+          return {
+            allowed: false,
+            reason: "No active subscription found. Please subscribe to access this feature.",
+            subscription: null,
+          };
+        }
+
+        if (!globalStatus.featureAccess[featureName]) {
+          return {
+            allowed: false,
+            reason: `Your current subscription plan does not include ${featureName}. Please upgrade to access this feature.`,
+            subscription: null,
+            activePlans: globalStatus.activePlans,
+          };
+        }
+
+        return {
+          allowed: true,
+          reason: "Access granted",
+          subscription: null,
+          activePlans: globalStatus.activePlans,
+        };
+      }
+
+      // Course-specific check
+      const status = await this.getCourseSubscriptionStatus(userId, courseId);
+
+      if (!status.hasSubscription) {
+        return {
+          allowed: false,
+          reason: "No active subscription found for this course. Please subscribe to access this feature.",
+          subscription: null,
+        };
+      }
+
+      if (!status.featureAccess[featureName]) {
+        return {
+          allowed: false,
+          reason: `Your ${status.plan} plan does not include ${featureName}. Please upgrade to access this feature.`,
+          subscription: status.subscription,
+          plan: status.plan,
+        };
+      }
+
+      // Special handling for mentorship - check session limits
+      if (featureName === "mentorship") {
+        const { sessionsUsed, sessionsLimit } = status.mentorshipDetails;
+        
+        if (sessionsUsed >= sessionsLimit) {
+          return {
+            allowed: false,
+            reason: `You have reached your mentorship session limit (${sessionsUsed}/${sessionsLimit}). Your sessions will reset at the start of your next billing cycle.`,
+            subscription: status.subscription,
+            plan: status.plan,
+            sessionsUsed,
+            sessionsLimit,
+          };
+        }
+      }
+
+      return {
+        allowed: true,
+        reason: "Access granted",
+        subscription: status.subscription,
+        plan: status.plan,
+        mentorshipDetails: status.mentorshipDetails,
+      };
+    } catch (error) {
+      logger.error(`Error checking feature access:`, {
+        userId,
+        courseId,
+        featureName,
+        error: error.message,
+      });
+      throw new AppError(
+        error.message || "Failed to check feature access",
+        error.status || 500,
+      );
+    }
+  }
+
+  /**
+   * Increment mentorship session count for a user's subscription
+   * @param {string} userId - User ID
+   * @param {string} courseId - Course ID
+   * @returns {Object} Updated session count
+   */
+  async incrementMentorshipSession(userId, courseId) {
+    try {
+      const userObjectId =
+        typeof userId === "string"
+          ? new mongoose.Types.ObjectId(userId)
+          : userId;
+
+      const courseObjectId =
+        typeof courseId === "string"
+          ? new mongoose.Types.ObjectId(courseId)
+          : courseId;
+
+      const subscription = await Subscription.findOneAndUpdate(
+        {
+          user: userObjectId,
+          courseId: courseObjectId,
+          status: "active",
+          endDate: { $gt: new Date() },
+          "featureAccess.mentorship.hasAccess": true,
+        },
+        {
+          $inc: { "featureAccess.mentorship.sessionsUsed": 1 },
+        },
+        { new: true }
+      );
+
+      if (!subscription) {
+        throw new AppError("No active subscription with mentorship access found", 404);
+      }
+
+      logger.info(`Mentorship session incremented for user ${userId}, course ${courseId}. Sessions used: ${subscription.featureAccess.mentorship.sessionsUsed}`);
+
+      return {
+        sessionsUsed: subscription.featureAccess.mentorship.sessionsUsed,
+        sessionsLimit: subscription.featureAccess.mentorship.sessionsLimit,
+      };
+    } catch (error) {
+      logger.error(`Error incrementing mentorship session:`, {
+        userId,
+        courseId,
+        error: error.message,
+      });
+      throw new AppError(
+        error.message || "Failed to increment mentorship session",
+        error.status || 500,
+      );
+    }
+  }
+
+  /**
+   * Decrement mentorship session count (for cancellations/rejections)
+   * @param {string} userId - User ID
+   * @param {string} courseId - Course ID
+   * @returns {Object} Updated session count
+   */
+  async decrementMentorshipSession(userId, courseId) {
+    try {
+      const userObjectId =
+        typeof userId === "string"
+          ? new mongoose.Types.ObjectId(userId)
+          : userId;
+
+      const courseObjectId =
+        typeof courseId === "string"
+          ? new mongoose.Types.ObjectId(courseId)
+          : courseId;
+
+      // Use $max to prevent going below 0
+      const subscription = await Subscription.findOneAndUpdate(
+        {
+          user: userObjectId,
+          courseId: courseObjectId,
+          status: "active",
+          "featureAccess.mentorship.sessionsUsed": { $gt: 0 },
+        },
+        {
+          $inc: { "featureAccess.mentorship.sessionsUsed": -1 },
+        },
+        { new: true }
+      );
+
+      if (!subscription) {
+        logger.warn(`No subscription found to decrement session for user ${userId}, course ${courseId}`);
+        return { sessionsUsed: 0, sessionsLimit: 0 };
+      }
+
+      logger.info(`Mentorship session decremented for user ${userId}, course ${courseId}. Sessions used: ${subscription.featureAccess.mentorship.sessionsUsed}`);
+
+      return {
+        sessionsUsed: subscription.featureAccess.mentorship.sessionsUsed,
+        sessionsLimit: subscription.featureAccess.mentorship.sessionsLimit,
+      };
+    } catch (error) {
+      logger.error(`Error decrementing mentorship session:`, {
+        userId,
+        courseId,
+        error: error.message,
+      });
+      // Don't throw - decrement failures shouldn't block cancellation
+      return { sessionsUsed: 0, sessionsLimit: 0 };
+    }
+  }
 }
 
 export default new SubscriptionService();

@@ -2,6 +2,7 @@ import express from 'express';
 import * as bookingController from '../controllers/booking.controller.js';
 import { isAuthenticated } from '../../../middleware/isAuthenticated.js';
 import roleBasedAccess from '../../../middleware/rbac.js';
+import { checkFeatureAccess } from '../../../middleware/checkSubscriptionAccess.js';
 import { validateRequest } from '../../../middleware/validation.middleware.js';
 import {
   setAvailabilitySchema,
@@ -56,6 +57,7 @@ router.post('/sessions',
   strictBookingLimiter,
   isAuthenticated,
   roleBasedAccess(['student', 'admin', 'user', 'super admin', 'tutor']),
+  checkFeatureAccess('mentorship', { courseIdBody: 'courseId' }),
   validateRequest(bookSessionSchema),
   bookingController.bookSession
 );
@@ -65,6 +67,7 @@ router.post('/sessions/by-slot',
   strictBookingLimiter,
   isAuthenticated,
   roleBasedAccess(['student', 'admin', 'user', 'super admin', 'tutor']),
+  checkFeatureAccess('mentorship', { courseIdBody: 'courseId' }),
   validateRequest(bookSessionBySlotSchema),
   bookingController.bookSessionBySlot
 );

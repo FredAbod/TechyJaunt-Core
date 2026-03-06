@@ -9,6 +9,8 @@ import {
   sendSessionBookingTutorEmail,
   sendSessionBookingAdminEmail,
 } from "../../../utils/email/email-sender.js";
+import SubscriptionService from "../../payments/services/subscription.service.js";
+import logger from "../../../utils/log/logger.js";
 
 class BookingService {
   // Helper function to generate Jitsi meeting URL
@@ -855,6 +857,21 @@ class BookingService {
         throw saveError;
       }
 
+      // Increment mentorship session count for subscription tracking
+      if (courseId) {
+        try {
+          await SubscriptionService.incrementMentorshipSession(studentId, courseId);
+          logger.info(`Mentorship session incremented for student ${studentId}, course ${courseId}`);
+        } catch (sessionError) {
+          // Log but don't fail the booking - session tracking is secondary
+          logger.warn(`Failed to increment mentorship session: ${sessionError.message}`, {
+            studentId,
+            courseId,
+            bookingId: booking._id,
+          });
+        }
+      }
+
       // Update availability slot booking count
       console.log("Updating availability slot booking count...");
       try {
@@ -1121,8 +1138,29 @@ class BookingService {
 
       await booking.save();
 
-      // If cancelled, update availability slot
+      // If cancelled, update availability slot and decrement session count
       if (status === "cancelled") {
+        // Decrement mentorship session count for subscription tracking
+        if (booking.courseId) {
+          try {
+            await SubscriptionService.decrementMentorshipSession(
+              booking.studentId.toString(),
+              booking.courseId.toString()
+            );
+            logger.info(`Mentorship session decremented for status update to cancelled`, {
+              studentId: booking.studentId,
+              courseId: booking.courseId,
+              bookingId: booking._id,
+            });
+          } catch (sessionError) {
+            logger.warn(`Failed to decrement mentorship session: ${sessionError.message}`, {
+              studentId: booking.studentId,
+              courseId: booking.courseId,
+              bookingId: booking._id,
+            });
+          }
+        }
+
         const dayOfWeek = new Date(booking.sessionDate)
           .toLocaleDateString("en-US", { weekday: "long" })
           .toLowerCase();
@@ -1326,6 +1364,28 @@ class BookingService {
       booking.cancelledAt = new Date();
 
       await booking.save();
+
+      // Decrement mentorship session count for subscription tracking
+      if (booking.courseId) {
+        try {
+          await SubscriptionService.decrementMentorshipSession(
+            booking.studentId.toString(),
+            booking.courseId.toString()
+          );
+          logger.info(`Mentorship session decremented for cancelled booking`, {
+            studentId: booking.studentId,
+            courseId: booking.courseId,
+            bookingId: booking._id,
+          });
+        } catch (sessionError) {
+          // Log but don't fail - session tracking is secondary
+          logger.warn(`Failed to decrement mentorship session: ${sessionError.message}`, {
+            studentId: booking.studentId,
+            courseId: booking.courseId,
+            bookingId: booking._id,
+          });
+        }
+      }
 
       // Update availability slot count
       const dayOfWeek = new Date(booking.sessionDate)
