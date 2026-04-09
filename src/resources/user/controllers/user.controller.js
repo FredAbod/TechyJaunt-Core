@@ -213,51 +213,8 @@ export const uploadProfilePicture = async (req, res) => {
       return errorResMsg(res, 400, "No profile picture file provided");
     }
 
-    // Upload image to Cloudinary
-    const uploadResult = await uploadImage(req.file.buffer, {
-      folder: "techyjaunt/profile-pictures",
-      transformation: [
-        { width: 400, height: 400, crop: "fill", gravity: "face" },
-        { quality: "auto:good" },
-        { fetch_format: "auto" },
-      ],
-      public_id: `profile_${userId}_${Date.now()}`,
-    });
-
-    // Update user profile with new picture URL
-    const user = await User.findByIdAndUpdate(
-      userId,
-      {
-        profilePic: uploadResult.secure_url,
-        profilePicPublicId: uploadResult.public_id, // Store for deletion if needed
-      },
-      { new: true },
-    ).select("-password -__v");
-
-    if (!user) {
-      return errorResMsg(res, 404, "User not found");
-    }
-
-    logger.info(`Profile picture uploaded for user: ${userId}`);
-    return successResMsg(res, 200, {
-      message: "Profile picture uploaded successfully",
-      profilePic: uploadResult.secure_url,
-      user: user,
-    });
-  } catch (error) {
-    logger.error(`Upload profile picture error: ${error.message}`);
-    return errorResMsg(res, 500, "Failed to upload profile picture");
-  }
-};
-
-// Update profile with profile picture
-export const updateProfileWithPicture = async (req, res) => {
-  try {
-    const userId = req.user.userId;
-    const profileData = req.body;
-
-    // If there's a file, upload it to Cloudinary
-    if (req.file) {
+    try {
+      // Upload image to S3
       const uploadResult = await uploadImage(req.file.buffer, {
         folder: "techyjaunt/profile-pictures",
         transformation: [
@@ -268,8 +225,82 @@ export const updateProfileWithPicture = async (req, res) => {
         public_id: `profile_${userId}_${Date.now()}`,
       });
 
-      profileData.profilePic = uploadResult.secure_url;
-      profileData.profilePicPublicId = uploadResult.public_id;
+      if (!uploadResult || !uploadResult.secure_url) {
+        logger.error("Image upload returned invalid result");
+        return errorResMsg(res, 500, "Failed to upload profile picture");
+      }
+
+      // Update user profile with new picture URL
+      const user = await User.findByIdAndUpdate(
+        userId,
+        {
+          profilePic: uploadResult.secure_url,
+          profilePicPublicId: uploadResult.public_id, // Store for deletion if needed
+        },
+        { new: true },
+      ).select("-password -__v");
+
+      if (!user) {
+        return errorResMsg(res, 404, "User not found");
+      }
+
+      logger.info(`Profile picture uploaded for user: ${userId}`);
+      return successResMsg(res, 200, {
+        message: "Profile picture uploaded successfully",
+        profilePic: uploadResult.secure_url,
+        user: user,
+      });
+    } catch (uploadError) {
+      logger.error(`Image upload error: ${uploadError.message}`, uploadError);
+      return errorResMsg(res, 500, `Failed to upload image: ${uploadError.message}`);
+    }
+  } catch (error) {
+    logger.error(`Upload profile picture error: ${error.message}`, error);
+    if (error.name === "ValidationError") {
+      return errorResMsg(res, 400, error.message);
+    }
+    if (error.name === "CastError") {
+      return errorResMsg(res, 400, "Invalid user ID");
+    }
+    return errorResMsg(res, 500, `Failed to upload profile picture: ${error.message}`);
+  }
+};
+
+// Update profile with profile picture
+export const updateProfileWithPicture = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const profileData = req.body;
+
+    // Validate that profileData is an object and handle case where it might be empty
+    if (!profileData || typeof profileData !== "object") {
+      return errorResMsg(res, 400, "No profile data provided");
+    }
+
+    // If there's a file, upload it to Cloudinary
+    if (req.file) {
+      try {
+        const uploadResult = await uploadImage(req.file.buffer, {
+          folder: "techyjaunt/profile-pictures",
+          transformation: [
+            { width: 400, height: 400, crop: "fill", gravity: "face" },
+            { quality: "auto:good" },
+            { fetch_format: "auto" },
+          ],
+          public_id: `profile_${userId}_${Date.now()}`,
+        });
+
+        if (!uploadResult || !uploadResult.secure_url) {
+          logger.error("Image upload returned invalid result");
+          return errorResMsg(res, 500, "Failed to upload profile picture");
+        }
+
+        profileData.profilePic = uploadResult.secure_url;
+        profileData.profilePicPublicId = uploadResult.public_id;
+      } catch (uploadError) {
+        logger.error(`Image upload error: ${uploadError.message}`, uploadError);
+        return errorResMsg(res, 500, `Failed to upload image: ${uploadError.message}`);
+      }
     }
 
     // Get current user data to check profile completion
@@ -278,11 +309,36 @@ export const updateProfileWithPicture = async (req, res) => {
       return errorResMsg(res, 404, "User not found");
     }
 
-    // Check if profile will be complete after update
-    const mergedData = { ...currentUser.toObject(), ...profileData };
-    profileData.profileCompleted = isProfileComplete(mergedData);
+    // Only allow updating specific profile fields
+    const allowedFields = [
+      "firstName",
+      "lastName",
+      "phone",
+      "dateOfBirth",
+      "placeOfBirth",
+      "course",
+      "courseDuration",
+      "socialMedia",
+      "deliveryAddress",
+      "about",
+      "headline",
+      "profilePic",
+      "profilePicPublicId",
+    ];
 
-    const user = await User.findByIdAndUpdate(userId, profileData, {
+    // Filter profileData to only include allowed fields
+    const filteredData = {};
+    allowedFields.forEach((field) => {
+      if (profileData.hasOwnProperty(field)) {
+        filteredData[field] = profileData[field];
+      }
+    });
+
+    // Check if profile will be complete after update
+    const mergedData = { ...currentUser.toObject(), ...filteredData };
+    filteredData.profileCompleted = isProfileComplete(mergedData);
+
+    const user = await User.findByIdAndUpdate(userId, filteredData, {
       new: true,
       runValidators: true,
     }).select("-password -__v");
@@ -297,12 +353,14 @@ export const updateProfileWithPicture = async (req, res) => {
       user: user,
     });
   } catch (error) {
-    console.log(error);
-    logger.error(`Update profile with picture error: ${error.message}`);
+    logger.error(`Update profile with picture error: ${error.message}`, error);
     if (error.name === "ValidationError") {
       return errorResMsg(res, 400, error.message);
     }
-    return errorResMsg(res, 500, "Failed to update profile");
+    if (error.name === "CastError") {
+      return errorResMsg(res, 400, "Invalid user ID");
+    }
+    return errorResMsg(res, 500, `Failed to update profile: ${error.message}`);
   }
 };
 
