@@ -102,3 +102,35 @@ export const resetPassword = async (req, res) => {
     return errorResMsg(res, 400, error.message);
   }
 };
+
+export const changePasswordRequest = async (req, res) => {
+  try {
+    const { currentPassword } = req.body;
+    const userId = req.user.userId;
+
+    const result = await AuthService.changePasswordRequest(userId, currentPassword);
+
+    logger.info(`Change password OTP sent for user: ${userId}`);
+    return successResMsg(res, 200, { ...result });
+
+  } catch (error) {
+    logger.error(`Change password request error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
+  }
+};
+
+export const verifyChangePasswordOtp = async (req, res) => {
+  try {
+    const { otp, newPassword } = req.body;
+    const userId = req.user.userId;
+
+    const result = await AuthService.verifyChangePasswordOtp(userId, otp, newPassword);
+
+    logger.info(`Password changed successfully for user: ${userId}`);
+    return successResMsg(res, 200, { ...result });
+
+  } catch (error) {
+    logger.error(`Verify change password OTP error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
+  }
+};

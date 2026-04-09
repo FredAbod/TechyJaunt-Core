@@ -33,13 +33,13 @@ export const setPasswordSchema = Joi.object({
     .email({ tlds: { allow: false } })
     .required(),
   password: Joi.string()
-    .min(8)
-    .pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
+    .min(4)
+    .pattern(/^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]{4,}$/i)
     .required()
     .messages({
-      "string.min": "Password must be at least 8 characters long",
+      "string.min": "Password must be at least 4 characters long",
       "string.pattern.base":
-        "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+        "Password must contain at least one letter and one number",
       "any.required": "Password is required",
     }),
   // confirmPassword: Joi.string()
@@ -140,17 +140,53 @@ export const resetPasswordSchema = Joi.object({
       "any.required": "Reset token is required",
     }),
   newPassword: Joi.string()
-    .min(8)
-    .pattern(
-      new RegExp(
-        "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]",
-      ),
-    )
+    .min(4)
+    .pattern(/^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]{4,}$/i)
     .required()
     .messages({
-      "string.min": "Password must be at least 8 characters long",
+      "string.min": "Password must be at least 4 characters long",
       "string.pattern.base":
-        "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+        "Password must contain at least one letter and one number",
+      "any.required": "New password is required",
+    }),
+});
+
+// Change password validation schema (for authenticated users)
+export const changePasswordSchema = Joi.object({
+  currentPassword: Joi.string().required().messages({
+    "any.required": "Current password is required",
+  }),
+  newPassword: Joi.string()
+    .min(4)
+    .pattern(/^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]{4,}$/i)
+    .required()
+    .messages({
+      "string.min": "Password must be at least 4 characters long",
+      "string.pattern.base":
+        "Password must contain at least one letter and one number",
+      "any.required": "New password is required",
+    }),
+});
+
+// Verify change password OTP validation schema
+export const verifyChangePasswordOtpSchema = Joi.object({
+  otp: Joi.string()
+    .length(6)
+    .pattern(/^[0-9]+$/)
+    .required()
+    .messages({
+      "string.length": "OTP must be exactly 6 digits",
+      "string.pattern.base": "OTP must contain only numbers",
+      "any.required": "OTP is required",
+    }),
+  newPassword: Joi.string()
+    .min(4)
+    .pattern(/^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]{4,}$/i)
+    .required()
+    .messages({
+      "string.min": "Password must be at least 4 characters long",
+      "string.pattern.base":
+        "Password must contain at least one letter and one number",
       "any.required": "New password is required",
     }),
 });

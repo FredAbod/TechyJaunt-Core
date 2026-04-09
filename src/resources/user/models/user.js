@@ -90,6 +90,12 @@ const userSchema = new mongoose.Schema(
     resetPasswordExpiry: {
       type: Date,
     },
+    changePasswordOtp: {
+      type: String,
+    },
+    changePasswordOtpExpiresAt: {
+      type: Date,
+    },
     about: {
       type: String,
       maxlength: 1000,

@@ -61,7 +61,7 @@ Keep the response comprehensive but not overwhelming (aim for 300-600 words).`;
         ],
         model: process.env.AI_MODEL || "llama-3.1-8b-instant", // Using Llama 3 8B model
         temperature: 0.7,
-        max_tokens: 1024,
+        max_tokens: 2048,
         top_p: 1,
         stream: false,
       });
@@ -147,7 +147,7 @@ Format as a structured study plan that's practical and achievable within the giv
         ],
         model: process.env.AI_MODEL || "llama-3.1-8b-instant",
         temperature: 0.6,
-        max_tokens: 1024,
+        max_tokens: 2048,
         top_p: 1,
         stream: false,
       });
@@ -207,7 +207,7 @@ Be concise but thorough in your explanation.`;
         ],
         model: process.env.AI_MODEL || "llama-3.1-8b-instant",
         temperature: 0.5,
-        max_tokens: 512,
+        max_tokens: 2048,
         top_p: 1,
         stream: false,
       });
@@ -270,7 +270,7 @@ Make the exercises practical and hands-on. Ensure they progressively build under
         ],
         model: process.env.AI_MODEL || "llama-3.1-8b-instant",
         temperature: 0.8,
-        max_tokens: 1024,
+        max_tokens: 2048,
         top_p: 1,
         stream: false,
       });

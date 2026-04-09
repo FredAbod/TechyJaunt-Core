@@ -80,13 +80,14 @@ class AuthService {
 
   async verifyOtp(email, otp) {
     try {
-      const user = await User.findOne({ email });
+      const user = await User.findOne({ email: email.toLowerCase() });
 
       if (!user) {
         throw new Error("User not found");
       }
 
-      if (!user.emailOtp || user.emailOtp !== otp) {
+      // Ensure OTP is compared as strings
+      if (!user.emailOtp || user.emailOtp.toString() !== otp.toString()) {
         throw new Error("Invalid OTP");
       }
 
@@ -311,7 +312,7 @@ class AuthService {
       }
 
       // Hash new password
-      const hashedPassword = await hash(newPassword, 12);
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
 
       // Update user password and clear reset token
       user.password = hashedPassword;
@@ -340,6 +341,94 @@ class AuthService {
         user: user.toJSON(),
         token,
         tokenExpiresAt: expiresAt,
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async changePasswordRequest(userId, currentPassword) {
+    try {
+      const user = await User.findById(userId);
+
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      if (!user.password) {
+        throw new Error("Please set your password first");
+      }
+
+      // Verify current password
+      const isPasswordValid = await bcrypt.compare(
+        currentPassword,
+        user.password,
+      );
+      if (!isPasswordValid) {
+        throw new Error("Current password is incorrect");
+      }
+
+      // Generate change password OTP
+      const changePasswordOtp = generateOtp();
+      const changePasswordOtpExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      // Save OTP to user
+      user.changePasswordOtp = changePasswordOtp;
+      user.changePasswordOtpExpiresAt = changePasswordOtpExpiresAt;
+      await user.save();
+
+      // Send OTP email
+      await sendResetPasswordEmail(
+        user.email,
+        user.firstName || "User",
+        changePasswordOtp,
+      );
+
+      return {
+        message:
+          "OTP sent to your email. Please verify to change your password.",
+        email: user.email,
+      };
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async verifyChangePasswordOtp(userId, otp, newPassword) {
+    try {
+      const user = await User.findById(userId);
+
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      // Validate OTP - ensure string comparison
+      if (!user.changePasswordOtp || user.changePasswordOtp.toString() !== otp.toString()) {
+        throw new Error("Invalid OTP");
+      }
+
+      if (user.changePasswordOtpExpiresAt < new Date()) {
+        throw new Error("OTP has expired");
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+      // Update user password and clear OTP
+      user.password = hashedPassword;
+      user.changePasswordOtp = undefined;
+      user.changePasswordOtpExpiresAt = undefined;
+      await user.save();
+
+      // Send password change confirmation email
+      await sendPasswordResetConfirmationEmail(
+        user.email,
+        user.firstName || "User",
+      );
+
+      return {
+        message:
+          "Password changed successfully. Please log in again with your new password.",
       };
     } catch (error) {
       throw error;

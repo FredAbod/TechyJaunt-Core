@@ -7,16 +7,21 @@ import {
   setPassword, 
   loginUser,
   forgotPassword,
-  resetPassword
+  resetPassword,
+  changePasswordRequest,
+  verifyChangePasswordOtp
 } from "../controllers/auth.controller.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
+import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import {
   registerSchema,
   verifyOtpSchema,
   setPasswordSchema,
   loginSchema,
   forgotPasswordSchema,
-  resetPasswordSchema
+  resetPasswordSchema,
+  changePasswordSchema,
+  verifyChangePasswordOtpSchema
 } from "../../../utils/validation/auth.validation.js";
 
 const router = express.Router();
@@ -50,5 +55,9 @@ router.post("/set-password", authLimiter, validateRequest(setPasswordSchema), se
 router.post("/login", authLimiter, validateRequest(loginSchema), loginUser);
 router.post("/forgot-password", authLimiter, validateRequest(forgotPasswordSchema), forgotPassword);
 router.post("/reset-password", authLimiter, validateRequest(resetPasswordSchema), resetPassword);
+
+// Change password routes (for authenticated users)
+router.post("/change-password-request", isAuthenticated, validateRequest(changePasswordSchema), changePasswordRequest);
+router.post("/verify-change-password-otp", isAuthenticated, validateRequest(verifyChangePasswordOtpSchema), verifyChangePasswordOtp);
 
 export default router;

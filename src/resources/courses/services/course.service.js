@@ -548,7 +548,7 @@ class CourseService {
             select: "firstName lastName",
           },
         })
-        .populate("subscriptionId", "plan status endDate")
+        .populate("subscriptionId", "plan status endDate startDate createdAt")
         .sort({ lastActivityAt: -1 });
 
       console.log(
@@ -612,13 +612,17 @@ class CourseService {
           subscription: progress.subscriptionId
             ? {
                 plan: progress.subscriptionId.plan,
-                status: progress.subscriptionId.status,
+                status: progress.subscriptionId.endDate && new Date(progress.subscriptionId.endDate) < new Date() ? "inactive" : "active",
                 endDate: progress.subscriptionId.endDate,
+                startDate: progress.subscriptionId.startDate,
+                createdAt: progress.subscriptionId.createdAt,
               }
             : {
                 plan: "unknown",
                 status: "inactive",
                 endDate: null,
+                startDate: null,
+                createdAt: null,
               },
           progress: {
             overallProgress: progress.overallProgress || 0,

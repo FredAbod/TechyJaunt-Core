@@ -12,8 +12,11 @@ import {
   getAllStudents,
   getStudentById,
   getAllTutors,
+  updateTutor,
+  deleteTutor,
 } from "../controllers/user.controller.js";
 import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
+import { roleBasedAccess } from "../../../middleware/rbac.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
 import { imageUpload } from "../../../middleware/upload.middleware.js";
 import { profileSchema } from "../../../utils/validation/auth.validation.js";
@@ -79,6 +82,21 @@ router.get(
 );
 // Get all tutors (accessible by any authenticated user)
 router.get("/tutors", profileLimiter, isAuthenticated, getAllTutors);
+// Admin tutor management routes
+router.put(
+  "/admin/tutors/:tutorId",
+  profileLimiter,
+  isAuthenticated,
+  roleBasedAccess(["admin", "super admin"]),
+  updateTutor,
+);
+router.delete(
+  "/admin/tutors/:tutorId",
+  profileLimiter,
+  isAuthenticated,
+  roleBasedAccess(["admin", "super admin"]),
+  deleteTutor,
+);
 // Admin invite route
 router.post(
   "/admin/invite",

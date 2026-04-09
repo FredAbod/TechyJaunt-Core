@@ -851,3 +851,92 @@ export const inviteUser = async (req, res) => {
     return errorResMsg(res, 500, "Failed to invite user");
   }
 };
+
+// Admin endpoint to update tutor details
+export const updateTutor = async (req, res) => {
+  try {
+    const { tutorId } = req.params;
+    const adminId = req.user.userId;
+    const { firstName, lastName, about, headline, status } = req.body;
+
+    // Verify admin role
+    const admin = await User.findById(adminId);
+    if (!admin || !["admin", "super admin"].includes(admin.role)) {
+      return errorResMsg(res, 403, "You do not have permission to edit tutors");
+    }
+
+    // Check if tutor exists
+    const tutor = await User.findById(tutorId);
+    if (!tutor) {
+      return errorResMsg(res, 404, "Tutor not found");
+    }
+
+    // Verify tutor is actually a tutor or admin
+    if (!["tutor", "admin", "super admin"].includes(tutor.role)) {
+      return errorResMsg(res, 400, "User is not a tutor");
+    }
+
+    // Prepare update data
+    const updateData = {};
+    if (firstName) updateData.firstName = firstName;
+    if (lastName) updateData.lastName = lastName;
+    if (about) updateData.about = about;
+    if (headline) updateData.headline = headline;
+    if (status && ["active", "inactive", "suspended"].includes(status)) {
+      updateData.status = status;
+    }
+
+    // Update tutor
+    const updatedTutor = await User.findByIdAndUpdate(tutorId, updateData, {
+      new: true,
+      runValidators: true,
+    }).select("-password -emailOtp -resetPasswordToken -resetPasswordExpiry");
+
+    logger.info(`Admin ${adminId} updated tutor ${tutorId}`);
+    return successResMsg(res, 200, {
+      message: "Tutor updated successfully",
+      tutor: updatedTutor.toJSON(),
+    });
+  } catch (error) {
+    logger.error(`Update tutor error: ${error.message}`);
+    return errorResMsg(res, 500, "Failed to update tutor");
+  }
+};
+
+// Admin endpoint to delete (soft-delete) a tutor
+export const deleteTutor = async (req, res) => {
+  try {
+    const { tutorId } = req.params;
+    const adminId = req.user.userId;
+
+    // Verify admin role
+    const admin = await User.findById(adminId);
+    if (!admin || !["admin", "super admin"].includes(admin.role)) {
+      return errorResMsg(res, 403, "You do not have permission to delete tutors");
+    }
+
+    // Check if tutor exists
+    const tutor = await User.findById(tutorId);
+    if (!tutor) {
+      return errorResMsg(res, 404, "Tutor not found");
+    }
+
+    // Verify tutor is actually a tutor or admin
+    if (!["tutor", "admin", "super admin"].includes(tutor.role)) {
+      return errorResMsg(res, 400, "User is not a tutor");
+    }
+
+    // Soft delete: mark status as inactive
+    tutor.status = "inactive";
+    await tutor.save();
+
+    logger.info(`Admin ${adminId} deleted (soft-delete) tutor ${tutorId}`);
+    return successResMsg(res, 200, {
+      message: "Tutor deleted successfully (account marked inactive)",
+      tutor: tutor.toJSON(),
+    });
+  } catch (error) {
+    logger.error(`Delete tutor error: ${error.message}`);
+    return errorResMsg(res, 500, "Failed to delete tutor");
+  }
+};
