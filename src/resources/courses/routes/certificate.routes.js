@@ -12,31 +12,131 @@ import roleBasedAccess from "../../../middleware/rbac.js";
 
 const router = express.Router();
 
+// ==================== PUBLIC ROUTES ====================
+
 /**
- * Public routes
+ * @swagger
+ * /api/v1/certificates/verify:
+ *   get:
+ *     tags:
+ *       - Certificates
+ *     summary: Verify a certificate (public)
+ *     parameters:
+ *       - in: query
+ *         name: certificateId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Certificate verification result
  */
-// Verify certificate (no authentication required)
 router.get("/verify", verifyCertificate);
 
+// ==================== PROTECTED ROUTES ====================
+
 /**
- * Protected routes (authenticated users)
+ * @swagger
+ * /api/v1/certificates:
+ *   get:
+ *     tags:
+ *       - Certificates
+ *     summary: Get all my certificates
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of user's certificates
  */
-// Get all my certificates
 router.get("/", isAuthenticated, getMyCertificates);
 
-// Get specific certificate by ID
+/**
+ * @swagger
+ * /api/v1/certificates/{certificateId}:
+ *   get:
+ *     tags:
+ *       - Certificates
+ *     summary: Get specific certificate by ID
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: certificateId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Certificate details
+ */
 router.get("/:certificateId", isAuthenticated, getCertificateById);
 
-// Check eligibility for certificate
+/**
+ * @swagger
+ * /api/v1/certificates/courses/{courseId}/eligibility:
+ *   get:
+ *     tags:
+ *       - Certificates
+ *     summary: Check certificate eligibility for course
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Certificate eligibility status
+ */
 router.get("/courses/:courseId/eligibility", isAuthenticated, checkCertificateEligibility);
 
-// Generate certificate for course completion
+/**
+ * @swagger
+ * /api/v1/certificates/courses/{courseId}/generate:
+ *   post:
+ *     tags:
+ *       - Certificates
+ *     summary: Generate certificate for course completion
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       201:
+ *         description: Certificate generated successfully
+ */
 router.post("/courses/:courseId/generate", isAuthenticated, generateCertificate);
 
+// ==================== ADMIN ROUTES ====================
+
 /**
- * Admin routes
+ * @swagger
+ * /api/v1/certificates/admin/stats:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Get certificate statistics
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Certificate statistics and metrics
  */
-// Get certificate statistics
 router.get("/admin/stats", isAuthenticated, roleBasedAccess(["superAdmin", "admin"]), getCertificateStats);
 
 export default router;

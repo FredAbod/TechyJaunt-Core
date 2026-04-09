@@ -44,7 +44,42 @@ const commentLimiter = rateLimit({
   legacyHeaders: false,
 });
 
-// Admin/Tutor routes
+// ==================== ADMIN/TUTOR ROUTES ====================
+
+/**
+ * @swagger
+ * /api/v1/live-classes:
+ *   post:
+ *     tags:
+ *       - Live Classes
+ *     summary: Schedule a new live class
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               courseId:
+ *                 type: string
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               scheduledAt:
+ *                 type: string
+ *                 format: date-time
+ *               duration:
+ *                 type: integer
+ *                 description: Duration in minutes
+ *               meetingLink:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Live class scheduled successfully
+ */
 router.post(
   "/",
   liveClassLimiter,
@@ -53,6 +88,29 @@ router.post(
   scheduleLiveClass
 );
 
+/**
+ * @swagger
+ * /api/v1/live-classes/instructor:
+ *   get:
+ *     tags:
+ *       - Live Classes
+ *     summary: Get instructor's live classes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: ["scheduled", "ongoing", "completed", "cancelled"]
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of instructor's live classes
+ */
 router.get(
   "/instructor",
   liveClassLimiter,
@@ -60,6 +118,25 @@ router.get(
   getInstructorClasses
 );
 
+/**
+ * @swagger
+ * /api/v1/live-classes/{classId}/start:
+ *   put:
+ *     tags:
+ *       - Live Classes
+ *     summary: Start a live class
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Live class started successfully
+ */
 router.put(
   "/:classId/start",
   liveClassLimiter,
@@ -67,6 +144,25 @@ router.put(
   startLiveClass
 );
 
+/**
+ * @swagger
+ * /api/v1/live-classes/{classId}/end:
+ *   put:
+ *     tags:
+ *       - Live Classes
+ *     summary: End a live class
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Live class ended successfully
+ */
 router.put(
   "/:classId/end",
   liveClassLimiter,
@@ -74,6 +170,41 @@ router.put(
   endLiveClass
 );
 
+/**
+ * @swagger
+ * /api/v1/live-classes/{classId}:
+ *   put:
+ *     tags:
+ *       - Live Classes
+ *     summary: Update live class details
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               scheduledAt:
+ *                 type: string
+ *                 format: date-time
+ *               duration:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Live class updated successfully
+ */
 router.put(
   "/:classId",
   liveClassLimiter,
@@ -82,6 +213,25 @@ router.put(
   updateLiveClass
 );
 
+/**
+ * @swagger
+ * /api/v1/live-classes/{classId}:
+ *   delete:
+ *     tags:
+ *       - Live Classes
+ *     summary: Cancel live class
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Live class cancelled successfully
+ */
 router.delete(
   "/:classId",
   liveClassLimiter,
@@ -89,7 +239,35 @@ router.delete(
   cancelLiveClass
 );
 
-// Student routes
+// ==================== STUDENT ROUTES ====================
+
+/**
+ * @swagger
+ * /api/v1/live-classes:
+ *   get:
+ *     tags:
+ *       - Live Classes
+ *     summary: Get student's live classes
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: ["scheduled", "ongoing", "completed", "cancelled"]
+ *       - in: query
+ *         name: courseId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of enrolled live classes
+ */
 router.get(
   "/",
   liveClassLimiter,
@@ -97,6 +275,25 @@ router.get(
   getStudentClasses
 );
 
+/**
+ * @swagger
+ * /api/v1/live-classes/{classId}/join:
+ *   post:
+ *     tags:
+ *       - Live Classes
+ *     summary: Join a live class
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Successfully joined live class
+ */
 router.post(
   "/:classId/join",
   liveClassLimiter,
@@ -104,6 +301,25 @@ router.post(
   joinLiveClass
 );
 
+/**
+ * @swagger
+ * /api/v1/live-classes/{classId}/leave:
+ *   post:
+ *     tags:
+ *       - Live Classes
+ *     summary: Leave a live class
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Successfully left live class
+ */
 router.post(
   "/:classId/leave",
   liveClassLimiter,
@@ -111,7 +327,36 @@ router.post(
   leaveLiveClass
 );
 
-// Comment routes
+// ==================== COMMENT ROUTES ====================
+
+/**
+ * @swagger
+ * /api/v1/live-classes/{classId}/comments:
+ *   post:
+ *     tags:
+ *       - Live Classes
+ *     summary: Add comment to live class
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               comment:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Comment added successfully
+ */
 router.post(
   "/:classId/comments",
   commentLimiter,
@@ -120,6 +365,29 @@ router.post(
   addComment
 );
 
+/**
+ * @swagger
+ * /api/v1/live-classes/{classId}/comments:
+ *   get:
+ *     tags:
+ *       - Live Classes
+ *     summary: Get live class comments
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: classId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of class comments
+ */
 router.get(
   "/:classId/comments",
   liveClassLimiter,

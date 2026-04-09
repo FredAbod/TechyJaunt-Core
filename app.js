@@ -4,6 +4,8 @@ import rateLimit from "express-rate-limit";
 import xssClean from "xss-clean";
 import mongoSanitize from "express-mongo-sanitize";
 import cors from "cors";
+import swaggerUi from "swagger-ui-express";
+import { swaggerSpec } from "./swagger.js";
 
 import userRoute from "./src/resources/user/routes/user.routes.js";
 import authRoute from "./src/resources/auth/routes/auth.routes.js";
@@ -157,6 +159,17 @@ const limiter = rateLimit({
 // Apply rate limiter middleware to endpoints matching the prefix
 app.use("/api/v1/*", limiter);
 
+// Swagger Documentation - BEFORE API routes
+app.use("/api-docs", swaggerUi.serve);
+app.get("/api-docs", swaggerUi.setup(swaggerSpec, {
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayOperationId: false,
+  },
+  customCss: '.swagger-ui .topbar { display: none }',
+}));
+
+// API Routes
 app.use("/api/v1/auth", authRoute);
 app.use("/api/v1/user", userRoute);
 app.use("/api/v1/courses", courseRoute);

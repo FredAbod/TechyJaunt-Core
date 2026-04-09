@@ -39,9 +39,17 @@ const aiGenerationLimiter = rateLimit({
 router.use(isAuthenticated);
 
 /**
- * @route   GET /api/v1/ai-tutor/access
- * @desc    Get user's AI Tutor access information
- * @access  Private (Authenticated users)
+ * @swagger
+ * /api/v1/ai-tutor/access:
+ *   get:
+ *     tags:
+ *       - AI Tutor
+ *     summary: Get AI Tutor access information
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User's AI Tutor access status and limits
  */
 router.get('/access',
   aiTutorLimiter,
@@ -49,9 +57,17 @@ router.get('/access',
 );
 
 /**
- * @route   GET /api/v1/ai-tutor/status
- * @desc    Get AI Tutor service status
- * @access  Private (Subscription required)
+ * @swagger
+ * /api/v1/ai-tutor/status:
+ *   get:
+ *     tags:
+ *       - AI Tutor
+ *     summary: Get AI Tutor service status
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: AI Tutor service operational status
  */
 router.get('/status',
   aiTutorLimiter,
@@ -59,9 +75,31 @@ router.get('/status',
 );
 
 /**
- * @route   POST /api/v1/ai-tutor/explain
- * @desc    Get AI explanation of a topic
- * @access  Private (Subscription required)
+ * @swagger
+ * /api/v1/ai-tutor/explain:
+ *   post:
+ *     tags:
+ *       - AI Tutor
+ *     summary: Get AI explanation of a topic
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               topic:
+ *                 type: string
+ *               courseId:
+ *                 type: string
+ *               depth:
+ *                 type: string
+ *                 enum: ["beginner", "intermediate", "advanced"]
+ *     responses:
+ *       200:
+ *         description: AI generated topic explanation
  */
 router.post('/explain',
   aiGenerationLimiter,
@@ -70,9 +108,31 @@ router.post('/explain',
 );
 
 /**
- * @route   POST /api/v1/ai-tutor/study-plan
- * @desc    Generate AI study plan for a topic
- * @access  Private (Subscription required)
+ * @swagger
+ * /api/v1/ai-tutor/study-plan:
+ *   post:
+ *     tags:
+ *       - AI Tutor
+ *     summary: Generate AI study plan for a topic
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               topic:
+ *                 type: string
+ *               courseId:
+ *                 type: string
+ *               duration:
+ *                 type: integer
+ *                 description: Study duration in minutes
+ *     responses:
+ *       200:
+ *         description: AI generated study plan
  */
 router.post('/study-plan',
   aiGenerationLimiter,
@@ -81,9 +141,30 @@ router.post('/study-plan',
 );
 
 /**
- * @route   POST /api/v1/ai-tutor/question
- * @desc    Ask AI Tutor a specific question
- * @access  Private (Subscription required)
+ * @swagger
+ * /api/v1/ai-tutor/question:
+ *   post:
+ *     tags:
+ *       - AI Tutor
+ *     summary: Ask AI Tutor a specific question
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               question:
+ *                 type: string
+ *               courseId:
+ *                 type: string
+ *               context:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: AI answer to the question
  */
 router.post('/question',
   aiGenerationLimiter,
@@ -92,9 +173,33 @@ router.post('/question',
 );
 
 /**
- * @route   POST /api/v1/ai-tutor/exercises
- * @desc    Generate practice exercises for a topic
- * @access  Private (Subscription required)
+ * @swagger
+ * /api/v1/ai-tutor/exercises:
+ *   post:
+ *     tags:
+ *       - AI Tutor
+ *     summary: Generate practice exercises for a topic
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               topic:
+ *                 type: string
+ *               courseId:
+ *                 type: string
+ *               difficulty:
+ *                 type: string
+ *                 enum: ["easy", "medium", "hard"]
+ *               count:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: AI generated practice exercises
  */
 router.post('/exercises',
   aiGenerationLimiter,
@@ -103,9 +208,26 @@ router.post('/exercises',
 );
 
 /**
- * @route   GET /api/v1/ai-tutor/history
- * @desc    Get user's AI Tutor interaction history
- * @access  Private (Authenticated users)
+ * @swagger
+ * /api/v1/ai-tutor/history:
+ *   get:
+ *     tags:
+ *       - AI Tutor
+ *     summary: Get AI Tutor interaction history
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: User's AI Tutor interaction history
  */
 router.get('/history',
   aiTutorLimiter,
@@ -113,9 +235,23 @@ router.get('/history',
 );
 
 /**
- * @route   GET /api/v1/ai-tutor/history/:historyId
- * @desc    Get detailed AI Tutor interaction history item
- * @access  Private (Authenticated users)
+ * @swagger
+ * /api/v1/ai-tutor/history/{historyId}:
+ *   get:
+ *     tags:
+ *       - AI Tutor
+ *     summary: Get detailed history item
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: historyId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Detailed history item with full content
  */
 router.get('/history/:historyId',
   aiTutorLimiter,
@@ -123,9 +259,30 @@ router.get('/history/:historyId',
 );
 
 /**
- * @route   POST /api/v1/ai-tutor/chats
- * @desc    Create a new chat session
- * @access  Private (Subscription required)
+ * @swagger
+ * /api/v1/ai-tutor/chats:
+ *   post:
+ *     tags:
+ *       - AI Tutor Chats
+ *     summary: Create a new chat session
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               courseId:
+ *                 type: string
+ *               topic:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Chat session created successfully
  */
 router.post('/chats',
   aiTutorLimiter,
@@ -134,9 +291,26 @@ router.post('/chats',
 );
 
 /**
- * @route   GET /api/v1/ai-tutor/chats
- * @desc    Get all user's chat sessions
- * @access  Private (Subscription required)
+ * @swagger
+ * /api/v1/ai-tutor/chats:
+ *   get:
+ *     tags:
+ *       - AI Tutor Chats
+ *     summary: Get all user chat sessions
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of user's chat sessions
  */
 router.get('/chats',
   aiTutorLimiter,
@@ -144,9 +318,17 @@ router.get('/chats',
 );
 
 /**
- * @route   GET /api/v1/ai-tutor/chats/statistics
- * @desc    Get chat statistics
- * @access  Private (Subscription required)
+ * @swagger
+ * /api/v1/ai-tutor/chats/statistics:
+ *   get:
+ *     tags:
+ *       - AI Tutor Chats
+ *     summary: Get chat statistics
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Chat statistics including total chats, messages, etc
  */
 router.get('/chats/statistics',
   aiTutorLimiter,
@@ -154,9 +336,23 @@ router.get('/chats/statistics',
 );
 
 /**
- * @route   GET /api/v1/ai-tutor/chats/:chatId
- * @desc    Get a specific chat with its messages
- * @access  Private (Subscription required)
+ * @swagger
+ * /api/v1/ai-tutor/chats/{chatId}:
+ *   get:
+ *     tags:
+ *       - AI Tutor Chats
+ *     summary: Get a specific chat with messages
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Chat details with all messages
  */
 router.get('/chats/:chatId',
   aiTutorLimiter,
@@ -164,9 +360,36 @@ router.get('/chats/:chatId',
 );
 
 /**
- * @route   PATCH /api/v1/ai-tutor/chats/:chatId
- * @desc    Update a chat (title, pin, archive, etc.)
- * @access  Private (Subscription required)
+ * @swagger
+ * /api/v1/ai-tutor/chats/{chatId}:
+ *   patch:
+ *     tags:
+ *       - AI Tutor Chats
+ *     summary: Update chat (title, pin, archive, etc)
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               title:
+ *                 type: string
+ *               isPinned:
+ *                 type: boolean
+ *               isArchived:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: Chat updated successfully
  */
 router.patch('/chats/:chatId',
   aiTutorLimiter,
@@ -175,9 +398,23 @@ router.patch('/chats/:chatId',
 );
 
 /**
- * @route   DELETE /api/v1/ai-tutor/chats/:chatId
- * @desc    Delete a chat and all its messages
- * @access  Private (Subscription required)
+ * @swagger
+ * /api/v1/ai-tutor/chats/{chatId}:
+ *   delete:
+ *     tags:
+ *       - AI Tutor Chats
+ *     summary: Delete a chat and all its messages
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: chatId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Chat deleted successfully
  */
 router.delete('/chats/:chatId',
   aiTutorLimiter,
