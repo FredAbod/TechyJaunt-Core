@@ -24,13 +24,27 @@ import { Readable } from "stream";
 // Configure FFmpeg
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
-const s3Client = new S3Client({
-  region: AWS_REGION,
-  credentials: {
-    accessKeyId: AWS_ACCESS_KEY_ID,
-    secretAccessKey: AWS_SECRET_ACCESS_KEY,
-  },
-});
+// Initialize S3 client with region and credentials
+const initializeS3Client = () => {
+  // Set default region if not provided
+  const region = AWS_REGION || "us-east-1";
+  
+  const config = {
+    region,
+  };
+
+  // Only add credentials if both are provided
+  if (AWS_ACCESS_KEY_ID && AWS_SECRET_ACCESS_KEY) {
+    config.credentials = {
+      accessKeyId: AWS_ACCESS_KEY_ID,
+      secretAccessKey: AWS_SECRET_ACCESS_KEY,
+    };
+  }
+
+  return new S3Client(config);
+};
+
+const s3Client = initializeS3Client();
 
 // Helper to convert stream/buffer to buffer
 const streamToBuffer = async (stream) => {
