@@ -329,7 +329,7 @@ export const updateProfileWithPicture = async (req, res) => {
     // Filter profileData to only include allowed fields
     const filteredData = {};
     allowedFields.forEach((field) => {
-      if (profileData.hasOwnProperty(field)) {
+      if (Object.prototype.hasOwnProperty.call(profileData, field)) {
         filteredData[field] = profileData[field];
       }
     });
