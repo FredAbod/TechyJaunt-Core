@@ -640,29 +640,22 @@ export const getStudentById = async (req, res) => {
 export const getAllTutors = async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
-
-    // Get all users with tutor or admin roles
     const query = {
       role: { $in: ["tutor", "admin", "super admin"] },
     };
-
-    // Execute query with pagination
+    // Exclude only sensitive fields
     const tutorsPromise = User.find(query)
       .select("-password -emailOtp -resetPasswordToken -resetPasswordExpiry")
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .sort({ createdAt: -1 });
-
     const totalCountPromise = User.countDocuments(query);
-
     const [tutors, totalTutors] = await Promise.all([
       tutorsPromise,
       totalCountPromise,
     ]);
-
     // Get courses for each tutor
     const Course = (await import("../../courses/models/course.js")).default;
-
     const tutorsWithCourses = await Promise.all(
       tutors.map(async (tutor) => {
         try {
@@ -670,7 +663,7 @@ export const getAllTutors = async (req, res) => {
             $or: [{ instructor: tutor._id }, { assistants: tutor._id }],
             isActive: true,
           }).select("_id title category level price thumbnail description");
-
+          // Return all tutor fields except sensitive, plus courses
           return {
             ...tutor.toJSON(),
             courses: courses || [],
@@ -688,7 +681,6 @@ export const getAllTutors = async (req, res) => {
         }
       }),
     );
-
     const pagination = {
       currentPage: parseInt(page),
       totalPages: Math.ceil(totalTutors / limit),
@@ -696,7 +688,6 @@ export const getAllTutors = async (req, res) => {
       hasNext: page < Math.ceil(totalTutors / limit),
       hasPrev: page > 1,
     };
-
     logger.info(`Retrieved tutors list (${totalTutors} total)`);
     return successResMsg(res, 200, {
       message: "Tutors retrieved successfully",
@@ -942,6 +933,27 @@ export const updateTutor = async (req, res) => {
     if (headline) updateData.headline = headline;
     if (status && ["active", "inactive", "suspended"].includes(status)) {
       updateData.status = status;
+    }
+
+    // Handle profile image upload if provided
+    if (req.file) {
+      try {
+        const uploadResult = await uploadImage(req.file.buffer, {
+          folder: "techyjaunt/profile-pictures",
+          transformation: [
+            { width: 400, height: 400, crop: "fill", gravity: "face" },
+            { quality: "auto:good" },
+            { fetch_format: "auto" },
+          ],
+          public_id: `profile_tutor_${tutorId}_${Date.now()}`,
+        });
+        if (uploadResult && uploadResult.secure_url) {
+          updateData.profilePic = uploadResult.secure_url;
+          updateData.profilePicPublicId = uploadResult.public_id;
+        }
+      } catch (uploadError) {
+        logger.warn(`Tutor image upload failed: ${uploadError.message}`);
+      }
     }
 
     // Update tutor

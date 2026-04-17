@@ -309,7 +309,7 @@ router.get("/tutors", profileLimiter, isAuthenticated, getAllTutors);
  *     requestBody:
  *       required: true
  *       content:
- *         application/json:
+ *         multipart/form-data:
  *           schema:
  *             type: object
  *             properties:
@@ -324,6 +324,9 @@ router.get("/tutors", profileLimiter, isAuthenticated, getAllTutors);
  *               status:
  *                 type: string
  *                 enum: ["active", "inactive", "suspended"]
+ *               profilePicture:
+ *                 type: string
+ *                 format: binary
  *     responses:
  *       200:
  *         description: Tutor updated successfully
@@ -333,6 +336,7 @@ router.put(
   profileLimiter,
   isAuthenticated,
   roleBasedAccess(["admin", "super admin"]),
+  imageUpload.single("profilePicture"),
   updateTutor,
 );
 
