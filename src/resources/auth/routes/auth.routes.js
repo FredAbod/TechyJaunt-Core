@@ -142,7 +142,7 @@ router.post("/resend-otp", otpLimiter, validateRequest(registerSchema), resendOt
  *       200:
  *         description: Password set successfully
  */
-router.post("/set-password", authLimiter, validateRequest(setPasswordSchema), setPassword);
+router.post("/set-password", authLimiter, setPassword);
 
 /**
  * @swagger
@@ -166,7 +166,7 @@ router.post("/set-password", authLimiter, validateRequest(setPasswordSchema), se
  *       200:
  *         description: Login successful, returns JWT token
  */
-router.post("/login", authLimiter, validateRequest(loginSchema), loginUser);
+router.post("/login", authLimiter, loginUser);
 
 /**
  * @swagger
@@ -214,7 +214,7 @@ router.post("/forgot-password", authLimiter, validateRequest(forgotPasswordSchem
  *       200:
  *         description: Password reset successfully
  */
-router.post("/reset-password", authLimiter, validateRequest(resetPasswordSchema), resetPassword);
+router.post("/reset-password", authLimiter, resetPassword);
 
 /**
  * @swagger
@@ -240,7 +240,7 @@ router.post("/reset-password", authLimiter, validateRequest(resetPasswordSchema)
  *       200:
  *         description: OTP sent for password change verification
  */
-router.post("/change-password-request", isAuthenticated, validateRequest(changePasswordSchema), changePasswordRequest);
+router.post("/change-password-request", isAuthenticated, changePasswordRequest);
 
 /**
  * @swagger
@@ -266,6 +266,6 @@ router.post("/change-password-request", isAuthenticated, validateRequest(changeP
  *       200:
  *         description: Password changed successfully
  */
-router.post("/verify-change-password-otp", isAuthenticated, validateRequest(verifyChangePasswordOtpSchema), verifyChangePasswordOtp);
+router.post("/verify-change-password-otp", isAuthenticated, verifyChangePasswordOtp);
 
 export default router;

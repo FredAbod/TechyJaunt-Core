@@ -32,23 +32,7 @@ export const setPasswordSchema = Joi.object({
   email: Joi.string()
     .email({ tlds: { allow: false } })
     .required(),
-  password: Joi.string()
-    .min(4)
-    .pattern(/^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]{4,}$/i)
-    .required()
-    .messages({
-      "string.min": "Password must be at least 4 characters long",
-      "string.pattern.base":
-        "Password must contain at least one letter and one number",
-      "any.required": "Password is required",
-    }),
-  // confirmPassword: Joi.string()
-  //   .valid(Joi.ref("password"))
-  //   .required()
-  //   .messages({
-  //     "any.only": "Passwords do not match",
-  //     "any.required": "Password confirmation is required",
-  //   }),
+  password: Joi.any(),
 });
 
 // Login validation
@@ -56,9 +40,7 @@ export const loginSchema = Joi.object({
   email: Joi.string()
     .email({ tlds: { allow: false } })
     .required(),
-  password: Joi.string().required().messages({
-    "any.required": "Password is required",
-  }),
+  password: Joi.any(),
 });
 
 // Profile completion validation
@@ -139,33 +121,13 @@ export const resetPasswordSchema = Joi.object({
       "string.pattern.base": "Reset token must contain only numbers",
       "any.required": "Reset token is required",
     }),
-  newPassword: Joi.string()
-    .min(4)
-    .pattern(/^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]{4,}$/i)
-    .required()
-    .messages({
-      "string.min": "Password must be at least 4 characters long",
-      "string.pattern.base":
-        "Password must contain at least one letter and one number",
-      "any.required": "New password is required",
-    }),
+  newPassword: Joi.any(),
 });
 
 // Change password validation schema (for authenticated users)
 export const changePasswordSchema = Joi.object({
-  currentPassword: Joi.string().required().messages({
-    "any.required": "Current password is required",
-  }),
-  newPassword: Joi.string()
-    .min(4)
-    .pattern(/^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]{4,}$/i)
-    .required()
-    .messages({
-      "string.min": "Password must be at least 4 characters long",
-      "string.pattern.base":
-        "Password must contain at least one letter and one number",
-      "any.required": "New password is required",
-    }),
+  currentPassword: Joi.any(),
+  newPassword: Joi.any(),
 });
 
 // Verify change password OTP validation schema
@@ -179,16 +141,7 @@ export const verifyChangePasswordOtpSchema = Joi.object({
       "string.pattern.base": "OTP must contain only numbers",
       "any.required": "OTP is required",
     }),
-  newPassword: Joi.string()
-    .min(4)
-    .pattern(/^(?=.*[a-zA-Z])(?=.*[0-9])[a-zA-Z0-9]{4,}$/i)
-    .required()
-    .messages({
-      "string.min": "Password must be at least 4 characters long",
-      "string.pattern.base":
-        "Password must contain at least one letter and one number",
-      "any.required": "New password is required",
-    }),
+  newPassword: Joi.any(),
 });
 
 // Admin invite user validation
