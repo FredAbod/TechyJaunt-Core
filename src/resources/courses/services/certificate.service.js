@@ -15,48 +15,12 @@ class CertificateService {
    */
   async checkEligibility(userId, courseId) {
     try {
-      console.log("=== CHECK ELIGIBILITY START ===");
-      console.log("userId:", userId, "courseId:", courseId);
-
       // Check if user has completed the course
       const progress = await Progress.findOne({
         userId,
         courseId,
         isCompleted: true,
       });
-
-      console.log(
-        "Progress query result:",
-        progress
-          ? {
-              id: progress._id,
-              isCompleted: progress.isCompleted,
-              overallProgress: progress.overallProgress,
-              completedAt: progress.completedAt,
-              modulesCount: progress.modules?.length,
-            }
-          : "No progress found with isCompleted: true",
-      );
-
-      // Also check if there's any progress at all
-      if (!progress) {
-        const anyProgress = await Progress.findOne({ userId, courseId });
-        console.log(
-          "Any progress for user/course:",
-          anyProgress
-            ? {
-                id: anyProgress._id,
-                isCompleted: anyProgress.isCompleted,
-                overallProgress: anyProgress.overallProgress,
-                completedAt: anyProgress.completedAt,
-                modulesCount: anyProgress.modules?.length,
-                modulesCompleted: anyProgress.modules?.filter(
-                  (m) => m.isCompleted,
-                ).length,
-              }
-            : "No progress at all",
-        );
-      }
 
       if (!progress) {
         return {
@@ -159,54 +123,54 @@ class CertificateService {
         const pageWidth = doc.page.width;
         const pageHeight = doc.page.height;
 
-        // Background - Professional gradient effect with blue
-        doc.rect(0, 0, pageWidth, pageHeight).fill("#1e3a8a");
+        // Background
+        doc.rect(0, 0, pageWidth, pageHeight).fill("#ffffff");
 
-        // Outer border (gold)
+        // Outer border (soft gray)
         doc
-          .rect(20, 20, pageWidth - 40, pageHeight - 40)
-          .lineWidth(6)
-          .stroke("#fbbf24");
+          .rect(24, 24, pageWidth - 48, pageHeight - 48)
+          .lineWidth(2)
+          .stroke("#e5e7eb");
 
-        // Inner border (white)
+        // Subtle inner border (navy)
         doc
-          .rect(35, 35, pageWidth - 70, pageHeight - 70)
+          .rect(38, 38, pageWidth - 76, pageHeight - 76)
           .lineWidth(1)
-          .stroke("#ffffff");
+          .stroke("#0f2a6b");
+
+        // "TechyJaunt" brand (simple text logo)
+        doc
+          .fontSize(18)
+          .font("Helvetica-Bold")
+          .fillColor("#0f2a6b")
+          .text("TechyJaunt", 60, 60);
 
         // Title
         doc
-          .fontSize(36)
+          .fontSize(32)
           .font("Helvetica-Bold")
-          .fillColor("#ffffff")
-          .text("CERTIFICATE OF COMPLETION", 0, 80, {
+          .fillColor("#0f2a6b")
+          .text("CERTIFICATE OF COMPLETION", 0, 100, {
             align: "center",
             width: pageWidth,
           });
 
-        // Decorative line under title
+        // "Proudly presented to"
         doc
-          .moveTo(pageWidth / 2 - 150, 125)
-          .lineTo(pageWidth / 2 + 150, 125)
-          .lineWidth(2)
-          .stroke("#fbbf24");
-
-        // "This is to certify that"
-        doc
-          .fontSize(16)
+          .fontSize(14)
           .font("Helvetica")
-          .fillColor("#e5e7eb")
-          .text("This is to certify that", 0, 160, {
+          .fillColor("#374151")
+          .text("Proudly Presented to", 0, 155, {
             align: "center",
             width: pageWidth,
           });
 
-        // Student name (gold)
+        // Student name
         doc
           .fontSize(40)
           .font("Helvetica-Bold")
-          .fillColor("#fbbf24")
-          .text(studentName, 0, 195, {
+          .fillColor("#111827")
+          .text(studentName, 0, 185, {
             align: "center",
             width: pageWidth,
           });
@@ -214,27 +178,26 @@ class CertificateService {
         // Underline for name
         const nameWidth = doc.widthOfString(studentName);
         doc
-          .moveTo((pageWidth - nameWidth) / 2, 245)
-          .lineTo((pageWidth + nameWidth) / 2, 245)
+          .moveTo((pageWidth - nameWidth) / 2, 235)
+          .lineTo((pageWidth + nameWidth) / 2, 235)
           .lineWidth(1)
-          .stroke("#fbbf24");
+          .stroke("#d1d5db");
 
-        // "has successfully completed the course"
+        // Completion text
         doc
-          .fontSize(16)
+          .fontSize(12)
           .font("Helvetica")
-          .fillColor("#e5e7eb")
-          .text("has successfully completed the course", 0, 270, {
+          .fillColor("#374151")
+          .text("For completing the", 0, 255, {
             align: "center",
             width: pageWidth,
           });
 
-        // Course title (white)
         doc
-          .fontSize(28)
+          .fontSize(14)
           .font("Helvetica-Bold")
-          .fillColor("#ffffff")
-          .text(courseTitle, 0, 305, {
+          .fillColor("#0f2a6b")
+          .text(courseTitle, 0, 275, {
             align: "center",
             width: pageWidth,
           });
@@ -248,48 +211,38 @@ class CertificateService {
           day: "numeric",
         });
         doc
-          .fontSize(14)
-          .font("Helvetica")
-          .fillColor("#e5e7eb")
-          .text(`Completed on: ${formattedCompletionDate}`, 0, 355, {
-            align: "center",
-            width: pageWidth,
-          });
-
-        // TechyJaunt branding
-        doc
-          .fontSize(26)
-          .font("Helvetica-Bold")
-          .fillColor("#fbbf24")
-          .text("TechyJaunt", 0, 410, {
-            align: "center",
-            width: pageWidth,
-          });
-
-        doc
           .fontSize(12)
           .font("Helvetica")
-          .fillColor("#e5e7eb")
-          .text("Learning Platform", 0, 440, {
+          .fillColor("#374151")
+          .text(`Completed on ${formattedCompletionDate}`, 0, 310, {
             align: "center",
             width: pageWidth,
           });
+
+        // Seal (simple rosette)
+        const sealX = pageWidth - 210;
+        const sealY = 120;
+        doc.circle(sealX, sealY, 55).fill("#0f2a6b");
+        doc.circle(sealX, sealY, 46).fill("#ffffff");
+        doc.circle(sealX, sealY, 36).fill("#0f2a6b");
+        doc
+          .fontSize(14)
+          .font("Helvetica-Bold")
+          .fillColor("#ffffff")
+          .text("✓", sealX - 8, sealY - 12, { width: 16, align: "center" });
 
         // Signature line
         doc
-          .moveTo(pageWidth / 2 - 80, pageHeight - 110)
-          .lineTo(pageWidth / 2 + 80, pageHeight - 110)
+          .moveTo(90, pageHeight - 120)
+          .lineTo(290, pageHeight - 120)
           .lineWidth(1)
-          .stroke("#ffffff");
+          .stroke("#9ca3af");
 
         doc
           .fontSize(10)
           .font("Helvetica")
-          .fillColor("#e5e7eb")
-          .text("Authorized Signature", 0, pageHeight - 100, {
-            align: "center",
-            width: pageWidth,
-          });
+          .fillColor("#374151")
+          .text("Authorized Signature", 90, pageHeight - 110);
 
         // Issue date (bottom left)
         const formattedIssueDate = new Date(issueDate).toLocaleDateString(
@@ -303,15 +256,15 @@ class CertificateService {
         doc
           .fontSize(10)
           .font("Helvetica")
-          .fillColor("#d1d5db")
-          .text(`Issue Date: ${formattedIssueDate}`, 60, pageHeight - 60);
+          .fillColor("#6b7280")
+          .text(`Issued: ${formattedIssueDate}`, 60, pageHeight - 70);
 
-        // Certificate number (bottom right)
-        doc.text(
-          `Certificate No: ${certificateNumber}`,
-          pageWidth - 250,
-          pageHeight - 60,
-        );
+        // Certificate ID number (bottom right)
+        doc
+          .fontSize(10)
+          .font("Helvetica-Bold")
+          .fillColor("#111827")
+          .text(`Certificate ID NO: ${certificateNumber}`, pageWidth - 320, pageHeight - 70);
 
         doc.end();
       });
@@ -342,9 +295,18 @@ class CertificateService {
         throw new AppError("User or course not found", 404);
       }
 
+      // Check if certificate already exists (so we keep its ID stable across regenerations)
+      const existingCertificate = await Certificate.findOne({
+        userId,
+        courseId,
+      });
+
       // Generate certificate details
-      const certificateNumber = this.generateCertificateNumber();
-      const verificationCode = this.generateVerificationCode();
+      // IMPORTANT: certificateNumber is treated as the persistent Certificate ID number.
+      const certificateNumber =
+        existingCertificate?.certificateNumber || this.generateCertificateNumber();
+      const verificationCode =
+        existingCertificate?.verificationCode || this.generateVerificationCode();
 
       const certificateData = {
         studentName: `${user.firstName} ${user.lastName}`,
@@ -376,15 +338,10 @@ class CertificateService {
         public_id: `certificate_${userId}_${courseId}_${Date.now()}`,
       });
 
-      // Check if certificate already exists and update it, otherwise create new
-      const existingCertificate = await Certificate.findOne({
-        userId,
-        courseId,
-      });
-
       let certificate;
       if (existingCertificate) {
         // Update existing certificate (regeneration)
+        // Keep certificateNumber + verificationCode stable for verifications and ID referencing
         existingCertificate.certificateNumber = certificateNumber;
         existingCertificate.verificationCode = verificationCode;
         existingCertificate.issueDate = certificateData.issueDate;

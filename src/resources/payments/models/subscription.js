@@ -139,6 +139,14 @@ subscriptionSchema.methods.hasFeatureAccess = function(featureName) {
   }
 
   const feature = this.featureAccess[featureName];
+
+  // Special-case course access: it's represented as lifetime access or a course list,
+  // not a simple hasAccess boolean.
+  if (featureName === "courseAccess") {
+    if (feature.hasLifetimeAccess) return true;
+    if (Array.isArray(feature.courses) && feature.courses.length > 0) return true;
+    return false;
+  }
   
   // Check if feature has access
   if (!feature.hasAccess) {

@@ -11,6 +11,7 @@ import { createJwtToken } from "../../../middleware/isAuthenticated.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 import PaymentService from "../../payments/services/payment.service.js";
 import SubscriptionService from "../../payments/services/subscription.service.js";
+import SenderService from "../../../utils/integrations/sender.service.js";
 
 // Helper function to check if profile is complete
 const isProfileComplete = (user) => {
@@ -168,6 +169,21 @@ class AuthService {
       user.status = "active";
       await user.save(); // Send welcome email
       await sendWelcomeOnboardingEmail(email, user.firstName || "");
+
+      // Sender.net subscriber sync (non-blocking)
+      // Creates/updates the subscriber and adds them to configured groups.
+      try {
+        await SenderService.createSubscriber({
+          email: user.email,
+          firstName: user.firstName || "",
+          lastName: user.lastName || "",
+          phone: user.phone || "",
+        });
+        await SenderService.addSubscriberToGroups(user.email);
+      } catch (senderError) {
+        // Never block signup because of Sender issues.
+        console.error("Sender sync failed during signup:", senderError?.message || senderError);
+      }
 
       // Generate JWT token and calculate expiry
       const token = createJwtToken({

@@ -469,9 +469,9 @@ export const createAssessmentSchema = Joi.object({
     "number.min": "Time limit must be at least 5 minutes",
     "number.max": "Time limit cannot exceed 180 minutes",
   }),
-  attemptsAllowed: Joi.number().min(1).max(10).optional().default(3).messages({
+  attemptsAllowed: Joi.number().min(1).max(100).optional().default(3).messages({
     "number.min": "At least 1 attempt must be allowed",
-    "number.max": "Cannot allow more than 10 attempts",
+    "number.max": "Cannot allow more than 100 attempts",
   }),
 });
 
@@ -533,9 +533,9 @@ export const updateAssessmentSchema = Joi.object({
     "number.min": "Time limit must be at least 5 minutes",
     "number.max": "Time limit cannot exceed 180 minutes",
   }),
-  attemptsAllowed: Joi.number().min(1).max(10).optional().messages({
+  attemptsAllowed: Joi.number().min(1).max(100).optional().messages({
     "number.min": "At least 1 attempt must be allowed",
-    "number.max": "Cannot allow more than 10 attempts",
+    "number.max": "Cannot allow more than 100 attempts",
   }),
 });
 

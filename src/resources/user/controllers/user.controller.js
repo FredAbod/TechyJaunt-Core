@@ -641,7 +641,8 @@ export const getAllTutors = async (req, res) => {
   try {
     const { page = 1, limit = 20 } = req.query;
     const query = {
-      role: { $in: ["tutor", "admin", "super admin"] },
+      // Tutors list should not include super admins
+      role: { $in: ["tutor", "admin"] },
     };
     // Exclude only sensitive fields
     const tutorsPromise = User.find(query)

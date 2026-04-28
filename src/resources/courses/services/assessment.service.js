@@ -182,9 +182,11 @@ class AssessmentService {
       let correctAnswers = 0;
       let answeredQuestions = 0;
       const processedAnswers = [];
+      const questionReview = [];
 
       assessment.questions.forEach((question, index) => {
         const userAnswer = answers.find(a => a.questionId === question._id.toString());
+        const correctOption = question.options.find(opt => opt.isCorrect);
         
         if (!userAnswer || !userAnswer.selectedOptionId) {
           // User didn't answer this question (timeout or skipped)
@@ -193,6 +195,20 @@ class AssessmentService {
             selectedOptionId: null,
             isCorrect: false,
             skipped: true
+          });
+
+          questionReview.push({
+            questionId: question._id,
+            order: question.order ?? index + 1,
+            question: question.question,
+            selectedOptionId: null,
+            selectedOptionText: null,
+            isCorrect: false,
+            skipped: true,
+            correctOption: correctOption
+              ? { optionId: correctOption._id, text: correctOption.text }
+              : null,
+            explanation: question.explanation || null,
           });
           return;
         }
@@ -210,6 +226,20 @@ class AssessmentService {
             isCorrect: false,
             invalid: true
           });
+
+          questionReview.push({
+            questionId: question._id,
+            order: question.order ?? index + 1,
+            question: question.question,
+            selectedOptionId: userAnswer.selectedOptionId,
+            selectedOptionText: null,
+            isCorrect: false,
+            invalid: true,
+            correctOption: correctOption
+              ? { optionId: correctOption._id, text: correctOption.text }
+              : null,
+            explanation: question.explanation || null,
+          });
           return;
         }
 
@@ -220,6 +250,19 @@ class AssessmentService {
           questionId: question._id,
           selectedOptionId: selectedOption._id,
           isCorrect
+        });
+
+        questionReview.push({
+          questionId: question._id,
+          order: question.order ?? index + 1,
+          question: question.question,
+          selectedOptionId: selectedOption._id,
+          selectedOptionText: selectedOption.text,
+          isCorrect,
+          correctOption: correctOption
+            ? { optionId: correctOption._id, text: correctOption.text }
+            : null,
+          explanation: question.explanation || null,
         });
       });
 
@@ -254,6 +297,8 @@ class AssessmentService {
 
       await progress.save();
 
+      const missedAnswers = questionReview.filter((q) => !q.isCorrect);
+
       return {
         score,
         passed,
@@ -265,7 +310,20 @@ class AssessmentService {
         attemptsUsed: previousAttempts.length + 1,
         attemptsAllowed: assessment.attemptsAllowed,
         canRetake: !passed && (previousAttempts.length + 1) < assessment.attemptsAllowed,
-        timeoutSubmission: answeredQuestions < assessment.questions.length
+        timeoutSubmission: answeredQuestions < assessment.questions.length,
+
+        // Detailed feedback for review UI
+        missedAnswers,
+        solutions: missedAnswers.map((q) => ({
+          questionId: q.questionId,
+          correctOption: q.correctOption,
+          explanation: q.explanation,
+        })),
+        explanations: missedAnswers.map((q) => ({
+          questionId: q.questionId,
+          explanation: q.explanation,
+        })),
+        questionReview,
       };
     } catch (error) {
       if (error instanceof AppError) throw error;

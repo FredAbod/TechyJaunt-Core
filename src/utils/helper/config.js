@@ -20,4 +20,10 @@ export const {
   AWS_SECRET_ACCESS_KEY = "",
   AWS_REGION = "us-east-1", // Default AWS region
   AWS_BUCKET_NAME = "",
+  // Sender.net (email marketing / subscribers)
+  SENDER_API_TOKEN = "",
+  // Comma-separated group IDs (e.g. "eZVD4w,b2vAR1")
+  SENDER_GROUP_IDS = "",
+  // Optional: set to "true" to trigger Sender automations
+  SENDER_TRIGGER_AUTOMATION = "false",
 } = process.env;
