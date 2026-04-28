@@ -66,6 +66,25 @@ class AuthService {
         await user.save();
       }
 
+      // Sender.net subscriber sync (non-blocking)
+      // "Sign up" happens at /register; we add them as a subscriber immediately.
+      // If token/groups aren't configured, this is a no-op.
+      try {
+        await SenderService.createSubscriber({
+          email: user.email,
+          firstName: user.firstName || "",
+          lastName: user.lastName || "",
+          phone: user.phone || "",
+        });
+        await SenderService.addSubscriberToGroups(user.email);
+      } catch (senderError) {
+        // Never block registration because of Sender issues.
+        console.error(
+          "Sender sync failed during register:",
+          senderError?.message || senderError,
+        );
+      }
+
       // Send OTP email
       await sendOtpEmail(email, otp);
 

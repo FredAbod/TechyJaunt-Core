@@ -44,6 +44,9 @@ class SenderService {
 
     try {
       const res = await senderClient.post("/subscribers", payload);
+      if (res?.data?.success) {
+        logger.info(`Sender subscriber upserted: ${email}`);
+      }
       return res.data;
     } catch (error) {
       // Sender returns 4xx for duplicates; we don't want signup to fail.
@@ -68,6 +71,9 @@ class SenderService {
           subscribers: [email],
           trigger_automation: String(SENDER_TRIGGER_AUTOMATION).toLowerCase() === "true",
         });
+        if (res?.data?.success) {
+          logger.info(`Sender group added: ${email} -> ${groupId}`);
+        }
         results.push({ groupId, ok: true, data: res.data });
       } catch (error) {
         const status = error?.response?.status;
