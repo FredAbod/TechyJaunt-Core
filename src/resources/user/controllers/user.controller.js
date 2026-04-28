@@ -5,6 +5,7 @@ import { uploadImage } from "../../../utils/image/s3.js";
 import logger from "../../../utils/log/logger.js";
 import { passwordHash } from "../../../middleware/hashing.js";
 import { sendMail } from "../../../utils/email/email-sender.js";
+import SenderService from "../../../utils/integrations/sender.service.js";
 
 // Helper function to check if profile is complete
 const isProfileComplete = (user) => {
@@ -102,6 +103,20 @@ export const updateProfile = async (req, res) => {
     if (!updatedUser) {
       return errorResMsg(res, 500, "Failed to update user");
     }
+
+    // Sender.net sync (non-blocking): update subscriber name/phone if changed
+    try {
+      await SenderService.updateSubscriber(updatedUser.email, {
+        firstName: updatedUser.firstName || "",
+        lastName: updatedUser.lastName || "",
+        phone: updatedUser.phone || "",
+      });
+    } catch (senderError) {
+      logger.warn(
+        `Sender sync failed during profile update for ${updatedUser.email}: ${senderError?.message || senderError}`,
+      );
+    }
+
     logger.info(`Profile updated for user: ${updatedUser.email}`);
     return successResMsg(res, 200, {
       message: "Profile updated successfully",
@@ -345,6 +360,19 @@ export const updateProfileWithPicture = async (req, res) => {
 
     if (!user) {
       return errorResMsg(res, 404, "User not found");
+    }
+
+    // Sender.net sync (non-blocking): update subscriber name/phone if changed
+    try {
+      await SenderService.updateSubscriber(user.email, {
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        phone: user.phone || "",
+      });
+    } catch (senderError) {
+      logger.warn(
+        `Sender sync failed during profile-with-picture update for ${user.email}: ${senderError?.message || senderError}`,
+      );
     }
 
     logger.info(`Profile updated with picture for user: ${userId}`);

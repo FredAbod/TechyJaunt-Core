@@ -31,6 +31,37 @@ class SenderService {
     return Boolean(SENDER_API_TOKEN);
   }
 
+  async updateSubscriber(identifier, { firstName, lastName, phone } = {}) {
+    if (!this.enabled()) return { skipped: true };
+    if (!identifier) return { skipped: true };
+
+    const payload = {
+      ...(typeof firstName === "string" ? { firstname: firstName } : {}),
+      ...(typeof lastName === "string" ? { lastname: lastName } : {}),
+      ...(phone ? { phone } : {}),
+      trigger_automation: String(SENDER_TRIGGER_AUTOMATION).toLowerCase() === "true",
+    };
+
+    // Nothing to update
+    if (Object.keys(payload).length === 1) {
+      return { skipped: true };
+    }
+
+    try {
+      const res = await senderClient.patch(`/subscribers/${encodeURIComponent(identifier)}`, payload);
+      if (res?.data?.success) {
+        logger.info(`Sender subscriber updated: ${identifier}`);
+      }
+      return res.data;
+    } catch (error) {
+      const status = error?.response?.status;
+      const message =
+        error?.response?.data?.message || error?.message || "Sender updateSubscriber failed";
+      logger.warn(`Sender updateSubscriber failed (${status || "no-status"}): ${message}`);
+      return { error: true, status, message };
+    }
+  }
+
   async createSubscriber({ email, firstName, lastName, phone }) {
     if (!this.enabled()) return { skipped: true };
 
