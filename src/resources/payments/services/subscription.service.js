@@ -347,11 +347,25 @@ class SubscriptionService {
         endDate: { $gt: new Date() },
       });
 
+      // Allow upgrades (e.g. bronze -> gold), block downgrades (e.g. gold -> bronze)
       if (anyActiveSubscription && anyActiveSubscription.plan !== planType) {
-        throw new AppError(
-          `You already have an active ${anyActiveSubscription.plan} subscription for this course. You cannot subscribe to multiple plans for the same course.`,
-          400,
-        );
+        const planPriority = { gold: 3, silver: 2, bronze: 1 };
+        const currentPriority = planPriority[anyActiveSubscription.plan] || 0;
+        const requestedPriority = planPriority[planType] || 0;
+
+        if (requestedPriority <= currentPriority) {
+          throw new AppError(
+            `You already have an active ${anyActiveSubscription.plan} subscription for this course. Downgrades or re-subscribing to a lower/equal plan are not allowed.`,
+            400,
+          );
+        }
+
+        logger.info("Subscription upgrade requested", {
+          userId: userObjectId?.toString?.() || userObjectId,
+          courseId,
+          fromPlan: anyActiveSubscription.plan,
+          toPlan: planType,
+        });
       }
 
       // Get plan details from database
