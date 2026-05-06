@@ -15,6 +15,15 @@ class ProgressService {
       // Check if progress already exists
       const existingProgress = await Progress.findOne({ userId, courseId });
       if (existingProgress) {
+        // On upgrade/renewal, ensure progress points to the latest active subscription
+        if (
+          subscriptionId &&
+          existingProgress.subscriptionId?.toString?.() !== subscriptionId.toString()
+        ) {
+          existingProgress.subscriptionId = subscriptionId;
+          existingProgress.lastActivityAt = new Date();
+          await existingProgress.save();
+        }
         return existingProgress;
       }
 
