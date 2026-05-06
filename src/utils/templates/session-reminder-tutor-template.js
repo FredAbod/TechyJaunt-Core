@@ -1,4 +1,33 @@
-const sessionReminderTutorTemplate = (tutorName, studentName, sessionDetails, reminderType) => {
+const sessionReminderTutorTemplate = (
+  tutorName,
+  studentName,
+  sessionDetails,
+  reminderType,
+) => {
+  const deriveDurationMinutes = () => {
+    if (sessionDetails?.duration !== undefined && sessionDetails?.duration !== null) {
+      const n = Number(sessionDetails.duration);
+      if (!Number.isNaN(n) && n > 0) return n;
+    }
+
+    // Fallback: compute from HH:mm times if provided
+    const parseHm = (hm) => {
+      if (!hm || typeof hm !== "string") return null;
+      const [h, m] = hm.split(":").map((x) => Number(x));
+      if (Number.isNaN(h) || Number.isNaN(m)) return null;
+      return h * 60 + m;
+    };
+
+    const start = parseHm(sessionDetails?.startTime);
+    const end = parseHm(sessionDetails?.endTime);
+    if (start === null || end === null) return null;
+
+    // handle crossing midnight
+    const diff = end >= start ? end - start : end + 24 * 60 - start;
+    return diff > 0 ? diff : null;
+  };
+
+  const durationMinutes = deriveDurationMinutes();
   return `
   <!DOCTYPE html>
   <html lang="en">
@@ -20,7 +49,7 @@ const sessionReminderTutorTemplate = (tutorName, studentName, sessionDetails, re
       <ul>
         <li><strong>Date:</strong> ${sessionDetails.date}</li>
         <li><strong>Time:</strong> ${sessionDetails.startTime} - ${sessionDetails.endTime} (${sessionDetails.timezone || 'UTC'})</li>
-        <li><strong>Duration:</strong> ${sessionDetails.duration} minutes</li>
+        <li><strong>Duration:</strong> ${durationMinutes ?? "N/A"} minutes</li>
       </ul>
       ${sessionDetails.meetingUrl ? `<p><strong>Meeting link:</strong> <a href="${sessionDetails.meetingUrl}">${sessionDetails.meetingUrl}</a></p>` : ''}
       <p>Please be ready and join the meeting on time.</p>

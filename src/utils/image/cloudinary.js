@@ -1,6 +1,7 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
 import dotenv from "dotenv";
+import logger from "../log/logger.js";
 
 dotenv.config();
 
@@ -144,7 +145,6 @@ const getVideoMetadata = async (videoUrl) => {
       publicId: result.public_id
     };
   } catch (error) {
-    console.error('Error getting video metadata:', error);
     throw new Error('Failed to get video metadata from Cloudinary');
   }
 };
@@ -163,7 +163,9 @@ const extractPublicIdFromUrl = (url) => {
     
     return null;
   } catch (error) {
-    console.error('Error extracting public ID from URL:', error);
+    logger.warn("Error extracting Cloudinary publicId from URL", {
+      error: error.message,
+    });
     return null;
   }
 };
@@ -174,7 +176,6 @@ const getVideoDurationFromUrl = async (videoUrl) => {
     const metadata = await getVideoMetadata(videoUrl);
     return metadata.duration;
   } catch (error) {
-    console.error('Error getting video duration:', error);
     return 0; // Return 0 if unable to get duration
   }
 };

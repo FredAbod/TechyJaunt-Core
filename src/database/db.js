@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 import mongoose from 'mongoose';
 import { sendServerFailure } from '../utils/email/email-sender.js';
+import logger from "../utils/log/logger.js";
 
 const connectDB = async (url) => {
   mongoose.set('strictQuery', true);
@@ -23,26 +24,26 @@ const connectDB = async (url) => {
       
       // Set up event handlers for connection
       mongoose.connection.on('error', (err) => {
-        console.log(`MongoDB connection error: ${err.message}`);
+        logger.error("MongoDB connection error", { error: err.message });
       });
       
       mongoose.connection.on('disconnected', () => {
-        console.log('MongoDB disconnected! Attempting to reconnect...');
+        logger.warn("MongoDB disconnected; attempting to reconnect");
       });
       
       mongoose.connection.on('reconnected', () => {
-        console.log('MongoDB reconnected successfully');
+        logger.info("MongoDB reconnected successfully");
       });
       
       return;
     } catch (error) {
-      console.log(`Database connection error: ${error.message}`);
+      logger.error("Database connection error", { error: error.message });
       retries--;
       if (retries === 0) {
         await sendServerFailure(process.env.ADMIN_EMAIL);
         throw new Error(`Failed to connect to database after 3 attempts`);
       }
-      console.log(`Retrying in 10 seconds... (${retries} attempts left)`);
+      logger.warn("Retrying DB connection in 10 seconds", { attemptsLeft: retries });
       await new Promise(resolve => setTimeout(resolve, 10000));
     }
   }

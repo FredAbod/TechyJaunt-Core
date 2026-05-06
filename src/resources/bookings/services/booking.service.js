@@ -285,9 +285,6 @@ class BookingService {
   // Get available session slots with booking-friendly format
   async getAvailableSessionSlots(tutorId, filters = {}) {
     try {
-      console.log("\n=== getAvailableSessionSlots START ===");
-      console.log("Input parameters:", { tutorId, filters });
-
       // First, get tutors who have courses (instructors or assistants)
       const tutorsWithCourses = await Course.find({
         $or: [
@@ -316,8 +313,6 @@ class BookingService {
         ]),
       ];
 
-      console.log("Tutors with courses:", allTutorsWithCourses);
-
       let query = {
         isActive: true,
       };
@@ -325,7 +320,6 @@ class BookingService {
       // If specific tutorId is provided, check if they have courses
       if (tutorId) {
         if (!allTutorsWithCourses.includes(tutorId.toString())) {
-          console.log(`Tutor ${tutorId} has no courses, returning empty slots`);
           return [];
         }
         query.tutorId = tutorId;
@@ -345,38 +339,16 @@ class BookingService {
         ];
       }
 
-      console.log("Database query:", JSON.stringify(query, null, 2));
-
       const availabilities = await TutorAvailability.find(query)
         .populate("tutorId", "firstName lastName email")
         .populate("courseSpecific", "title")
         .sort({ dayOfWeek: 1 });
 
-      console.log("Found availabilities:", availabilities.length);
-      console.log(
-        "Availabilities data:",
-        JSON.stringify(availabilities, null, 2),
-      );
-
       // Format slots for easy booking
       const sessionSlots = [];
 
       availabilities.forEach((availability, availIndex) => {
-        console.log(`\nProcessing availability ${availIndex + 1}:`, {
-          id: availability._id,
-          dayOfWeek: availability.dayOfWeek,
-          timeSlots: availability.timeSlots.length,
-        });
-
         availability.timeSlots.forEach((slot, index) => {
-          console.log(`  Processing slot ${index + 1}:`, {
-            isAvailable: slot.isAvailable,
-            currentBookings: slot.currentBookings,
-            maxBookings: slot.maxBookings,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-          });
-
           if (
             slot.isAvailable &&
             slot.currentBookings < Math.min(slot.maxBookings, 5)
@@ -481,16 +453,10 @@ class BookingService {
         tutorCourses: tutorCourses[slot.tutorId.toString()] || [],
       }));
 
-      console.log(
-        `\nTotal session slots generated: ${enhancedSessionSlots.length}`,
-      );
-      console.log("=== getAvailableSessionSlots END ===\n");
-
       return enhancedSessionSlots.sort(
         (a, b) => new Date(a.sessionDate) - new Date(b.sessionDate),
       );
     } catch (error) {
-      console.error("Error in getAvailableSessionSlots:", error);
       throw error;
     }
   }
@@ -500,18 +466,8 @@ class BookingService {
     try {
       const { sessionId, courseId, topics, studentNotes } = bookingData;
 
-      console.log("=== bookSessionBySlot START ===");
-      console.log("Input data:", {
-        studentId,
-        sessionId,
-        courseId,
-        topics,
-        studentNotes,
-      });
-
       // Get session slot details
       const slotDetails = await this.getSessionSlotDetails(sessionId);
-      console.log("Slot details:", slotDetails);
 
       // Verify the slot is still available
       const existingBookingsCount = await BookingSession.countDocuments({
@@ -521,8 +477,6 @@ class BookingService {
         startTime: slotDetails.startTime,
         endTime: slotDetails.endTime,
       });
-
-      console.log("Existing bookings count:", existingBookingsCount);
 
       if (existingBookingsCount >= slotDetails.totalSlots) {
         throw new Error(
@@ -542,8 +496,6 @@ class BookingService {
         notes: studentNotes,
         availabilityId: slotDetails.availabilityId, // Pass specific availability ID
       };
-
-      console.log("Session booking data:", sessionBookingData);
 
       return await this.bookSession(sessionBookingData);
     } catch (error) {
@@ -679,9 +631,6 @@ class BookingService {
 
       // Calculate duration from start and end times
       const duration = this.calculateDuration(startTime, endTime);
-      console.log(
-        `Duration calculation: ${startTime} to ${endTime} = ${duration} minutes`,
-      );
 
       // Check if tutor is available at the requested time
       const dayOfWeek = new Date(date)
@@ -689,10 +638,6 @@ class BookingService {
           weekday: "long",
         })
         .toLowerCase();
-
-      console.log(
-        `Looking for availability on ${dayOfWeek} for tutor ${tutorId}${availabilityId ? ` (specific: ${availabilityId})` : ""}`,
-      );
 
       // Use specific availabilityId if provided, otherwise query by dayOfWeek
       let availability;
@@ -710,18 +655,6 @@ class BookingService {
           $or: [{ courseSpecific: courseId }, { courseSpecific: null }],
         });
       }
-
-      console.log(
-        "Found availability:",
-        availability
-          ? {
-              id: availability._id,
-              dayOfWeek: availability.dayOfWeek,
-              hourlyRate: availability.hourlyRate,
-              timeSlots: availability.timeSlots.length,
-            }
-          : "None",
-      );
 
       if (!availability) {
         throw new Error("Tutor is not available on this day");
@@ -784,14 +717,6 @@ class BookingService {
       // Round to 2 decimal places
       calculatedAmount = Math.round(calculatedAmount * 100) / 100;
 
-      console.log("Pricing calculation:", {
-        hourlyRate: hourlyRate,
-        duration: duration,
-        calculatedAmount: calculatedAmount,
-        isNaN: isNaN(calculatedAmount),
-        isFinite: isFinite(calculatedAmount),
-      });
-
       // Create booking session
       const booking = new BookingSession({
         studentId,
@@ -817,43 +742,13 @@ class BookingService {
         },
       });
 
-      console.log("About to save booking with pricing:", {
-        amount: calculatedAmount,
-        currency:
-          (availability.hourlyRate && availability.hourlyRate.currency) ||
-          "USD",
-        paymentStatus: calculatedAmount > 0 ? "pending" : "free",
-      });
-
-      console.log(
-        "Full booking object before save:",
-        JSON.stringify(
-          {
-            studentId: booking.studentId,
-            tutorId: booking.tutorId,
-            courseId: booking.courseId,
-            sessionDate: booking.sessionDate,
-            startTime: booking.startTime,
-            endTime: booking.endTime,
-            duration: booking.duration,
-            timezone: booking.timezone,
-            sessionType: booking.sessionType,
-            topics: booking.topics,
-            studentNotes: booking.studentNotes,
-            meetingDetails: booking.meetingDetails,
-            pricing: booking.pricing,
-          },
-          null,
-          2,
-        ),
-      );
-
       try {
         await booking.save();
-        console.log("Booking saved successfully with ID:", booking._id);
       } catch (saveError) {
-        console.error("Error saving booking:", saveError.message);
-        console.error("Validation errors:", saveError.errors);
+        logger.error("Error saving booking", {
+          error: saveError.message,
+          bookingId: booking?._id,
+        });
         throw saveError;
       }
 
@@ -873,31 +768,26 @@ class BookingService {
       }
 
       // Update availability slot booking count
-      console.log("Updating availability slot booking count...");
       try {
         availableSlot.currentBookings += 1;
         await availability.save();
-        console.log("Availability slot updated successfully");
       } catch (availError) {
-        console.error("Error updating availability:", availError.message);
+        logger.warn("Error updating availability booking count", {
+          error: availError.message,
+          availabilityId: availability?._id,
+        });
         // Don't throw - booking is already saved
       }
 
-      console.log("Populating booking...");
       const populatedBooking = await BookingSession.findById(booking._id)
         .populate("studentId", "firstName lastName email")
         .populate("tutorId", "firstName lastName email")
         .populate("courseId", "title");
 
-      console.log(
-        "Populated booking:",
-        populatedBooking ? "Success" : "Failed to find booking",
-      );
-
       if (!populatedBooking) {
-        console.error(
-          "Could not find booking after save, returning basic booking",
-        );
+        logger.warn("Booking not found after save; returning basic booking", {
+          bookingId: booking._id,
+        });
         return booking;
       }
 
@@ -958,7 +848,10 @@ class BookingService {
           );
         }
       } catch (emailError) {
-        console.error("Error sending booking notification emails:", emailError);
+        logger.error("Error sending booking notification emails", {
+          error: emailError?.message || String(emailError),
+          bookingId: booking._id,
+        });
         // Don't throw error here to avoid blocking the booking process
       }
 
@@ -994,9 +887,6 @@ class BookingService {
     try {
       const { status, page = 1, limit = 10, type } = options;
 
-      console.log("=== getUserBookings START ===");
-      console.log("Input params:", { userId, status, page, limit, type });
-
       // Determine if user is student or tutor based on type or user role
       let query = {};
       if (type === "student") {
@@ -1006,16 +896,6 @@ class BookingService {
       } else {
         // Auto-detect based on user role
         const user = await User.findById(userId);
-        console.log(
-          "Found user:",
-          user
-            ? {
-                id: user._id,
-                role: user.role,
-                name: `${user.firstName} ${user.lastName}`,
-              }
-            : "Not found",
-        );
 
         if (user && ["admin", "tutor", "super admin"].includes(user.role)) {
           query.tutorId = userId;
@@ -1027,8 +907,6 @@ class BookingService {
       if (status) {
         query.status = status;
       }
-
-      console.log("Query to be executed:", query);
 
       const skip = (page - 1) * limit;
       const bookings = await BookingSession.find(query)
@@ -1042,19 +920,7 @@ class BookingService {
         .skip(skip)
         .limit(parseInt(limit));
 
-      console.log("Found bookings:", bookings.length);
-      if (bookings.length > 0) {
-        console.log("First booking:", {
-          id: bookings[0]._id,
-          studentId: bookings[0].studentId,
-          tutorId: bookings[0].tutorId,
-          sessionDate: bookings[0].sessionDate,
-          status: bookings[0].status,
-        });
-      }
-
       const total = await BookingSession.countDocuments(query);
-      console.log("Total count:", total);
 
       // Look up courses taught by each tutor
       const enrichedBookings = await Promise.all(
@@ -1069,7 +935,7 @@ class BookingService {
 
             bookingObj.tutorCourses = tutorCourses || [];
           } catch (err) {
-            console.warn(`Failed to get courses for tutor: ${err.message}`);
+            logger.warn(`Failed to get courses for tutor: ${err.message}`);
             bookingObj.tutorCourses = [];
           }
           return bookingObj;
@@ -1086,7 +952,6 @@ class BookingService {
         },
       };
     } catch (error) {
-      console.error("Error in getUserBookings:", error);
       throw error;
     }
   }
@@ -1434,16 +1299,6 @@ class BookingService {
     try {
       const { date, startTime, endTime, reason, userId } = rescheduleData;
 
-      console.log("=== rescheduleBooking START ===");
-      console.log("Input data:", {
-        bookingId,
-        date,
-        startTime,
-        endTime,
-        reason,
-        userId,
-      });
-
       const booking = await BookingSession.findById(bookingId);
 
       if (!booking) {
@@ -1468,29 +1323,11 @@ class BookingService {
         })
         .toLowerCase();
 
-      console.log(
-        "Looking for availability on:",
-        dayOfWeek,
-        "for tutor:",
-        booking.tutorId,
-      );
-
       const availability = await TutorAvailability.findOne({
         tutorId: booking.tutorId,
         dayOfWeek,
         isActive: true,
       });
-
-      console.log(
-        "Found availability:",
-        availability
-          ? {
-              id: availability._id,
-              dayOfWeek: availability.dayOfWeek,
-              timeSlots: availability.timeSlots.length,
-            }
-          : "None",
-      );
 
       if (!availability) {
         throw new Error("Tutor is not available on the requested day");
@@ -1507,16 +1344,6 @@ class BookingService {
           slot.startTime,
           slot.endTime,
         );
-
-        console.log("Checking slot:", {
-          slotTime: `${slot.startTime}-${slot.endTime}`,
-          requestedTime: `${startTime}-${endTime}`,
-          isAvailable: slot.isAvailable,
-          currentBookings: slot.currentBookings,
-          maxBookings: slot.maxBookings,
-          slotAvailable,
-          timeOverlap,
-        });
 
         return slotAvailable && timeOverlap;
       });
@@ -1535,8 +1362,6 @@ class BookingService {
         endTime: endTime,
       });
 
-      console.log("Existing bookings at this time:", existingBookingsCount);
-
       if (existingBookingsCount >= 5) {
         throw new Error(
           "Time slot is full. Maximum 5 students can book the same time slot",
@@ -1554,14 +1379,11 @@ class BookingService {
 
       await booking.save();
 
-      console.log("Booking rescheduled successfully");
-
       return await BookingSession.findById(bookingId)
         .populate("studentId", "firstName lastName email")
         .populate("tutorId", "firstName lastName email")
         .populate("courseId", "title");
     } catch (error) {
-      console.error("Error in rescheduleBooking:", error);
       throw error;
     }
   }
@@ -1842,19 +1664,11 @@ class BookingService {
 
   // Helper method to generate time slots within a time block
   generateTimeSlots(startTime, endTime, sessionDuration) {
-    console.log(
-      `      generateTimeSlots called with: startTime=${startTime}, endTime=${endTime}, sessionDuration=${sessionDuration}`,
-    );
-
     const slots = [];
 
     // Convert time strings to minutes
     const startMinutes = this.timeToMinutes(startTime);
     const endMinutes = this.timeToMinutes(endTime);
-
-    console.log(
-      `      Converted times: startMinutes=${startMinutes}, endMinutes=${endMinutes}`,
-    );
 
     // Generate slots based on session duration
     for (
@@ -1869,11 +1683,7 @@ class BookingService {
         startTime: slotStart,
         endTime: slotEnd,
       });
-
-      console.log(`      Generated slot: ${slotStart} - ${slotEnd}`);
     }
-
-    console.log(`      Total slots generated: ${slots.length}`);
     return slots;
   }
 

@@ -9,7 +9,6 @@ const roleBasedAccess = (roles) => {
     }
 
     if (roles.includes(req.user.role)) {
-      console.log(`Access granted for role: ${req.user.role}`);
       next();
     } else {
       return res.status(403).json({ 

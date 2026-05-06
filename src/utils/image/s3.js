@@ -20,6 +20,7 @@ import path from "path";
 import os from "os";
 import { v4 as uuidv4 } from "uuid";
 import { Readable } from "stream";
+import logger from "../log/logger.js";
 
 // Configure FFmpeg
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
@@ -118,7 +119,7 @@ export const uploadImage = async (fileBuffer, options = {}) => {
       height: 0,
     };
   } catch (error) {
-    console.error("S3 Upload Image Error:", error);
+    logger.error("S3 uploadImage error", { error: error.message });
     throw error;
   }
 };
@@ -168,7 +169,7 @@ export const uploadVideo = async (fileBuffer, options = {}) => {
       bytes: buffer.length,
     };
   } catch (error) {
-    console.error("S3 Upload Video Error:", error);
+    logger.error("S3 uploadVideo error", { error: error.message });
     throw error;
   }
 };
@@ -199,7 +200,7 @@ export const uploadDocument = async (fileBuffer, options = {}) => {
       format: path.extname(key).substring(1),
     };
   } catch (error) {
-    console.error("S3 Upload Document Error:", error);
+    logger.error("S3 uploadDocument error", { error: error.message });
     throw error;
   }
 };
@@ -214,7 +215,7 @@ export const deleteFile = async (publicId, resourceType) => {
     await s3Client.send(command);
     return { result: "ok" };
   } catch (error) {
-    console.error("S3 Delete Error:", error);
+    logger.error("S3 deleteFile error", { publicId, error: error.message });
     throw error;
   }
 };
@@ -259,7 +260,7 @@ export const generateThumbnail = async (videoPublicId, options = {}) => {
 
     return uploadResult.secure_url;
   } catch (error) {
-    console.error("Generate Thumbnail Error:", error);
+    logger.error("S3 generateThumbnail error", { videoPublicId, error: error.message });
     throw error;
   }
 };
@@ -279,10 +280,9 @@ export const getVideoMetadata = async (videoUrl) => {
         });
         probeUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
       } catch (signErr) {
-        console.warn(
-          "Failed to sign URL for metadata, using original:",
-          signErr.message,
-        );
+        logger.warn("Failed to sign URL for video metadata; using original URL", {
+          error: signErr.message,
+        });
       }
     }
 
@@ -301,7 +301,7 @@ export const getVideoMetadata = async (videoUrl) => {
       url: videoUrl,
     };
   } catch (error) {
-    console.error("Get Metadata Error:", error);
+    logger.error("S3 getVideoMetadata error", { error: error.message });
     throw error;
   }
 };

@@ -250,10 +250,7 @@ class CourseService {
             lessonData.content.videoDuration = duration;
           }
         } catch (error) {
-          console.warn(
-            "Could not fetch video duration automatically:",
-            error.message,
-          );
+          // Not critical; proceed without auto duration
           // Continue without video duration - not a critical error
         }
       }
@@ -551,14 +548,19 @@ class CourseService {
         .populate("subscriptionId", "plan status endDate startDate createdAt")
         .sort({ lastActivityAt: -1 });
 
-      console.log(
-        `Found ${enrolledCourses.length} enrolled courses for user ${userId}`,
+      // Only include courses with active, unexpired subscriptions (aligns with progress dashboard)
+      const now = new Date();
+      const activeEnrolledCourses = enrolledCourses.filter(
+        (p) =>
+          p.courseId &&
+          p.subscriptionId &&
+          p.subscriptionId.status === "active" &&
+          p.subscriptionId.endDate &&
+          new Date(p.subscriptionId.endDate) > now,
       );
 
       // Calculate statistics
-      const validEnrolledCourses = enrolledCourses.filter(
-        (progress) => progress.courseId,
-      ); // Only count courses that populated successfully
+      const validEnrolledCourses = activeEnrolledCourses; // already filtered + populated
 
       const stats = {
         totalCourses: validEnrolledCourses.length,
@@ -586,8 +588,7 @@ class CourseService {
       const learningStreak = this.calculateLearningStreak(validEnrolledCourses);
 
       // Format enrolled courses data for frontend
-      const formattedCourses = enrolledCourses
-        .filter((progress) => progress.courseId) // Filter out any courses that failed to populate
+      const formattedCourses = activeEnrolledCourses
         .map((progress) => ({
           courseId: progress.courseId._id,
           title: progress.courseId.title,
@@ -612,7 +613,7 @@ class CourseService {
           subscription: progress.subscriptionId
             ? {
                 plan: progress.subscriptionId.plan,
-                status: progress.subscriptionId.endDate && new Date(progress.subscriptionId.endDate) < new Date() ? "inactive" : "active",
+                status: "active",
                 endDate: progress.subscriptionId.endDate,
                 startDate: progress.subscriptionId.startDate,
                 createdAt: progress.subscriptionId.createdAt,
@@ -644,7 +645,6 @@ class CourseService {
         enrolledCourses: formattedCourses,
       };
     } catch (error) {
-      console.error("Dashboard error details:", error);
       throw error;
     }
   }
@@ -837,10 +837,7 @@ class CourseService {
             updateData.content.videoDuration = duration;
           }
         } catch (error) {
-          console.warn(
-            "Could not fetch video duration automatically:",
-            error.message,
-          );
+          // Not critical; proceed without auto duration
           // Continue without video duration - not a critical error
         }
       }

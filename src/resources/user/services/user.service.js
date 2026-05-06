@@ -1,2 +1,1 @@
-// write user service logic here
-console.log("user service logic here");
+// Intentionally left blank (no user service implemented yet).

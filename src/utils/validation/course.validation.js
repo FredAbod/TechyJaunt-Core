@@ -550,12 +550,16 @@ export const submitAssessmentSchema = Joi.object({
             "string.pattern.base": "Invalid question ID format",
             "any.required": "Question ID is required",
           }),
-        selectedOptionId: Joi.string()
-          .pattern(/^[0-9a-fA-F]{24}$/)
-          .required()
+        // Allow empty selection ("" or null) for timeout/unanswered questions
+        selectedOptionId: Joi.alternatives()
+          .try(
+            Joi.string().pattern(/^[0-9a-fA-F]{24}$/),
+            Joi.string().allow(""),
+            Joi.valid(null),
+          )
+          .optional()
           .messages({
             "string.pattern.base": "Invalid option ID format",
-            "any.required": "Selected option ID is required",
           }),
       })
     )

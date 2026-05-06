@@ -202,6 +202,37 @@ class AssessmentController {
         });
       }
 
+      // For regular users, hide correct answers until they submit (front-end gets solutions from submit endpoint)
+      if (req.user?.role === "user") {
+        const safeAssessment = {
+          _id: assessment._id,
+          title: assessment.title,
+          description: assessment.description,
+          moduleId: assessment.moduleId,
+          courseId: assessment.courseId,
+          passingScore: assessment.passingScore,
+          timeLimit: assessment.timeLimit,
+          attemptsAllowed: assessment.attemptsAllowed,
+          totalQuestions: assessment.questions?.length || 0,
+          questions: (assessment.questions || []).map((q) => ({
+            _id: q._id,
+            question: q.question,
+            order: q.order,
+            // Do NOT include isCorrect
+            options: (q.options || []).map((opt) => ({
+              _id: opt._id,
+              text: opt.text,
+            })),
+            // Hide explanation too (explanations are returned on submit for missed answers)
+          })),
+        };
+
+        return sendResponse(res, 200, {
+          message: "Assessment details fetched successfully",
+          assessment: safeAssessment,
+        });
+      }
+
       return sendResponse(res, 200, {
         message: "Assessment details fetched successfully",
         assessment

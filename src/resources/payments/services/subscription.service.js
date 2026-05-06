@@ -960,14 +960,17 @@ class SubscriptionService {
           ? new mongoose.Types.ObjectId(courseId)
           : courseId;
 
-      const subscription = await Subscription.findOne({
+      const now = new Date();
+      const subscriptions = await Subscription.find({
         user: userObjectId,
         courseId: courseObjectId,
         status: "active",
-        endDate: { $gt: new Date() },
-      }).populate("courseId", "title category level");
+        endDate: { $gt: now },
+      })
+        .populate("courseId", "title category level")
+        .sort({ endDate: -1, createdAt: -1 });
 
-      if (!subscription) {
+      if (!subscriptions || subscriptions.length === 0) {
         return {
           hasSubscription: false,
           plan: null,
@@ -984,6 +987,18 @@ class SubscriptionService {
           subscription: null,
         };
       }
+
+      // Prefer highest plan when multiple active subscriptions exist
+      const planPriority = { gold: 3, silver: 2, bronze: 1 };
+      const subscription = [...subscriptions].sort((a, b) => {
+        const pa = planPriority[a.plan] || 0;
+        const pb = planPriority[b.plan] || 0;
+        if (pb !== pa) return pb - pa;
+        // fallback to later end date
+        const ea = new Date(a.endDate).getTime();
+        const eb = new Date(b.endDate).getTime();
+        return eb - ea;
+      })[0];
 
       // Build feature access object with detailed info
       const featureAccess = {

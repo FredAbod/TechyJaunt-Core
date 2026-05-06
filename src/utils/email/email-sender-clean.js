@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import otpVerificationTemplate from "../templates/otp-verification-template.js";
 import welcomeOnboardingTemplate from "../templates/welcome-onboarding-template.js";
+import logger from "../log/logger.js";
 
 // Create a reusable transporter
 const createTransporter = () => {
@@ -28,12 +29,9 @@ const sendOtpEmail = async (email, otp, firstName = "") => {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(
-      `${new Date().toLocaleString()} - OTP Email sent successfully:`,
-      info.response
-    );
+    logger.info("OTP email sent", { to: email, response: info.response });
   } catch (error) {
-    console.log("OTP Email error:", error.message);
+    logger.error("OTP email error", { to: email, error: error.message });
     throw new Error("Couldn't send OTP email.");
   }
 };
@@ -51,12 +49,9 @@ const sendWelcomeOnboardingEmail = async (email, firstName) => {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(
-      `${new Date().toLocaleString()} - Welcome Email sent successfully:`,
-      info.response
-    );
+    logger.info("Welcome email sent", { to: email, response: info.response });
   } catch (error) {
-    console.log("Welcome Email error:", error.message);
+    logger.error("Welcome email error", { to: email, error: error.message });
     throw new Error("Couldn't send welcome email.");
   }
 };
@@ -75,10 +70,10 @@ const sendMail = async (to, subject, text, html = null) => {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(`Email sent: ${info.messageId}`);
+    logger.info("Email sent", { to, messageId: info.messageId });
     return info;
   } catch (error) {
-    console.log("Email error:", error.message);
+    logger.error("Email error", { to, subject, error: error.message });
     throw new Error("Couldn't send email.");
   }
 };
@@ -109,12 +104,9 @@ const sendPasswordResetEmail = async (email, resetToken, firstName = "") => {
     };
 
     const info = await transporter.sendMail(mailOptions);
-    console.log(
-      `${new Date().toLocaleString()} - Password reset email sent successfully:`,
-      info.response
-    );
+    logger.info("Password reset email sent", { to: email, response: info.response });
   } catch (error) {
-    console.log("Password reset email error:", error.message);
+    logger.error("Password reset email error", { to: email, error: error.message });
     throw new Error("Couldn't send password reset email.");
   }
 };

@@ -187,7 +187,8 @@ router.get(
 router.get(
   "/assessments/:assessmentId/details",
   isAuthenticated,
-  roleBasedAccess(["admin", "tutor", "super admin"]),
+  // Students/users should be able to view assessment details as well
+  roleBasedAccess(["admin", "tutor", "super admin", "user"]),
   assessmentController.getAssessmentDetails
 );
 

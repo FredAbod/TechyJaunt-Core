@@ -1,1 +1,1 @@
-console.log("error handler goes here");
+// Intentionally left blank (legacy placeholder).

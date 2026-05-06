@@ -3,6 +3,7 @@ import AppError from "../../../utils/lib/appError.js";
 import AITutorHistory from "../models/aiTutorHistory.js";
 import AITutorChat from "../models/aiTutorChat.js";
 import mongoose from "mongoose";
+import logger from "../../../utils/log/logger.js";
 
 class AITutorService {
   constructor() {
@@ -482,7 +483,10 @@ Make the exercises practical and hands-on. Ensure they progressively build under
       return historyEntry;
     } catch (error) {
       // Log error but don't fail the main request
-      console.error("Failed to save AI interaction history:", error);
+      logger.warn("Failed to save AI interaction history", {
+        error: error?.message || String(error),
+        userId,
+      });
       return null;
     }
   }

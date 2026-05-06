@@ -55,7 +55,6 @@ class PrerecordedContentService {
       }
 
       // Upload video to Cloudinary
-      console.log("Uploading video to Cloudinary...");
       const videoResult = await uploadVideo(videoFile.buffer, {
         folder: `techyjaunt/courses/${course._id}/videos`,
         public_id: `video_${Date.now()}`,
@@ -68,13 +67,11 @@ class PrerecordedContentService {
       // Upload thumbnail if provided, otherwise generate from video
       let thumbnailResult;
       if (thumbnailFile) {
-        console.log("Uploading custom thumbnail...");
         thumbnailResult = await uploadImage(thumbnailFile.buffer, {
           folder: `techyjaunt/courses/${course._id}/thumbnails`,
           public_id: `thumb_${Date.now()}`,
         });
       } else {
-        console.log("Generating thumbnail from video...");
         const thumbnailUrl = await generateThumbnail(videoResult.public_id);
         thumbnailResult = { url: thumbnailUrl, public_id: null };
       }

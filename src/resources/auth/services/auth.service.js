@@ -12,6 +12,7 @@ import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 import PaymentService from "../../payments/services/payment.service.js";
 import SubscriptionService from "../../payments/services/subscription.service.js";
 import SenderService from "../../../utils/integrations/sender.service.js";
+import logger from "../../../utils/log/logger.js";
 
 // Helper function to check if profile is complete
 const isProfileComplete = (user) => {
@@ -79,10 +80,10 @@ class AuthService {
         await SenderService.addSubscriberToGroups(user.email);
       } catch (senderError) {
         // Never block registration because of Sender issues.
-        console.error(
-          "Sender sync failed during register:",
-          senderError?.message || senderError,
-        );
+        logger.warn("Sender sync failed during register", {
+          error: senderError?.message || String(senderError),
+          email: user?.email,
+        });
       }
 
       // Send OTP email
@@ -201,7 +202,10 @@ class AuthService {
         await SenderService.addSubscriberToGroups(user.email);
       } catch (senderError) {
         // Never block signup because of Sender issues.
-        console.error("Sender sync failed during signup:", senderError?.message || senderError);
+        logger.warn("Sender sync failed during signup", {
+          error: senderError?.message || String(senderError),
+          email: user?.email,
+        });
       }
 
       // Generate JWT token and calculate expiry
@@ -279,10 +283,10 @@ class AuthService {
           await SubscriptionService.getUserSubscriptionStatus(user._id);
       } catch (paymentError) {
         // Don't fail login if payment status check fails
-        console.error(
-          "Payment/subscription status check failed during login:",
-          paymentError,
-        );
+        logger.warn("Payment/subscription status check failed during login", {
+          error: paymentError?.message || String(paymentError),
+          userId: user?._id,
+        });
       }
 
       return {

@@ -488,16 +488,12 @@ class ProgressService {
   // Get user's progress for a course
   async getUserProgress(userId, courseId) {
     try {
-      console.log("Fetching user progress for:", { userId, courseId });
-
       // First get the progress without population to check if it exists
       const progress = await Progress.findOne({ userId, courseId });
 
       if (!progress) {
         throw new AppError("Progress not found", 404);
       }
-
-      console.log("Progress found, now populating references...");
 
       // Populate the progress with related data
       const populatedProgress = await Progress.findOne({ userId, courseId })
@@ -545,10 +541,7 @@ class ProgressService {
             lesson.order = lessonData.order;
             validLessons.push(lesson);
           } else {
-            // Lesson doesn't exist in DB - log warning and skip
-            console.warn(
-              `Lesson ${lesson.lessonId} in progress not found in DB for course ${courseId}, module ${module.moduleId._id}`,
-            );
+            // Lesson doesn't exist in DB - skip it
           }
         }
 
@@ -662,7 +655,6 @@ class ProgressService {
         }),
       };
     } catch (error) {
-      console.error("Error in getUserProgress:", error);
       if (error instanceof AppError) throw error;
       throw new AppError(
         `Failed to fetch user progress: ${error.message}`,
@@ -843,10 +835,6 @@ class ProgressService {
   // Add missing lessons to user progress
   async addMissingLessonsToProgress(userId, courseId, moduleId = null) {
     try {
-      console.log(
-        `Starting addMissingLessonsToProgress for user: ${userId}, course: ${courseId}, module: ${moduleId}`,
-      );
-
       // Validate ObjectIds
       if (!mongoose.Types.ObjectId.isValid(userId)) {
         throw new AppError("Invalid user ID", 400);
@@ -863,22 +851,14 @@ class ProgressService {
         throw new AppError("Progress not found", 404);
       }
 
-      console.log(
-        `Found progress document with ${progress.modules.length} modules`,
-      );
-
       let modulesToUpdate = [];
 
       if (moduleId) {
         // Update specific module
-        console.log(`Looking for specific module: ${moduleId}`);
         const module = await Module.findById(moduleId);
         if (!module) {
           throw new AppError("Module not found", 404);
         }
-        console.log(
-          `Found module: ${module.title}, courseId: ${module.courseId}`,
-        );
 
         if (module.courseId.toString() !== courseId.toString()) {
           throw new AppError("Module does not belong to this course", 400);
@@ -886,13 +866,9 @@ class ProgressService {
         modulesToUpdate.push(module);
       } else {
         // Update all modules for the course
-        console.log(`Getting all modules for course: ${courseId}`);
         modulesToUpdate = await Module.find({ courseId, isActive: true }).sort({
           order: 1,
         });
-        console.log(
-          `Found ${modulesToUpdate.length} active modules for course`,
-        );
       }
 
       if (modulesToUpdate.length === 0) {
@@ -905,29 +881,17 @@ class ProgressService {
       let lessonsAdded = 0;
 
       for (const module of modulesToUpdate) {
-        console.log(`Processing module: ${module._id} - ${module.title}`);
-
         // Find the module in progress
         const moduleProgressIndex = progress.modules.findIndex(
           (m) => m.moduleId.toString() === module._id.toString(),
         );
 
-        console.log(`Module progress index: ${moduleProgressIndex}`);
-
         if (moduleProgressIndex === -1) {
           // Module not in progress, add it
-          console.log(
-            `Module not found in progress, adding new module progress`,
-          );
-
           const lessons = await Lesson.find({
             moduleId: module._id,
             isActive: true,
           }).select("_id duration");
-
-          console.log(
-            `Found ${lessons.length} lessons for module ${module._id}`,
-          );
 
           const moduleData = {
             moduleId: module._id,
@@ -945,20 +909,11 @@ class ProgressService {
 
           progress.modules.push(moduleData);
           lessonsAdded += lessons.length;
-          console.log(`Added ${lessons.length} lessons for new module`);
         } else {
           // Module exists, check for missing lessons
-          console.log(
-            `Module exists in progress, checking for missing lessons`,
-          );
-
           const moduleProgress = progress.modules[moduleProgressIndex];
           const existingLessonIds = moduleProgress.lessons.map((l) =>
             l.lessonId.toString(),
-          );
-
-          console.log(
-            `Existing lessons in progress: ${existingLessonIds.length}`,
           );
 
           const allLessons = await Lesson.find({
@@ -966,12 +921,9 @@ class ProgressService {
             isActive: true,
           }).select("_id duration");
 
-          console.log(`All active lessons in database: ${allLessons.length}`);
-
           for (const lesson of allLessons) {
             if (!existingLessonIds.includes(lesson._id.toString())) {
               // Add missing lesson
-              console.log(`Adding missing lesson: ${lesson._id}`);
               moduleProgress.lessons.push({
                 lessonId: lesson._id,
                 watchTime: 0,
@@ -982,19 +934,12 @@ class ProgressService {
               lessonsAdded++;
             }
           }
-
-          console.log(
-            `Added ${lessonsAdded} missing lessons to existing module`,
-          );
         }
       }
-
-      console.log(`Total lessons added: ${lessonsAdded}`);
 
       if (lessonsAdded > 0) {
         progress.lastActivityAt = new Date();
         await progress.save();
-        console.log(`Progress saved successfully`);
       }
 
       return {
@@ -1002,7 +947,6 @@ class ProgressService {
         lessonsAdded,
       };
     } catch (error) {
-      console.error("Error in addMissingLessonsToProgress:", error);
       if (error instanceof AppError) throw error;
       throw new AppError(
         `Failed to add missing lessons to progress: ${error.message}`,

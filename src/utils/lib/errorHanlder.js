@@ -35,7 +35,6 @@ const sendErrorProd = (err, req, res) => {
   if (req.originalUrl.startsWith("/api")) {
     // 1. Operational, trusted error: send message to client
     if (err.isOperational) {
-      // console.log(err);
       return res.status(err.statusCode).json({
         status: err.status,
         message: err.message,
@@ -43,8 +42,7 @@ const sendErrorProd = (err, req, res) => {
     }
 
     // 2. Programming or other unknown error: don't leak error details
-    // a. Log error to the console
-    console.log("Error 🔥🔥 ", err);
+    // a. Avoid noisy logs here; upstream logger middleware should capture details.
 
     // b. Send generic message
     return res.status(500).json({
@@ -55,7 +53,6 @@ const sendErrorProd = (err, req, res) => {
 };
 
 module.exports = (err, req, res, next) => {
-  // console.log(err);
   err.statusCode = err.statusCode || 500;
   err.status = err.status || "error";
 
@@ -63,7 +60,6 @@ module.exports = (err, req, res, next) => {
     sendErrorDev(err, req, res);
   } else if (process.env.NODE_ENV === "production") {
     let error = { ...err };
-    //console.log({error});
     error.message = err.message;
     let dupErorr = error.message;
 
