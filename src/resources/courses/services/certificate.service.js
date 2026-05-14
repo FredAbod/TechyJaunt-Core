@@ -8,6 +8,15 @@ import { generateRandomString } from "../../../utils/helper/helper.js";
 import logger from "../../../utils/log/logger.js";
 import PDFDocument from "pdfkit";
 import { uploadDocument } from "../../../utils/image/s3.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CERTIFICATE_TEMPLATE_PATH = path.join(
+  __dirname,
+  "../assets/certificate-template.png",
+);
 
 class CertificateService {
   /**
@@ -94,25 +103,41 @@ class CertificateService {
     return generateRandomString(16).toUpperCase();
   }
 
+  sanitizeCertificateFilenamePart(str) {
+    return String(str ?? "")
+      .replace(/[/\\:*?"<>|]/g, "-")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 120);
+  }
+
   /**
-   * Generate certificate as PDF
+   * S3 object key segment: "Techyjaunt {course} course certificate for {name}.pdf"
+   */
+  buildCertificateUploadPublicId(courseTitle, studentName) {
+    const t = this.sanitizeCertificateFilenamePart(courseTitle);
+    const n = this.sanitizeCertificateFilenamePart(studentName);
+    const base = `Techyjaunt ${t} course certificate for ${n}.pdf`;
+    return base.length > 900 ? base.slice(0, 900) : base;
+  }
+
+  /**
+   * Generate certificate as PDF (official template image + dynamic fields)
    */
   async generateCertificatePDF(certificateData) {
     try {
       const {
         studentName,
         courseTitle,
-        issueDate,
         certificateNumber,
         completionDate,
       } = certificateData;
 
       return new Promise((resolve, reject) => {
-        // Create PDF document (A4 landscape)
         const doc = new PDFDocument({
           size: "A4",
           layout: "landscape",
-          margins: { top: 50, bottom: 50, left: 50, right: 50 },
+          margins: { top: 0, bottom: 0, left: 0, right: 0 },
         });
 
         const chunks = [];
@@ -122,149 +147,81 @@ class CertificateService {
 
         const pageWidth = doc.page.width;
         const pageHeight = doc.page.height;
+        const navy = "#0f2a6b";
+        const textBlack = "#111827";
 
-        // Background
-        doc.rect(0, 0, pageWidth, pageHeight).fill("#ffffff");
+        const drawDynamicFields = () => {
+          doc
+            .font("Times-Bold")
+            .fontSize(28)
+            .fillColor(textBlack)
+            .text(studentName, 0, pageHeight * 0.33, {
+              width: pageWidth,
+              align: "center",
+            });
 
-        // Outer border (soft gray)
-        doc
-          .rect(24, 24, pageWidth - 48, pageHeight - 48)
-          .lineWidth(2)
-          .stroke("#e5e7eb");
+          const monthYear = new Date(completionDate).toLocaleDateString(
+            "en-US",
+            {
+              month: "long",
+              year: "numeric",
+            },
+          );
 
-        // Subtle inner border (navy)
-        doc
-          .rect(38, 38, pageWidth - 76, pageHeight - 76)
-          .lineWidth(1)
-          .stroke("#0f2a6b");
+          const copyWidth = pageWidth - 200;
+          const copyLeft = 100;
+          let y = pageHeight * 0.47;
 
-        // "TechyJaunt" brand (simple text logo)
-        doc
-          .fontSize(18)
-          .font("Helvetica-Bold")
-          .fillColor("#0f2a6b")
-          .text("TechyJaunt", 60, 60);
-
-        // Title
-        doc
-          .fontSize(32)
-          .font("Helvetica-Bold")
-          .fillColor("#0f2a6b")
-          .text("CERTIFICATE OF COMPLETION", 0, 100, {
-            align: "center",
-            width: pageWidth,
+          doc
+            .font("Helvetica")
+            .fontSize(11)
+            .fillColor(textBlack)
+            .text("For completing the", copyLeft, y, {
+              width: copyWidth,
+              align: "center",
+            });
+          y += 18;
+          doc.font("Helvetica-Bold").fontSize(12).fillColor(navy);
+          const titleHeight = doc.heightOfString(courseTitle, {
+            width: copyWidth,
           });
-
-        // "Proudly presented to"
-        doc
-          .fontSize(14)
-          .font("Helvetica")
-          .fillColor("#374151")
-          .text("Proudly Presented to", 0, 155, {
+          doc.text(courseTitle, copyLeft, y, {
+            width: copyWidth,
             align: "center",
-            width: pageWidth,
           });
+          y += titleHeight + 10;
+          doc
+            .font("Helvetica-Bold")
+            .fontSize(11)
+            .fillColor(navy)
+            .text(`concluded in ${monthYear}`, copyLeft, y, {
+              width: copyWidth,
+              align: "center",
+            });
 
-        // Student name
-        doc
-          .fontSize(40)
-          .font("Helvetica-Bold")
-          .fillColor("#111827")
-          .text(studentName, 0, 185, {
-            align: "center",
+          doc
+            .font("Helvetica")
+            .fontSize(9)
+            .fillColor(textBlack)
+            .text(`Certificate ID NO: ${certificateNumber}`, 36, pageHeight - 48, {
+              width: pageWidth - 72,
+              align: "right",
+            });
+        };
+
+        if (fs.existsSync(CERTIFICATE_TEMPLATE_PATH)) {
+          doc.image(CERTIFICATE_TEMPLATE_PATH, 0, 0, {
             width: pageWidth,
+            height: pageHeight,
           });
-
-        // Underline for name
-        const nameWidth = doc.widthOfString(studentName);
-        doc
-          .moveTo((pageWidth - nameWidth) / 2, 235)
-          .lineTo((pageWidth + nameWidth) / 2, 235)
-          .lineWidth(1)
-          .stroke("#d1d5db");
-
-        // Completion text
-        doc
-          .fontSize(12)
-          .font("Helvetica")
-          .fillColor("#374151")
-          .text("For completing the", 0, 255, {
-            align: "center",
-            width: pageWidth,
+          drawDynamicFields();
+        } else {
+          logger.warn("Certificate template image missing; using plain PDF", {
+            path: CERTIFICATE_TEMPLATE_PATH,
           });
-
-        doc
-          .fontSize(14)
-          .font("Helvetica-Bold")
-          .fillColor("#0f2a6b")
-          .text(courseTitle, 0, 275, {
-            align: "center",
-            width: pageWidth,
-          });
-
-        // Completion date
-        const formattedCompletionDate = new Date(
-          completionDate,
-        ).toLocaleDateString("en-US", {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        });
-        doc
-          .fontSize(12)
-          .font("Helvetica")
-          .fillColor("#374151")
-          .text(`Completed on ${formattedCompletionDate}`, 0, 310, {
-            align: "center",
-            width: pageWidth,
-          });
-
-        // Seal (simple rosette)
-        const sealX = pageWidth - 210;
-        const sealY = 120;
-        doc.circle(sealX, sealY, 55).fill("#0f2a6b");
-        doc.circle(sealX, sealY, 46).fill("#ffffff");
-        doc.circle(sealX, sealY, 36).fill("#0f2a6b");
-        doc
-          .fontSize(14)
-          .font("Helvetica-Bold")
-          .fillColor("#ffffff")
-          .text("✓", sealX - 8, sealY - 12, { width: 16, align: "center" });
-
-        // Signature line
-        doc
-          .moveTo(90, pageHeight - 120)
-          .lineTo(290, pageHeight - 120)
-          .lineWidth(1)
-          .stroke("#9ca3af");
-
-        doc
-          .fontSize(10)
-          .font("Helvetica")
-          .fillColor("#374151")
-          .text("Authorized Signature", 90, pageHeight - 110);
-
-        // Issue date (bottom left)
-        const formattedIssueDate = new Date(issueDate).toLocaleDateString(
-          "en-US",
-          {
-            year: "numeric",
-            month: "long",
-            day: "numeric",
-          },
-        );
-        doc
-          .fontSize(10)
-          .font("Helvetica")
-          .fillColor("#6b7280")
-          .text(`Issued: ${formattedIssueDate}`, 60, pageHeight - 70);
-
-        // Certificate ID number (bottom right)
-        doc
-          .fontSize(10)
-          .font("Helvetica-Bold")
-          .fillColor("#111827")
-          .text(`Certificate ID NO: ${certificateNumber}`, pageWidth - 320, pageHeight - 70);
+          doc.rect(0, 0, pageWidth, pageHeight).fill("#ffffff");
+          drawDynamicFields();
+        }
 
         doc.end();
       });
@@ -333,9 +290,15 @@ class CertificateService {
         await this.generateCertificatePDF(certificateData);
 
       // Upload to Cloudinary
+      const uploadPublicId = this.buildCertificateUploadPublicId(
+        certificateData.courseTitle,
+        certificateData.studentName,
+      );
+
       const uploadResult = await uploadDocument(certificateBuffer, {
         folder: "techyjaunt/certificates",
-        public_id: `certificate_${userId}_${courseId}_${Date.now()}`,
+        public_id: uploadPublicId,
+        contentType: "application/pdf",
       });
 
       let certificate;

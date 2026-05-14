@@ -33,7 +33,7 @@ const tutorAvailabilitySchema = new mongoose.Schema(
       },
       maxBookings: {
         type: Number, // Max sessions in this time slot
-        default: 1
+        default: 5
       },
       currentBookings: {
         type: Number,

@@ -179,6 +179,13 @@ export const uploadDocument = async (fileBuffer, options = {}) => {
   try {
     const buffer = await streamToBuffer(fileBuffer);
     const key = `${options.folder || "techyjaunt/documents"}/${options.public_id || uuidv4()}`;
+    const ext = path.extname(key).toLowerCase();
+    const inferredContentType =
+      ext === ".pdf"
+        ? "application/pdf"
+        : ext === ".json"
+          ? "application/json"
+          : "application/octet-stream";
 
     const upload = new Upload({
       client: s3Client,
@@ -186,7 +193,7 @@ export const uploadDocument = async (fileBuffer, options = {}) => {
         Bucket: AWS_BUCKET_NAME,
         Key: key,
         Body: buffer,
-        // ContentType: match mimetype or generic binary
+        ContentType: options.contentType || inferredContentType,
       },
     });
 

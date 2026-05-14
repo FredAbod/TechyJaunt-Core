@@ -29,13 +29,29 @@ const timeSlotSchema = Joi.object({
   maxBookings: Joi.number()
     .integer()
     .min(1)
-    .max(10)
+    .max(50)
     .optional()
-    .default(1)
     .messages({
       "number.min": "Max bookings must be at least 1",
-      "number.max": "Max bookings cannot exceed 10",
+      "number.max": "Max bookings cannot exceed 50",
     }),
+  // Frontend alias for max concurrent bookings in this time block
+  slots: Joi.number()
+    .integer()
+    .min(1)
+    .max(50)
+    .optional()
+    .messages({
+      "number.min": "Slots must be at least 1",
+      "number.max": "Slots cannot exceed 50",
+    }),
+}).custom((value) => {
+  const out = { ...value };
+  if (out.maxBookings == null && out.slots != null) {
+    out.maxBookings = out.slots;
+  }
+  delete out.slots;
+  return out;
 });
 
 // Set tutor availability validation - supports both legacy and new formats

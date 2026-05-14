@@ -109,7 +109,9 @@ const certificateSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    versionKey: false
+    versionKey: false,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
 );
 
@@ -123,6 +125,16 @@ certificateSchema.virtual('certificateAge').get(function() {
   const diffTime = Math.abs(now - issued);
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   return diffDays;
+});
+
+certificateSchema.virtual('downloadFileName').get(function() {
+  const sanitize = (str) =>
+    String(str ?? '')
+      .replace(/[/\\:*?"<>|]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120);
+  return `Techyjaunt ${sanitize(this.courseTitle)} course certificate for ${sanitize(this.studentName)}.pdf`;
 });
 
 // Method to check if certificate is valid

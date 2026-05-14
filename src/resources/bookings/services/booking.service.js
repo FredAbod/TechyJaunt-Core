@@ -12,6 +12,29 @@ import {
 import SubscriptionService from "../../payments/services/subscription.service.js";
 import logger from "../../../utils/log/logger.js";
 
+const MAX_CONCURRENT_BOOKINGS_PER_BLOCK = 50;
+
+/** Capacity persisted on a tutor time block (missing/invalid → 5, capped at 50). */
+function effectiveMaxBookings(slot) {
+  const n = Number(slot?.maxBookings);
+  if (!Number.isFinite(n) || n < 1) return 5;
+  return Math.min(Math.floor(n), MAX_CONCURRENT_BOOKINGS_PER_BLOCK);
+}
+
+function normalizeIncomingTimeSlot(slot) {
+  const n = Number(slot.maxBookings ?? slot.slots);
+  const maxBookings =
+    !Number.isFinite(n) || n < 1
+      ? 5
+      : Math.min(Math.floor(n), MAX_CONCURRENT_BOOKINGS_PER_BLOCK);
+  const { slots: _slots, ...rest } = slot;
+  return {
+    ...rest,
+    maxBookings,
+    currentBookings: Number(slot.currentBookings) || 0,
+  };
+}
+
 class BookingService {
   // Helper function to generate Jitsi meeting URL
   generateMeetingUrl() {
@@ -124,11 +147,9 @@ class BookingService {
           .toLowerCase();
 
         // Process time slots with defaults
-        const processedTimeSlots = timeSlots.map((slot) => ({
-          ...slot,
-          maxBookings: slot.maxBookings || 5,
-          currentBookings: slot.currentBookings || 0,
-        }));
+        const processedTimeSlots = timeSlots.map((slot) =>
+          normalizeIncomingTimeSlot(slot),
+        );
 
         // Create processed data for this date
         const processedData = {
@@ -191,11 +212,9 @@ class BookingService {
     try {
       // Validate and set defaults for availability data
       const processedData = {
-        timeSlots: availabilityData.timeSlots.map((slot) => ({
-          ...slot,
-          maxBookings: slot.maxBookings || 5, // Default to 5 max bookings per slot
-          currentBookings: slot.currentBookings || 0,
-        })),
+        timeSlots: availabilityData.timeSlots.map((slot) =>
+          normalizeIncomingTimeSlot(slot),
+        ),
         timezone: availabilityData.timezone || "UTC",
         isRecurring:
           availabilityData.isRecurring !== undefined
@@ -351,7 +370,7 @@ class BookingService {
         availability.timeSlots.forEach((slot, index) => {
           if (
             slot.isAvailable &&
-            slot.currentBookings < Math.min(slot.maxBookings, 5)
+            slot.currentBookings < effectiveMaxBookings(slot)
           ) {
             // Generate future dates for this day of week (next 4 weeks)
             const today = new Date();
@@ -411,8 +430,8 @@ class BookingService {
                     endTime: timeSlot.endTime,
                     duration: sessionDuration,
                     availableSlots:
-                      Math.min(slot.maxBookings, 5) - slot.currentBookings,
-                    totalSlots: Math.min(slot.maxBookings, 5),
+                      effectiveMaxBookings(slot) - slot.currentBookings,
+                    totalSlots: effectiveMaxBookings(slot),
                     pricing: availability.hourlyRate || {
                       amount: 0,
                       currency: "USD",
@@ -480,7 +499,7 @@ class BookingService {
 
       if (existingBookingsCount >= slotDetails.totalSlots) {
         throw new Error(
-          "Session is full. Maximum 5 students can book the same time slot",
+          `Session is full. Maximum ${slotDetails.totalSlots} student(s) can book this time slot`,
         );
       }
 
@@ -660,18 +679,18 @@ class BookingService {
         throw new Error("Tutor is not available on this day");
       }
 
-      // Check if the requested time slot is available (allow up to 5 students)
+      // Check if the requested time slot is available (respects tutor max bookings per block)
       const availableSlot = availability.timeSlots.find((slot) => {
         return (
           slot.isAvailable &&
-          slot.currentBookings < Math.min(slot.maxBookings, 5) && // Limit to 5 students max
+          slot.currentBookings < effectiveMaxBookings(slot) &&
           this.isTimeConflict(startTime, endTime, slot.startTime, slot.endTime)
         );
       });
 
       if (!availableSlot) {
         throw new Error(
-          "Tutor is not available at the requested time or session is full (max 5 students)",
+          "Tutor is not available at the requested time or this session time is full",
         );
       }
 
@@ -684,9 +703,10 @@ class BookingService {
         endTime: endTime,
       });
 
-      if (existingBookingsCount >= 5) {
+      const slotCap = effectiveMaxBookings(availableSlot);
+      if (existingBookingsCount >= slotCap) {
         throw new Error(
-          "Session is full. Maximum 5 students can book the same time slot",
+          `Session is full. Maximum ${slotCap} student(s) can book this time slot`,
         );
       }
 
@@ -1337,7 +1357,7 @@ class BookingService {
       const availableSlot = availability.timeSlots.find((slot) => {
         const slotAvailable =
           slot.isAvailable &&
-          slot.currentBookings < Math.min(slot.maxBookings, 5);
+          slot.currentBookings < effectiveMaxBookings(slot);
         const timeOverlap = this.isTimeConflict(
           startTime,
           endTime,
@@ -1362,9 +1382,10 @@ class BookingService {
         endTime: endTime,
       });
 
-      if (existingBookingsCount >= 5) {
+      const slotCap = effectiveMaxBookings(availableSlot);
+      if (existingBookingsCount >= slotCap) {
         throw new Error(
-          "Time slot is full. Maximum 5 students can book the same time slot",
+          `Time slot is full. Maximum ${slotCap} student(s) can book this time slot`,
         );
       }
 
@@ -1757,8 +1778,8 @@ class BookingService {
         startTime: specificTimeSlot.startTime,
         endTime: specificTimeSlot.endTime,
         duration: sessionDuration,
-        availableSlots: Math.min(slot.maxBookings, 5) - slot.currentBookings,
-        totalSlots: Math.min(slot.maxBookings, 5),
+        availableSlots: effectiveMaxBookings(slot) - slot.currentBookings,
+        totalSlots: effectiveMaxBookings(slot),
         pricing: availability.hourlyRate || { amount: 0, currency: "USD" },
         course: availability.courseSpecific,
         timezone: availability.timezone,
