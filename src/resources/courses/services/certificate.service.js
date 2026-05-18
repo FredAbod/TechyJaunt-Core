@@ -18,6 +18,29 @@ const CERTIFICATE_TEMPLATE_PATH = path.join(
   "../assets/certificate-template.png",
 );
 
+/** Template art is 1024×723px; sample name/course/ID are baked in — mask before overlay. */
+const TEMPLATE_W = 1024;
+const TEMPLATE_H = 723;
+
+const TEMPLATE_MASKS = [
+  { x: 110, y: 298, w: 804, h: 58 }, // recipient name (sample text on template)
+  { x: 95, y: 368, w: 834, h: 100 }, // "For completing…" + course + date
+  { x: 648, y: 538, w: 360, h: 82 }, // footer certificate ID block
+  { x: 520, y: 686, w: 500, h: 36 }, // stray duplicate ID line on some exports
+];
+
+const TEMPLATE_LAYOUT = {
+  nameY: 312,
+  nameFontSize: 27,
+  achievementY: 382,
+  achievementWidth: 820,
+  achievementX: 102,
+  achievementFontSize: 11,
+  courseFontSize: 12,
+  certIdY: 562,
+  certIdFontSize: 8.5,
+};
+
 class CertificateService {
   /**
    * Check if user is eligible for certificate
@@ -147,66 +170,85 @@ class CertificateService {
 
         const pageWidth = doc.page.width;
         const pageHeight = doc.page.height;
+        const sx = pageWidth / TEMPLATE_W;
+        const sy = pageHeight / TEMPLATE_H;
         const navy = "#0f2a6b";
         const textBlack = "#111827";
 
-        const drawDynamicFields = () => {
-          doc
-            .font("Times-Bold")
-            .fontSize(28)
-            .fillColor(textBlack)
-            .text(studentName, 0, pageHeight * 0.33, {
-              width: pageWidth,
-              align: "center",
-            });
+        const scaleX = (v) => v * sx;
+        const scaleY = (v) => v * sy;
 
+        const maskSampleText = () => {
+          doc.save();
+          TEMPLATE_MASKS.forEach(({ x, y, w, h }) => {
+            doc.rect(scaleX(x), scaleY(y), scaleX(w), scaleY(h)).fill("#ffffff");
+          });
+          doc.restore();
+        };
+
+        const drawAchievementBlock = (blockWidth, blockLeft) => {
           const monthYear = new Date(completionDate).toLocaleDateString(
             "en-US",
-            {
-              month: "long",
-              year: "numeric",
-            },
+            { month: "long", year: "numeric" },
           );
-
-          const copyWidth = pageWidth - 200;
-          const copyLeft = 100;
-          let y = pageHeight * 0.47;
+          let y = scaleY(TEMPLATE_LAYOUT.achievementY);
 
           doc
             .font("Helvetica")
-            .fontSize(11)
+            .fontSize(TEMPLATE_LAYOUT.achievementFontSize)
             .fillColor(textBlack)
-            .text("For completing the", copyLeft, y, {
-              width: copyWidth,
+            .text("For completing the", blockLeft, y, {
+              width: blockWidth,
               align: "center",
             });
-          y += 18;
-          doc.font("Helvetica-Bold").fontSize(12).fillColor(navy);
-          const titleHeight = doc.heightOfString(courseTitle, {
-            width: copyWidth,
-          });
-          doc.text(courseTitle, copyLeft, y, {
-            width: copyWidth,
-            align: "center",
-          });
-          y += titleHeight + 10;
+          y += 15;
           doc
             .font("Helvetica-Bold")
-            .fontSize(11)
+            .fontSize(TEMPLATE_LAYOUT.courseFontSize)
             .fillColor(navy)
-            .text(`concluded in ${monthYear}`, copyLeft, y, {
-              width: copyWidth,
+            .text(courseTitle, blockLeft, y, {
+              width: blockWidth,
+              align: "center",
+            });
+          y +=
+            doc.heightOfString(courseTitle, { width: blockWidth }) + 6;
+          doc
+            .font("Helvetica-Bold")
+            .fontSize(TEMPLATE_LAYOUT.achievementFontSize)
+            .fillColor(navy)
+            .text(`concluded in ${monthYear}`, blockLeft, y, {
+              width: blockWidth,
+              align: "center",
+            });
+        };
+
+        const drawDynamicFields = () => {
+          maskSampleText();
+
+          const blockWidth = scaleX(TEMPLATE_LAYOUT.achievementWidth);
+          const blockLeft = scaleX(TEMPLATE_LAYOUT.achievementX);
+
+          doc
+            .font("Times-Bold")
+            .fontSize(TEMPLATE_LAYOUT.nameFontSize)
+            .fillColor(textBlack)
+            .text(studentName, blockLeft, scaleY(TEMPLATE_LAYOUT.nameY), {
+              width: blockWidth,
               align: "center",
             });
 
+          drawAchievementBlock(blockWidth, blockLeft);
+
           doc
             .font("Helvetica")
-            .fontSize(9)
+            .fontSize(TEMPLATE_LAYOUT.certIdFontSize)
             .fillColor(textBlack)
-            .text(`Certificate ID NO: ${certificateNumber}`, 36, pageHeight - 48, {
-              width: pageWidth - 72,
-              align: "right",
-            });
+            .text(
+              `Certificate ID NO: ${certificateNumber}`,
+              scaleX(648),
+              scaleY(TEMPLATE_LAYOUT.certIdY),
+              { width: scaleX(360), align: "left" },
+            );
         };
 
         if (fs.existsSync(CERTIFICATE_TEMPLATE_PATH)) {
