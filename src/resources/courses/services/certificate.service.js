@@ -6,40 +6,171 @@ import Subscription from "../../payments/models/subscription.js";
 import AppError from "../../../utils/lib/appError.js";
 import { generateRandomString } from "../../../utils/helper/helper.js";
 import logger from "../../../utils/log/logger.js";
-import PDFDocument from "pdfkit";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { uploadDocument } from "../../../utils/image/s3.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CERTIFICATE_TEMPLATE_PATH = path.join(
+const CERTIFICATE_TEMPLATE_PDF = path.join(
   __dirname,
-  "../assets/certificate-template.png",
+  "../assets/certificate-template.pdf",
 );
+/** Design artboard (original Canva export proportions). */
+const ARTBOARD_W = 1024;
+const ARTBOARD_H = 723;
 
-/** Template art is 1024×723px; sample name/course/ID are baked in — mask before overlay. */
-const TEMPLATE_W = 1024;
-const TEMPLATE_H = 723;
-
-const TEMPLATE_MASKS = [
-  { x: 110, y: 298, w: 804, h: 58 }, // recipient name (sample text on template)
-  { x: 95, y: 368, w: 834, h: 100 }, // "For completing…" + course + date
-  { x: 648, y: 538, w: 360, h: 82 }, // footer certificate ID block
-  { x: 520, y: 686, w: 500, h: 36 }, // stray duplicate ID line on some exports
+/** White-out sample name / course / ID from the official PDF template. */
+const SAMPLE_TEXT_MASKS = [
+  { x: 85, y: 278, w: 860, h: 78 },
+  { x: 65, y: 355, w: 910, h: 118 },
+  { x: 635, y: 515, w: 385, h: 98 },
 ];
 
-const TEMPLATE_LAYOUT = {
-  nameY: 312,
-  nameFontSize: 27,
-  achievementY: 382,
-  achievementWidth: 820,
-  achievementX: 102,
-  achievementFontSize: 11,
-  courseFontSize: 12,
-  certIdY: 562,
-  certIdFontSize: 8.5,
+const LAYOUT = {
+  nameTop: 318,
+  nameSize: 26,
+  achievementTop: 378,
+  achievementSize: 10.5,
+  courseSize: 11,
+  contentWidth: 834,
+  certIdLeft: 700,
+  certIdTop: 558,
+  certIdSize: 7.5,
 };
+
+const NAVY = rgb(0.059, 0.165, 0.42);
+const TEXT_BLACK = rgb(0.067, 0.094, 0.153);
+
+function drawMaskFromTop(page, mask, sx, sy, pageHeight) {
+  page.drawRectangle({
+    x: mask.x * sx,
+    y: pageHeight - (mask.y + mask.h) * sy,
+    width: mask.w * sx,
+    height: mask.h * sy,
+    color: rgb(1, 1, 1),
+  });
+}
+
+function drawCenteredFromTop(page, text, topY, font, size, color, sx, sy, pageWidth, pageHeight) {
+  const textWidth = font.widthOfTextAtSize(text, size);
+  const x = (pageWidth - textWidth) / 2;
+  const y = pageHeight - topY * sy - size;
+  page.drawText(text, { x, y, size, font, color });
+}
+
+function wrapTextLines(font, text, size, maxWidth) {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word;
+    if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+      line = candidate;
+    } else {
+      if (line) lines.push(line);
+      line = word;
+    }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function drawAchievementFromTop(
+  page,
+  courseTitle,
+  completionDate,
+  fonts,
+  sx,
+  sy,
+  pageWidth,
+  pageHeight,
+) {
+  const monthYear = new Date(completionDate).toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+  const prefix = "For completing the ";
+  const middle = " concluded in ";
+  const maxWidth = LAYOUT.contentWidth * sx;
+  const size = LAYOUT.achievementSize;
+  const courseSize = LAYOUT.courseSize;
+
+  const segments = [
+    { text: prefix, font: fonts.regular, size, color: TEXT_BLACK },
+    { text: courseTitle, font: fonts.bold, size: courseSize, color: NAVY },
+    { text: middle, font: fonts.regular, size, color: TEXT_BLACK },
+    { text: monthYear, font: fonts.bold, size: courseSize, color: NAVY },
+  ];
+
+  const totalWidth = segments.reduce(
+    (sum, seg) => sum + seg.font.widthOfTextAtSize(seg.text, seg.size),
+    0,
+  );
+
+  let topY = LAYOUT.achievementTop;
+
+  if (totalWidth <= maxWidth) {
+    let x = (pageWidth - totalWidth) / 2;
+    const y = pageHeight - topY * sy - courseSize;
+    for (const seg of segments) {
+      page.drawText(seg.text, {
+        x,
+        y,
+        size: seg.size,
+        font: seg.font,
+        color: seg.color,
+      });
+      x += seg.font.widthOfTextAtSize(seg.text, seg.size);
+    }
+    return;
+  }
+
+  drawCenteredFromTop(
+    page,
+    "For completing the",
+    topY,
+    fonts.regular,
+    size,
+    TEXT_BLACK,
+    sx,
+    sy,
+    pageWidth,
+    pageHeight,
+  );
+  topY += 16;
+
+  const courseLines = wrapTextLines(fonts.bold, courseTitle, courseSize, maxWidth);
+  for (const line of courseLines) {
+    drawCenteredFromTop(
+      page,
+      line,
+      topY,
+      fonts.bold,
+      courseSize,
+      NAVY,
+      sx,
+      sy,
+      pageWidth,
+      pageHeight,
+    );
+    topY += 15;
+  }
+
+  drawCenteredFromTop(
+    page,
+    `concluded in ${monthYear}`,
+    topY + 2,
+    fonts.bold,
+    courseSize,
+    NAVY,
+    sx,
+    sy,
+    pageWidth,
+    pageHeight,
+  );
+}
 
 class CertificateService {
   /**
@@ -144,8 +275,20 @@ class CertificateService {
     return base.length > 900 ? base.slice(0, 900) : base;
   }
 
+  resolveStudentName(user) {
+    return [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+  }
+
+  resolveCourseTitle(course) {
+    const title =
+      course?.certificateTitle?.trim() ||
+      course?.title?.trim() ||
+      "Course";
+    return title;
+  }
+
   /**
-   * Generate certificate as PDF (official template image + dynamic fields)
+   * Generate certificate PDF from official template + student/course fields only.
    */
   async generateCertificatePDF(certificateData) {
     try {
@@ -156,118 +299,61 @@ class CertificateService {
         completionDate,
       } = certificateData;
 
-      return new Promise((resolve, reject) => {
-        const doc = new PDFDocument({
-          size: "A4",
-          layout: "landscape",
-          margins: { top: 0, bottom: 0, left: 0, right: 0 },
-        });
+      if (!fs.existsSync(CERTIFICATE_TEMPLATE_PDF)) {
+        throw new AppError("Certificate template PDF is missing on server", 500);
+      }
 
-        const chunks = [];
-        doc.on("data", (chunk) => chunks.push(chunk));
-        doc.on("end", () => resolve(Buffer.concat(chunks)));
-        doc.on("error", reject);
+      const templateBytes = fs.readFileSync(CERTIFICATE_TEMPLATE_PDF);
+      const pdfDoc = await PDFDocument.load(templateBytes);
+      const page = pdfDoc.getPages()[0];
+      const { width: pageWidth, height: pageHeight } = page.getSize();
+      const sx = pageWidth / ARTBOARD_W;
+      const sy = pageHeight / ARTBOARD_H;
 
-        const pageWidth = doc.page.width;
-        const pageHeight = doc.page.height;
-        const sx = pageWidth / TEMPLATE_W;
-        const sy = pageHeight / TEMPLATE_H;
-        const navy = "#0f2a6b";
-        const textBlack = "#111827";
+      const timesBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
+      const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
+      const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-        const scaleX = (v) => v * sx;
-        const scaleY = (v) => v * sy;
+      SAMPLE_TEXT_MASKS.forEach((mask) =>
+        drawMaskFromTop(page, mask, sx, sy, pageHeight),
+      );
 
-        const maskSampleText = () => {
-          doc.save();
-          TEMPLATE_MASKS.forEach(({ x, y, w, h }) => {
-            doc.rect(scaleX(x), scaleY(y), scaleX(w), scaleY(h)).fill("#ffffff");
-          });
-          doc.restore();
-        };
+      drawCenteredFromTop(
+        page,
+        studentName,
+        LAYOUT.nameTop,
+        timesBold,
+        LAYOUT.nameSize,
+        TEXT_BLACK,
+        sx,
+        sy,
+        pageWidth,
+        pageHeight,
+      );
 
-        const drawAchievementBlock = (blockWidth, blockLeft) => {
-          const monthYear = new Date(completionDate).toLocaleDateString(
-            "en-US",
-            { month: "long", year: "numeric" },
-          );
-          let y = scaleY(TEMPLATE_LAYOUT.achievementY);
+      drawAchievementFromTop(
+        page,
+        courseTitle,
+        completionDate,
+        { regular: helvetica, bold: helveticaBold },
+        sx,
+        sy,
+        pageWidth,
+        pageHeight,
+      );
 
-          doc
-            .font("Helvetica")
-            .fontSize(TEMPLATE_LAYOUT.achievementFontSize)
-            .fillColor(textBlack)
-            .text("For completing the", blockLeft, y, {
-              width: blockWidth,
-              align: "center",
-            });
-          y += 15;
-          doc
-            .font("Helvetica-Bold")
-            .fontSize(TEMPLATE_LAYOUT.courseFontSize)
-            .fillColor(navy)
-            .text(courseTitle, blockLeft, y, {
-              width: blockWidth,
-              align: "center",
-            });
-          y +=
-            doc.heightOfString(courseTitle, { width: blockWidth }) + 6;
-          doc
-            .font("Helvetica-Bold")
-            .fontSize(TEMPLATE_LAYOUT.achievementFontSize)
-            .fillColor(navy)
-            .text(`concluded in ${monthYear}`, blockLeft, y, {
-              width: blockWidth,
-              align: "center",
-            });
-        };
-
-        const drawDynamicFields = () => {
-          maskSampleText();
-
-          const blockWidth = scaleX(TEMPLATE_LAYOUT.achievementWidth);
-          const blockLeft = scaleX(TEMPLATE_LAYOUT.achievementX);
-
-          doc
-            .font("Times-Bold")
-            .fontSize(TEMPLATE_LAYOUT.nameFontSize)
-            .fillColor(textBlack)
-            .text(studentName, blockLeft, scaleY(TEMPLATE_LAYOUT.nameY), {
-              width: blockWidth,
-              align: "center",
-            });
-
-          drawAchievementBlock(blockWidth, blockLeft);
-
-          doc
-            .font("Helvetica")
-            .fontSize(TEMPLATE_LAYOUT.certIdFontSize)
-            .fillColor(textBlack)
-            .text(
-              `Certificate ID NO: ${certificateNumber}`,
-              scaleX(648),
-              scaleY(TEMPLATE_LAYOUT.certIdY),
-              { width: scaleX(360), align: "left" },
-            );
-        };
-
-        if (fs.existsSync(CERTIFICATE_TEMPLATE_PATH)) {
-          doc.image(CERTIFICATE_TEMPLATE_PATH, 0, 0, {
-            width: pageWidth,
-            height: pageHeight,
-          });
-          drawDynamicFields();
-        } else {
-          logger.warn("Certificate template image missing; using plain PDF", {
-            path: CERTIFICATE_TEMPLATE_PATH,
-          });
-          doc.rect(0, 0, pageWidth, pageHeight).fill("#ffffff");
-          drawDynamicFields();
-        }
-
-        doc.end();
+      const certIdText = `Certificate ID NO: ${certificateNumber}`;
+      page.drawText(certIdText, {
+        x: LAYOUT.certIdLeft * sx,
+        y: pageHeight - LAYOUT.certIdTop * sy - LAYOUT.certIdSize,
+        size: LAYOUT.certIdSize,
+        font: helvetica,
+        color: TEXT_BLACK,
       });
+
+      return Buffer.from(await pdfDoc.save());
     } catch (error) {
+      if (error instanceof AppError) throw error;
       logger.error(`Certificate PDF generation error: ${error.message}`);
       throw new AppError("Failed to generate certificate PDF", 500);
     }
@@ -308,9 +394,9 @@ class CertificateService {
         existingCertificate?.verificationCode || this.generateVerificationCode();
 
       const certificateData = {
-        studentName: `${user.firstName} ${user.lastName}`,
+        studentName: this.resolveStudentName(user),
         studentEmail: user.email,
-        courseTitle: course.title,
+        courseTitle: this.resolveCourseTitle(course),
         courseCategory: course.category,
         courseLevel: course.level,
         courseDuration: course.duration,
