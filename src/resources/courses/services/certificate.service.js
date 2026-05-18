@@ -13,20 +13,15 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CERTIFICATE_TEMPLATE_PDF = path.join(
+/** Background with sample name/course/ID already removed (see scripts/build-certificate-blank-template.mjs). */
+const CERTIFICATE_TEMPLATE_BLANK_PNG = path.join(
   __dirname,
-  "../assets/certificate-template.pdf",
+  "../assets/certificate-template-blank.png",
 );
-/** Design artboard (original Canva export proportions). */
+
+/** Design artboard (matches blank PNG export). */
 const ARTBOARD_W = 1024;
 const ARTBOARD_H = 723;
-
-/** White-out sample name / course / ID from the official PDF template. */
-const SAMPLE_TEXT_MASKS = [
-  { x: 85, y: 278, w: 860, h: 78 },
-  { x: 65, y: 355, w: 910, h: 118 },
-  { x: 635, y: 515, w: 385, h: 98 },
-];
 
 const LAYOUT = {
   nameTop: 318,
@@ -42,16 +37,6 @@ const LAYOUT = {
 
 const NAVY = rgb(0.059, 0.165, 0.42);
 const TEXT_BLACK = rgb(0.067, 0.094, 0.153);
-
-function drawMaskFromTop(page, mask, sx, sy, pageHeight) {
-  page.drawRectangle({
-    x: mask.x * sx,
-    y: pageHeight - (mask.y + mask.h) * sy,
-    width: mask.w * sx,
-    height: mask.h * sy,
-    color: rgb(1, 1, 1),
-  });
-}
 
 function drawCenteredFromTop(page, text, topY, font, size, color, sx, sy, pageWidth, pageHeight) {
   const textWidth = font.widthOfTextAtSize(text, size);
@@ -288,7 +273,7 @@ class CertificateService {
   }
 
   /**
-   * Generate certificate PDF from official template + student/course fields only.
+   * Generate certificate PDF: blank official artwork + student/course fields only.
    */
   async generateCertificatePDF(certificateData) {
     try {
@@ -299,24 +284,32 @@ class CertificateService {
         completionDate,
       } = certificateData;
 
-      if (!fs.existsSync(CERTIFICATE_TEMPLATE_PDF)) {
-        throw new AppError("Certificate template PDF is missing on server", 500);
+      if (!fs.existsSync(CERTIFICATE_TEMPLATE_BLANK_PNG)) {
+        throw new AppError(
+          "Certificate blank template is missing on server",
+          500,
+        );
       }
 
-      const templateBytes = fs.readFileSync(CERTIFICATE_TEMPLATE_PDF);
-      const pdfDoc = await PDFDocument.load(templateBytes);
-      const page = pdfDoc.getPages()[0];
-      const { width: pageWidth, height: pageHeight } = page.getSize();
+      const pngBytes = fs.readFileSync(CERTIFICATE_TEMPLATE_BLANK_PNG);
+      const pdfDoc = await PDFDocument.create();
+      const background = await pdfDoc.embedPng(pngBytes);
+      const pageWidth = ARTBOARD_W;
+      const pageHeight = ARTBOARD_H;
+      const page = pdfDoc.addPage([pageWidth, pageHeight]);
+      page.drawImage(background, {
+        x: 0,
+        y: 0,
+        width: pageWidth,
+        height: pageHeight,
+      });
+
       const sx = pageWidth / ARTBOARD_W;
       const sy = pageHeight / ARTBOARD_H;
 
       const timesBold = await pdfDoc.embedFont(StandardFonts.TimesRomanBold);
       const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-      SAMPLE_TEXT_MASKS.forEach((mask) =>
-        drawMaskFromTop(page, mask, sx, sy, pageHeight),
-      );
 
       drawCenteredFromTop(
         page,
