@@ -18,11 +18,11 @@ const outPath = path.join(
   "src/resources/courses/assets/certificate-template-blank.png",
 );
 
-/** White-out regions (fractions of image size) — covers all sample dynamic text. */
+/** Only the center dynamic-text bands — keep seal + right border art intact. */
 const MASKS_FRACTION = [
-  { x: 0.07, y: 0.385, w: 0.86, h: 0.12 }, // recipient name
-  { x: 0.05, y: 0.49, w: 0.9, h: 0.17 }, // course + date
-  { x: 0.6, y: 0.7, w: 0.38, h: 0.15 }, // certificate ID
+  { x: 0.1, y: 0.405, w: 0.58, h: 0.09 }, // recipient name
+  { x: 0.08, y: 0.495, w: 0.62, h: 0.125 }, // course + date
+  { x: 0.64, y: 0.735, w: 0.33, h: 0.075 }, // certificate ID (footer only)
 ];
 
 const img = await loadImage(srcPath);

@@ -99,6 +99,7 @@ const welcomeTemplate = (firstName) => {
             <p>At TechyJaunt, we believe in practical learning and continuous growth. Our platform offers personalized learning paths and insights based on your progress, helping you to make informed decisions about your tech career. We also offer live sessions, expert mentorship, and real-world projects to help you excel even more.</p>
             <p>Our team has worked tirelessly to create a platform that is not only easy to use but also secure. We use advanced encryption and other security measures to protect your learning data and comply with all applicable data privacy and security regulations.</p>
             <p>Thank you for choosing TechyJaunt as your learning partner. We're excited to help you achieve your tech goals and look forward to serving you.</p>
+            <p>Follow the TechyJaunt channel on WhatsApp: <a href="https://whatsapp.com/channel/0029VanpOlGFXUuZFZ30i91r" style="color:#2230F6">https://whatsapp.com/channel/0029VanpOlGFXUuZFZ30i91r</a></p>
             <p>Best regards,</p>
             <p>John Kent</p>
             <p>Founder, TechyJaunt</p>

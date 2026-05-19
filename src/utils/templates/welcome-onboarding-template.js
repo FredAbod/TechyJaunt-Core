@@ -146,6 +146,11 @@ const welcomeOnboardingTemplate = (firstName) => {
                     <a href="#" class="button">Complete Your Profile</a>
                 </div>
 
+                <p style="text-align: center; margin: 24px 0;">
+                    Follow the TechyJaunt channel on WhatsApp:
+                    <a href="https://whatsapp.com/channel/0029VanpOlGFXUuZFZ30i91r" style="color: #667eea; font-weight: 600;">https://whatsapp.com/channel/0029VanpOlGFXUuZFZ30i91r</a>
+                </p>
+
                 <p style="text-align: center; color: #666; font-style: italic;">
                     "The best time to plant a tree was 20 years ago. The second best time is now." - Chinese Proverb
                 </p>
