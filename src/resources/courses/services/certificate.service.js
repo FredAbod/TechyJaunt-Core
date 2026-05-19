@@ -19,31 +19,28 @@ const CERTIFICATE_TEMPLATE_BLANK_PNG = path.join(
   "../assets/certificate-template-blank.png",
 );
 
-/** Design artboard (matches blank PNG export). */
-const ARTBOARD_W = 1024;
-const ARTBOARD_H = 723;
+/** Must match certificate-template.png / certificate-template-blank.png (891×622). */
+const ARTBOARD_W = 891;
+const ARTBOARD_H = 622;
 
-/** Text sits in the main body column (left of the seal). */
-const CONTENT = {
-  left: 95,
-  width: 720,
-};
+/** Max width for the achievement line (keeps text left of the seal). */
+const ACHIEVEMENT_MAX_WIDTH = 640;
 
 const LAYOUT = {
-  nameTop: 332,
-  nameSize: 25,
-  achievementTop: 392,
-  achievementSize: 10.5,
-  courseSize: 11.5,
-  certIdLeft: 668,
-  certIdTop: 548,
-  certIdSize: 7.5,
+  nameTop: 286,
+  nameSize: 22,
+  achievementTop: 338,
+  achievementSize: 9.5,
+  courseSize: 10,
+  certIdLeft: 578,
+  certIdTop: 472,
+  certIdSize: 7,
 };
 
 const NAVY = rgb(0.059, 0.165, 0.42);
 const TEXT_BLACK = rgb(0.067, 0.094, 0.153);
 
-function drawCenteredInColumn(
+function drawCenteredOnPage(
   page,
   text,
   topY,
@@ -52,12 +49,11 @@ function drawCenteredInColumn(
   color,
   sx,
   sy,
+  pageWidth,
   pageHeight,
 ) {
-  const boxLeft = CONTENT.left * sx;
-  const boxWidth = CONTENT.width * sx;
   const textWidth = font.widthOfTextAtSize(text, size);
-  const x = boxLeft + (boxWidth - textWidth) / 2;
+  const x = (pageWidth - textWidth) / 2;
   const y = pageHeight - topY * sy - size;
   page.drawText(text, { x, y, size, font, color });
 }
@@ -86,6 +82,7 @@ function drawAchievementFromTop(
   fonts,
   sx,
   sy,
+  pageWidth,
   pageHeight,
 ) {
   const monthYear = new Date(completionDate).toLocaleDateString("en-US", {
@@ -94,8 +91,7 @@ function drawAchievementFromTop(
   });
   const prefix = "For completing the ";
   const middle = " concluded in ";
-  const boxLeft = CONTENT.left * sx;
-  const maxWidth = CONTENT.width * sx;
+  const maxWidth = ACHIEVEMENT_MAX_WIDTH * sx;
   const size = LAYOUT.achievementSize;
   const courseSize = LAYOUT.courseSize;
 
@@ -114,7 +110,7 @@ function drawAchievementFromTop(
   let topY = LAYOUT.achievementTop;
 
   if (totalWidth <= maxWidth) {
-    let x = boxLeft + (maxWidth - totalWidth) / 2;
+    let x = (pageWidth - totalWidth) / 2;
     const y = pageHeight - topY * sy - courseSize;
     for (const seg of segments) {
       page.drawText(seg.text, {
@@ -129,7 +125,7 @@ function drawAchievementFromTop(
     return;
   }
 
-  drawCenteredInColumn(
+  drawCenteredOnPage(
     page,
     "For completing the",
     topY,
@@ -138,13 +134,14 @@ function drawAchievementFromTop(
     TEXT_BLACK,
     sx,
     sy,
+    pageWidth,
     pageHeight,
   );
-  topY += 16;
+  topY += 14;
 
   const courseLines = wrapTextLines(fonts.bold, courseTitle, courseSize, maxWidth);
   for (const line of courseLines) {
-    drawCenteredInColumn(
+    drawCenteredOnPage(
       page,
       line,
       topY,
@@ -153,12 +150,13 @@ function drawAchievementFromTop(
       NAVY,
       sx,
       sy,
+      pageWidth,
       pageHeight,
     );
-    topY += 15;
+    topY += 14;
   }
 
-  drawCenteredInColumn(
+  drawCenteredOnPage(
     page,
     `concluded in ${monthYear}`,
     topY + 2,
@@ -167,6 +165,7 @@ function drawAchievementFromTop(
     NAVY,
     sx,
     sy,
+    pageWidth,
     pageHeight,
   );
 }
@@ -325,7 +324,7 @@ class CertificateService {
       const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-      drawCenteredInColumn(
+      drawCenteredOnPage(
         page,
         studentName,
         LAYOUT.nameTop,
@@ -334,6 +333,7 @@ class CertificateService {
         NAVY,
         sx,
         sy,
+        pageWidth,
         pageHeight,
       );
 
@@ -344,6 +344,7 @@ class CertificateService {
         { regular: helvetica, bold: helveticaBold },
         sx,
         sy,
+        pageWidth,
         pageHeight,
       );
 

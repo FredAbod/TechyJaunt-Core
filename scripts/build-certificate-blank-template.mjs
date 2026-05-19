@@ -18,11 +18,14 @@ const outPath = path.join(
   "src/resources/courses/assets/certificate-template-blank.png",
 );
 
-/** Only the center dynamic-text bands — keep seal + right border art intact. */
+/**
+ * Erase only dynamic placeholder text (name line, course line, cert ID).
+ * Stops before the seal (~x 72%) so ribbons/border stay intact.
+ */
 const MASKS_FRACTION = [
-  { x: 0.1, y: 0.405, w: 0.58, h: 0.09 }, // recipient name
-  { x: 0.08, y: 0.495, w: 0.62, h: 0.125 }, // course + date
-  { x: 0.64, y: 0.735, w: 0.33, h: 0.075 }, // certificate ID (footer only)
+  { x: 0.1, y: 0.412, w: 0.58, h: 0.068 }, // recipient name line
+  { x: 0.04, y: 0.472, w: 0.68, h: 0.1 }, // "For completing…" + course + date
+  { x: 0.54, y: 0.655, w: 0.44, h: 0.12 }, // certificate ID block (footer right)
 ];
 
 const img = await loadImage(srcPath);
