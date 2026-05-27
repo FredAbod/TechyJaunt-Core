@@ -552,28 +552,36 @@ class BookingService {
         .populate("courseSpecific", "title")
         .sort({ dayOfWeek: 1 });
 
-      // Filter out past dates from availability
+      // IMPORTANT:
+      // Do not drop tutor availability blocks just because their specificDate is in the past.
+      // The frontend expects this endpoint to return the availability the tutor configured;
+      // otherwise it breaks when the tutor has only set past availability.
+      //
+      // We still add an `isPast` flag so the UI can choose to hide/disable it if desired.
       const today = new Date();
-      today.setHours(0, 0, 0, 0); // Set to start of today
+      today.setHours(0, 0, 0, 0);
 
-      const filteredAvailability = availability.filter((avail) => {
-        // If there's a specific date, check if it's in the future
-        if (avail.specificDate) {
-          const availDate = new Date(avail.specificDate);
+      const availabilityWithMeta = availability.map((availDoc) => {
+        const obj = availDoc?.toObject ? availDoc.toObject() : availDoc;
+
+        let isPast = false;
+        if (obj?.specificDate) {
+          const availDate = new Date(obj.specificDate);
           availDate.setHours(0, 0, 0, 0);
-          return availDate >= today;
+          isPast = availDate < today;
         }
-        // If it's recurring, keep it (it applies to future dates)
-        return true;
+
+        return {
+          ...obj,
+          isPast,
+        };
       });
 
       return {
-        availability: filteredAvailability,
+        availability: availabilityWithMeta,
         tutorCourses,
         tutorInfo:
-          filteredAvailability.length > 0
-            ? filteredAvailability[0].tutorId
-            : null,
+          availabilityWithMeta.length > 0 ? availabilityWithMeta[0].tutorId : null,
       };
     } catch (error) {
       throw error;
