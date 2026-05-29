@@ -12,6 +12,7 @@
     "check:whitelist": "bash check-paystack-whitelist.sh",
     "seed:subscription-plans": "node seeders/subscription-plans-seeder.js",
     "migrate:subscription-plans": "node migrations/migrate-subscription-plans.js",
+    "migrate:max-bookings": "node migrations/migrate-tutor-availability-max-bookings.js",
     "seed:all": "npm run seed:subscription-plans",
     "build:certificate-template": "node scripts/build-certificate-blank-template.mjs"
   },

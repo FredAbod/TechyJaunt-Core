@@ -675,12 +675,27 @@ class ProgressService {
   // Get progress statistics for admin/tutor
   async getCourseProgressStats(courseId) {
     try {
-      const totalStudents = await Progress.countDocuments({ courseId });
+      const { ACTIVE_SUBSCRIPTION_PROGRESS_STAGES } = await import(
+        "./adminStats.service.js"
+      );
+      const courseObjectId = new mongoose.Types.ObjectId(courseId);
+
+      const baseMatch = [
+        { $match: { courseId: courseObjectId } },
+        ...ACTIVE_SUBSCRIPTION_PROGRESS_STAGES,
+      ];
+
+      const countRows = await Progress.aggregate([
+        ...baseMatch,
+        { $count: "totalStudents" },
+      ]);
+      const totalStudents = countRows[0]?.totalStudents || 0;
 
       if (totalStudents === 0) {
         return {
           totalStudents: 0,
           completedStudents: 0,
+          completionRate: 0,
           averageProgress: 0,
           averageWatchTime: 0,
           moduleStats: [],
@@ -688,7 +703,7 @@ class ProgressService {
       }
 
       const progressData = await Progress.aggregate([
-        { $match: { courseId: new mongoose.Types.ObjectId(courseId) } },
+        ...baseMatch,
         {
           $group: {
             _id: null,

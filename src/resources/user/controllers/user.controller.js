@@ -435,70 +435,26 @@ export const getAllStudents = async (req, res) => {
       totalCountPromise,
     ]);
 
-    // Get enrollment statistics for each student (optimized with fallback)
+    // Enrollment stats: active subscriptions only (matches student dashboard)
     let studentsWithStats;
     try {
-      studentsWithStats = await Promise.all(
-        students.map(async (student) => {
-          try {
-            // Use a more efficient query to get basic enrollment stats
-            const Progress = (await import("../../courses/models/progress.js"))
-              .default;
-
-            const enrollmentStats = await Progress.aggregate([
-              { $match: { userId: student._id } },
-              {
-                $group: {
-                  _id: null,
-                  totalCourses: { $sum: 1 },
-                  completedCourses: {
-                    $sum: { $cond: [{ $eq: ["$isCompleted", true] }, 1, 0] },
-                  },
-                  inProgressCourses: {
-                    $sum: {
-                      $cond: [{ $eq: ["$isCompleted", false] }, 1, 0],
-                    },
-                  },
-                  avgProgress: { $avg: "$overallProgress" },
-                },
-              },
-            ]);
-
-            const stats = enrollmentStats[0] || {
-              totalCourses: 0,
-              completedCourses: 0,
-              inProgressCourses: 0,
-              avgProgress: 0,
-            };
-
-            return {
-              ...student.toJSON(),
-              enrollmentStats: {
-                totalCourses: stats.totalCourses || 0,
-                completedCourses: stats.completedCourses || 0,
-                inProgressCourses: stats.inProgressCourses || 0,
-                overallProgress: Math.round(stats.avgProgress || 0),
-              },
-            };
-          } catch (error) {
-            // If stats retrieval fails for this student, return student without stats
-            logger.warn(
-              `Failed to get stats for student ${student._id}: ${error.message}`,
-            );
-            return {
-              ...student.toJSON(),
-              enrollmentStats: {
-                totalCourses: 0,
-                completedCourses: 0,
-                inProgressCourses: 0,
-                overallProgress: 0,
-              },
-            };
-          }
-        }),
+      const { getEnrollmentStatsByUserIds } = await import(
+        "../../courses/services/adminStats.service.js"
       );
+      const statsByUser = await getEnrollmentStatsByUserIds(
+        students.map((s) => s._id),
+      );
+      studentsWithStats = students.map((student) => ({
+        ...student.toJSON(),
+        enrollmentStats:
+          statsByUser.get(student._id.toString()) || {
+            totalCourses: 0,
+            completedCourses: 0,
+            inProgressCourses: 0,
+            overallProgress: 0,
+          },
+      }));
     } catch (error) {
-      // Fallback: if getting stats fails entirely, return students without stats
       logger.warn(
         `Failed to get enrollment stats, returning students without stats: ${error.message}`,
       );
@@ -521,31 +477,10 @@ export const getAllStudents = async (req, res) => {
       hasPrev: page > 1,
     };
 
-    // Compute platform-wide stats
-    const Progress = (await import("../../courses/models/progress.js")).default;
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-
-    const [totalRegisteredUsers, totalCompletedCourses, totalActiveUsers] =
-      await Promise.all([
-        User.countDocuments({ role: "user" }),
-        Progress.countDocuments({ isCompleted: true }),
-        User.countDocuments({
-          role: "user",
-          lastLogin: { $gte: thirtyDaysAgo },
-        }),
-      ]);
-
-    const activeUsersPercentage =
-      totalRegisteredUsers > 0
-        ? Math.round((totalActiveUsers / totalRegisteredUsers) * 100 * 10) / 10
-        : 0;
-
-    const platformStats = {
-      totalRegisteredUsers,
-      totalCompletedCourses,
-      totalActiveUsers,
-      activeUsersPercentage,
-    };
+    const { getPlatformStats } = await import(
+      "../../courses/services/adminStats.service.js"
+    );
+    const platformStats = await getPlatformStats();
 
     logger.info(`Admin ${userId} retrieved students list`);
     return successResMsg(res, 200, {
@@ -586,56 +521,34 @@ export const getStudentById = async (req, res) => {
       return errorResMsg(res, 403, "Can only view student accounts");
     }
 
-    // Get detailed enrollment statistics
     let studentWithStats;
     try {
       const Progress = (await import("../../courses/models/progress.js"))
         .default;
+      const { getStudentEnrollmentStats } = await import(
+        "../../courses/services/adminStats.service.js"
+      );
 
-      const enrollmentStats = await Progress.aggregate([
-        { $match: { userId: student._id } },
-        {
-          $group: {
-            _id: null,
-            totalCourses: { $sum: 1 },
-            completedCourses: {
-              $sum: {
-                $cond: [{ $eq: ["$isCompleted", true] }, 1, 0],
-              },
-            },
-            inProgressCourses: {
-              $sum: {
-                $cond: [{ $eq: ["$isCompleted", false] }, 1, 0],
-              },
-            },
-            averageProgress: { $avg: "$overallProgress" },
-          },
-        },
-      ]);
+      const enrollmentStats = await getStudentEnrollmentStats(student._id);
 
-      const stats = enrollmentStats[0] || {
-        totalCourses: 0,
-        completedCourses: 0,
-        inProgressCourses: 0,
-        averageProgress: 0,
-      };
-
-      // Get detailed course progress
-      const courseProgress = await Progress.find({
-        userId: student._id,
-      })
+      const allProgress = await Progress.find({ userId: student._id })
         .populate("courseId", "title description thumbnail category level")
+        .populate("subscriptionId", "plan status endDate startDate")
         .sort({ updatedAt: -1 });
+
+      const now = new Date();
+      const courseProgress = allProgress.filter(
+        (p) =>
+          p.subscriptionId &&
+          p.subscriptionId.status === "active" &&
+          p.subscriptionId.endDate &&
+          new Date(p.subscriptionId.endDate) > now,
+      );
 
       studentWithStats = {
         ...student.toJSON(),
-        enrollmentStats: {
-          totalCourses: stats.totalCourses,
-          completedCourses: stats.completedCourses,
-          inProgressCourses: stats.inProgressCourses,
-          overallProgress: Math.round(stats.averageProgress || 0),
-        },
-        courseProgress: courseProgress,
+        enrollmentStats,
+        courseProgress,
       };
     } catch (error) {
       logger.warn(
