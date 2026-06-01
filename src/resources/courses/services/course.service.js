@@ -545,18 +545,21 @@ class CourseService {
             select: "firstName lastName",
           },
         })
-        .populate("subscriptionId", "plan status endDate startDate createdAt")
+        .populate(
+          "subscriptionId",
+          "plan status endDate startDate createdAt featureAccess",
+        )
         .sort({ lastActivityAt: -1 });
 
-      // Only include courses with active, unexpired subscriptions (aligns with progress dashboard)
-      const now = new Date();
+      const hasLifetimeCourseAccess = (progress) => {
+        const sub = progress.subscriptionId;
+        if (!progress.courseId || !sub) return false;
+        if (!["active", "expired"].includes(sub.status)) return false;
+        return !!sub.featureAccess?.courseAccess?.hasLifetimeAccess;
+      };
+
       const activeEnrolledCourses = enrolledCourses.filter(
-        (p) =>
-          p.courseId &&
-          p.subscriptionId &&
-          p.subscriptionId.status === "active" &&
-          p.subscriptionId.endDate &&
-          new Date(p.subscriptionId.endDate) > now,
+        hasLifetimeCourseAccess,
       );
 
       // Calculate statistics
@@ -613,7 +616,11 @@ class CourseService {
           subscription: progress.subscriptionId
             ? {
                 plan: progress.subscriptionId.plan,
-                status: "active",
+                status: progress.subscriptionId.status,
+                billingActive:
+                  progress.subscriptionId.status === "active" &&
+                  progress.subscriptionId.endDate &&
+                  new Date(progress.subscriptionId.endDate) > now,
                 endDate: progress.subscriptionId.endDate,
                 startDate: progress.subscriptionId.startDate,
                 createdAt: progress.subscriptionId.createdAt,

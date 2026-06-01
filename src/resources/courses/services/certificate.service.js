@@ -191,11 +191,11 @@ class CertificateService {
         };
       }
 
-      // Check if user has active subscription with certificate access
       const subscription = await Subscription.findOne({
         user: userId,
         courseId,
-        status: "active",
+        status: { $in: ["active", "expired"] },
+        "featureAccess.courseAccess.hasLifetimeAccess": true,
         "featureAccess.certificate.hasAccess": true,
       });
 
@@ -203,7 +203,7 @@ class CertificateService {
         return {
           eligible: false,
           reason:
-            "Certificate access not available. Please upgrade to Bronze or Gold plan to receive a certificate.",
+            "Certificate access not available. Subscribe to a plan that includes certificates for this course.",
         };
       }
 

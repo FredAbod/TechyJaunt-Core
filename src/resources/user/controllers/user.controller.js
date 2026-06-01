@@ -525,30 +525,75 @@ export const getStudentById = async (req, res) => {
     try {
       const Progress = (await import("../../courses/models/progress.js"))
         .default;
+      const Subscription = (
+        await import("../../payments/models/subscription.js")
+      ).default;
+      const BookingSession = (
+        await import("../../bookings/models/bookingSession.js")
+      ).default;
       const { getStudentEnrollmentStats } = await import(
         "../../courses/services/adminStats.service.js"
       );
 
       const enrollmentStats = await getStudentEnrollmentStats(student._id);
+      const now = new Date();
 
-      const allProgress = await Progress.find({ userId: student._id })
+      const subscriptions = await Subscription.find({ user: student._id })
         .populate("courseId", "title description thumbnail category level")
-        .populate("subscriptionId", "plan status endDate startDate")
+        .sort({ createdAt: -1 })
+        .lean();
+
+      const subscriptionsWithMeta = subscriptions.map((sub) => ({
+        ...sub,
+        isCurrentlyActive:
+          sub.status === "active" &&
+          sub.endDate &&
+          new Date(sub.endDate) > now,
+      }));
+
+      const progressDocs = await Progress.find({ userId: student._id })
+        .populate("courseId", "title description thumbnail category level")
+        .populate(
+          "subscriptionId",
+          "plan status endDate startDate featureAccess",
+        )
         .sort({ updatedAt: -1 });
 
-      const now = new Date();
-      const courseProgress = allProgress.filter(
-        (p) =>
-          p.subscriptionId &&
-          p.subscriptionId.status === "active" &&
-          p.subscriptionId.endDate &&
-          new Date(p.subscriptionId.endDate) > now,
+      const courseProgress = progressDocs.map((p) => {
+        const doc = p.toJSON();
+        const sub = p.subscriptionId;
+        doc.hasActiveSubscription =
+          !!sub &&
+          sub.status === "active" &&
+          sub.endDate &&
+          new Date(sub.endDate) > now;
+        doc.hasCourseEntitlement =
+          !!sub &&
+          ["active", "expired"].includes(sub.status) &&
+          !!sub.featureAccess?.courseAccess?.hasLifetimeAccess;
+        return doc;
+      });
+
+      const activeCourseProgress = courseProgress.filter(
+        (p) => p.hasActiveSubscription,
       );
+
+      const recentBookings = await BookingSession.find({
+        studentId: student._id,
+      })
+        .populate("tutorId", "firstName lastName email")
+        .populate("courseId", "title")
+        .sort({ sessionDate: -1 })
+        .limit(20)
+        .lean();
 
       studentWithStats = {
         ...student.toJSON(),
         enrollmentStats,
+        subscriptions: subscriptionsWithMeta,
         courseProgress,
+        activeCourseProgress,
+        recentBookings,
       };
     } catch (error) {
       logger.warn(
@@ -562,7 +607,10 @@ export const getStudentById = async (req, res) => {
           inProgressCourses: 0,
           overallProgress: 0,
         },
+        subscriptions: [],
         courseProgress: [],
+        activeCourseProgress: [],
+        recentBookings: [],
       };
     }
 

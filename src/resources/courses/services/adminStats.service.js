@@ -2,8 +2,8 @@ import mongoose from "mongoose";
 import Progress from "../models/progress.js";
 import User from "../../user/models/user.js";
 
-/** Progress rows tied to a current, unexpired subscription. */
-export const ACTIVE_SUBSCRIPTION_PROGRESS_STAGES = [
+/** Progress rows with lifetime course access (paid active or expired subscription). */
+export const COURSE_ENTITLEMENT_PROGRESS_STAGES = [
   {
     $lookup: {
       from: "subscriptions",
@@ -15,11 +15,15 @@ export const ACTIVE_SUBSCRIPTION_PROGRESS_STAGES = [
   { $unwind: { path: "$subscription", preserveNullAndEmptyArrays: false } },
   {
     $match: {
-      "subscription.status": "active",
-      "subscription.endDate": { $gt: new Date() },
+      "subscription.status": { $in: ["active", "expired"] },
+      "subscription.featureAccess.courseAccess.hasLifetimeAccess": true,
     },
   },
 ];
+
+/** @deprecated Use COURSE_ENTITLEMENT_PROGRESS_STAGES */
+export const ACTIVE_SUBSCRIPTION_PROGRESS_STAGES =
+  COURSE_ENTITLEMENT_PROGRESS_STAGES;
 
 function emptyEnrollmentStats() {
   return {
@@ -41,7 +45,7 @@ function formatEnrollmentGroup(row) {
 }
 
 /**
- * Enrollment stats for one student (active subscriptions only).
+ * Enrollment stats for one student (lifetime course entitlement).
  */
 export async function getStudentEnrollmentStats(userId) {
   const userObjectId =
@@ -49,7 +53,7 @@ export async function getStudentEnrollmentStats(userId) {
 
   const rows = await Progress.aggregate([
     { $match: { userId: userObjectId } },
-    ...ACTIVE_SUBSCRIPTION_PROGRESS_STAGES,
+    ...COURSE_ENTITLEMENT_PROGRESS_STAGES,
     {
       $group: {
         _id: null,
@@ -80,7 +84,7 @@ export async function getEnrollmentStatsByUserIds(userIds) {
 
   const rows = await Progress.aggregate([
     { $match: { userId: { $in: objectIds } } },
-    ...ACTIVE_SUBSCRIPTION_PROGRESS_STAGES,
+    ...COURSE_ENTITLEMENT_PROGRESS_STAGES,
     {
       $group: {
         _id: "$userId",
@@ -116,7 +120,7 @@ export async function getPlatformStats() {
     await Promise.all([
       User.countDocuments({ role: "user" }),
       Progress.aggregate([
-        ...ACTIVE_SUBSCRIPTION_PROGRESS_STAGES,
+        ...COURSE_ENTITLEMENT_PROGRESS_STAGES,
         {
           $group: {
             _id: null,

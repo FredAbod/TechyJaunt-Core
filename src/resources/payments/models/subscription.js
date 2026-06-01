@@ -1,4 +1,10 @@
 import mongoose from "mongoose";
+import {
+  hasPaidEntitlement,
+  isBillingPeriodActive,
+  isLifetimeCourseFeature,
+  isBillingPeriodFeature,
+} from "../../../utils/subscription/subscriptionEntitlements.js";
 
 const subscriptionSchema = new mongoose.Schema(
   {
@@ -132,32 +138,59 @@ subscriptionSchema.virtual('isCurrentlyActive').get(function() {
   return this.status === 'active' && this.endDate > new Date();
 });
 
+subscriptionSchema.methods.hasPaidEntitlement = function () {
+  return hasPaidEntitlement(this);
+};
+
+subscriptionSchema.methods.isBillingPeriodActive = function () {
+  return isBillingPeriodActive(this);
+};
+
 // Method to check if specific feature is accessible
-subscriptionSchema.methods.hasFeatureAccess = function(featureName) {
-  if (!this.featureAccess || !this.featureAccess[featureName]) {
+subscriptionSchema.methods.hasFeatureAccess = function (featureName) {
+  if (!this.hasPaidEntitlement()) {
     return false;
+  }
+
+  if (!this.featureAccess) {
+    return false;
+  }
+
+  if (featureName === "courseAccess") {
+    const feature = this.featureAccess.courseAccess;
+    if (!feature) return false;
+    if (feature.hasLifetimeAccess) return true;
+    return Array.isArray(feature.courses) && feature.courses.length > 0;
   }
 
   const feature = this.featureAccess[featureName];
-
-  // Special-case course access: it's represented as lifetime access or a course list,
-  // not a simple hasAccess boolean.
-  if (featureName === "courseAccess") {
-    if (feature.hasLifetimeAccess) return true;
-    if (Array.isArray(feature.courses) && feature.courses.length > 0) return true;
+  if (!feature) {
     return false;
   }
-  
-  // Check if feature has access
+
+  if (isLifetimeCourseFeature(featureName)) {
+    return !!feature.hasAccess;
+  }
+
+  if (isBillingPeriodFeature(featureName)) {
+    if (!this.isBillingPeriodActive()) {
+      return false;
+    }
+    if (!feature.hasAccess) {
+      return false;
+    }
+    if (feature.expiresAt && feature.expiresAt < new Date()) {
+      return false;
+    }
+    return true;
+  }
+
   if (!feature.hasAccess) {
     return false;
   }
-
-  // Check if feature has expired (if it has an expiry date)
   if (feature.expiresAt && feature.expiresAt < new Date()) {
     return false;
   }
-
   return true;
 };
 

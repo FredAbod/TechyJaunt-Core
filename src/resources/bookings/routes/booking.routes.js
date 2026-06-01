@@ -71,6 +71,27 @@ router.post('/availability',
 
 /**
  * @swagger
+ * /api/v1/bookings/availability:
+ *   put:
+ *     tags:
+ *       - Bookings
+ *     summary: Replace tutor availability (full schedule swap)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Availability replaced successfully
+ */
+router.put('/availability',
+  bookingLimiter,
+  isAuthenticated,
+  roleBasedAccess(['tutor', 'admin', 'super admin']),
+  validateRequest(setAvailabilitySchema),
+  bookingController.replaceAvailability
+);
+
+/**
+ * @swagger
  * /api/v1/bookings/availability/{tutorId}:
  *   get:
  *     tags:

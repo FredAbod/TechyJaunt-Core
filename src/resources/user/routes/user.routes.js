@@ -264,6 +264,7 @@ router.get(
   "/admin/students/:studentId",
   profileLimiter,
   isAuthenticated,
+  roleBasedAccess(["admin", "super admin"]),
   getStudentById,
 );
 

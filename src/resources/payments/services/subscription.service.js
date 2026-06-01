@@ -7,6 +7,14 @@ import AppError from "../../../utils/lib/appError.js";
 import { PAYSTACK_SECRET_KEY } from "../../../utils/helper/config.js";
 import { generateRandomString } from "../../../utils/helper/helper.js";
 import logger from "../../../utils/log/logger.js";
+import {
+  PAID_SUBSCRIPTION_STATUSES,
+  LIFETIME_COURSE_FEATURES,
+  BILLING_PERIOD_FEATURES,
+  hasCourseEntitlement,
+  isBillingPeriodActive,
+} from "../../../utils/subscription/subscriptionEntitlements.js";
+import { sendSubscriptionPaymentSuccessEmail } from "../../../utils/email/email-sender.js";
 
 class SubscriptionService {
   constructor() {
@@ -519,86 +527,144 @@ class SubscriptionService {
   }
 
   /**
-   * Setup feature access based on subscription plan
+   * Setup feature access based on subscription plan.
+   * Course + certificate/resources/community: lifetime on the subscribed course.
+   * AI tutor + mentorship: limited to the billing period (endDate).
    */
-  setupFeatureAccess(planType, startDate, endDate) {
+  setupFeatureAccess(planType, startDate, endDate, existingFeatureAccess = null) {
+    const billingEnd = new Date(endDate);
     const oneMonthFromStart = new Date(startDate);
     oneMonthFromStart.setMonth(oneMonthFromStart.getMonth() + 1);
 
+    const aiMentorshipExpiresAt =
+      planType === "bronze" ? oneMonthFromStart : billingEnd;
+
+    const priorMentorship = existingFeatureAccess?.mentorship || {};
+
     const featureAccess = {
       aiTutor: { hasAccess: false },
-      mentorship: { hasAccess: false, sessionsUsed: 0, sessionsLimit: 4 },
-      courseAccess: { hasLifetimeAccess: false, courses: [] },
-      premiumResources: { hasAccess: false },
-      certificate: { hasAccess: false },
-      alumniCommunity: { hasAccess: false },
-      linkedinOptimization: { hasAccess: false },
-      networking: { hasAccess: false },
+      mentorship: {
+        hasAccess: false,
+        sessionsUsed: priorMentorship.sessionsUsed || 0,
+        sessionsLimit: priorMentorship.sessionsLimit || 4,
+      },
+      courseAccess: { hasLifetimeAccess: true, courses: [] },
+      premiumResources: { hasAccess: true },
+      certificate: { hasAccess: true },
+      alumniCommunity: { hasAccess: true },
+      linkedinOptimization: { hasAccess: true },
+      networking: { hasAccess: true },
     };
 
     switch (planType) {
       case "bronze":
-        featureAccess.courseAccess.hasLifetimeAccess = true;
-        featureAccess.certificate.hasAccess = true;
         featureAccess.aiTutor = {
           hasAccess: true,
-          expiresAt: oneMonthFromStart,
+          expiresAt: aiMentorshipExpiresAt,
         };
-        featureAccess.premiumResources.hasAccess = true;
-        featureAccess.linkedinOptimization.hasAccess = true;
-        featureAccess.networking.hasAccess = true;
-        featureAccess.alumniCommunity.hasAccess = true;
         break;
 
       case "silver":
         featureAccess.aiTutor = {
           hasAccess: true,
-          expiresAt: oneMonthFromStart,
+          expiresAt: aiMentorshipExpiresAt,
         };
         featureAccess.mentorship = {
           hasAccess: true,
-          expiresAt: oneMonthFromStart,
+          expiresAt: aiMentorshipExpiresAt,
           sessionsUsed: 0,
           sessionsLimit: 4,
-        };
-        featureAccess.alumniCommunity = {
-          hasAccess: true,
-          expiresAt: oneMonthFromStart,
-        };
-        featureAccess.linkedinOptimization.hasAccess = true;
-        featureAccess.networking = {
-          hasAccess: true,
-          expiresAt: oneMonthFromStart,
         };
         break;
 
       case "gold":
-        featureAccess.courseAccess.hasLifetimeAccess = true;
-        featureAccess.certificate.hasAccess = true;
         featureAccess.aiTutor = {
           hasAccess: true,
-          expiresAt: oneMonthFromStart,
+          expiresAt: aiMentorshipExpiresAt,
         };
         featureAccess.mentorship = {
           hasAccess: true,
-          expiresAt: oneMonthFromStart,
+          expiresAt: aiMentorshipExpiresAt,
           sessionsUsed: 0,
           sessionsLimit: 4,
         };
-        featureAccess.premiumResources.hasAccess = true;
-        featureAccess.alumniCommunity = {
-          hasAccess: true,
-          expiresAt: oneMonthFromStart,
-        };
-        featureAccess.linkedinOptimization.hasAccess = true;
-        featureAccess.networking = {
-          hasAccess: true,
-          expiresAt: oneMonthFromStart,
-        };
+        break;
+
+      default:
         break;
     }
 
     return featureAccess;
+  }
+
+  async markExpiredIfDue(subscription) {
+    if (!subscription || subscription.status !== "active") {
+      return subscription;
+    }
+    if (subscription.endDate && new Date(subscription.endDate) <= new Date()) {
+      subscription.status = "expired";
+      await subscription.save();
+      logger.info(
+        `Subscription ${subscription._id} marked expired (endDate passed)`,
+      );
+    }
+    return subscription;
+  }
+
+  pickBestSubscription(subscriptions) {
+    const planPriority = { gold: 3, silver: 2, bronze: 1 };
+    return [...subscriptions].sort((a, b) => {
+      const pa = planPriority[a.plan] || 0;
+      const pb = planPriority[b.plan] || 0;
+      if (pb !== pa) return pb - pa;
+      const ea = new Date(a.endDate).getTime();
+      const eb = new Date(b.endDate).getTime();
+      return eb - ea;
+    })[0];
+  }
+
+  buildAggregatedFeatureAccess(entitlementSubs, billingSubs) {
+    const featureAccess = {};
+    for (const feature of LIFETIME_COURSE_FEATURES) {
+      featureAccess[feature] = entitlementSubs.some((sub) =>
+        sub.hasFeatureAccess(feature),
+      );
+    }
+    for (const feature of BILLING_PERIOD_FEATURES) {
+      featureAccess[feature] = billingSubs.some((sub) =>
+        sub.hasFeatureAccess(feature),
+      );
+    }
+    return featureAccess;
+  }
+
+  async sendPaymentSuccessNotification(subscription) {
+    try {
+      const User = (await import("../../user/models/user.js")).default;
+      const Course = (await import("../../courses/models/course.js")).default;
+
+      const user = await User.findById(subscription.user).select(
+        "email firstName",
+      );
+      const course = await Course.findById(subscription.courseId).select(
+        "title",
+      );
+
+      if (!user?.email) {
+        return;
+      }
+
+      await sendSubscriptionPaymentSuccessEmail(user.email, {
+        firstName: user.firstName,
+        planName: subscription.planDetails?.name || subscription.plan,
+        courseTitle: course?.title,
+      });
+    } catch (emailError) {
+      logger.error(
+        `Subscription payment email failed: ${emailError.message}`,
+        { subscriptionId: subscription._id },
+      );
+    }
   }
 
   /**
@@ -632,6 +698,8 @@ class SubscriptionService {
 
       const paymentData = response.data.data;
 
+      const wasPending = subscription.status === "pending";
+
       // Update subscription status
       subscription.status =
         paymentData.status === "success" ? "active" : "failed";
@@ -639,10 +707,21 @@ class SubscriptionService {
       subscription.paymentMethod = paymentData.channel;
       subscription.metadata = paymentData;
 
+      if (subscription.status === "active") {
+        subscription.featureAccess = this.setupFeatureAccess(
+          subscription.plan,
+          subscription.startDate,
+          subscription.endDate,
+        );
+      }
+
       await subscription.save();
 
       // If payment was successful, initialize progress and increment totalStudents
       if (subscription.status === "active") {
+        if (wasPending) {
+          await this.sendPaymentSuccessNotification(subscription);
+        }
         try {
           const progressService = (
             await import("../../courses/services/progress.service.js")
@@ -740,16 +819,25 @@ class SubscriptionService {
           ? new mongoose.Types.ObjectId(userId)
           : userId;
 
-      const activeSubscriptions = await Subscription.find({
+      const paidSubscriptions = await Subscription.find({
         user: userObjectId,
-        status: "active",
-        endDate: { $gt: new Date() },
+        status: { $in: PAID_SUBSCRIPTION_STATUSES },
       }).populate("courseId", "title category level image thumbnail");
+
+      for (const sub of paidSubscriptions) {
+        await this.markExpiredIfDue(sub);
+      }
+
+      const activeSubscriptions = paidSubscriptions.filter((sub) =>
+        isBillingPeriodActive(sub),
+      );
+      const entitlementSubs = paidSubscriptions.filter((sub) =>
+        hasCourseEntitlement(sub),
+      );
 
       const hasActiveSubscription = activeSubscriptions.length > 0;
       const activePlans = activeSubscriptions.map((sub) => sub.plan);
 
-      // Aggregate feature access from all active subscriptions
       const aggregatedFeatures = {
         aiTutor: false,
         mentorship: false,
@@ -761,8 +849,16 @@ class SubscriptionService {
         networking: false,
       };
 
+      entitlementSubs.forEach((sub) => {
+        LIFETIME_COURSE_FEATURES.forEach((feature) => {
+          if (sub.hasFeatureAccess(feature)) {
+            aggregatedFeatures[feature] = true;
+          }
+        });
+      });
+
       activeSubscriptions.forEach((sub) => {
-        Object.keys(aggregatedFeatures).forEach((feature) => {
+        BILLING_PERIOD_FEATURES.forEach((feature) => {
           if (sub.hasFeatureAccess(feature)) {
             aggregatedFeatures[feature] = true;
           }
@@ -771,6 +867,7 @@ class SubscriptionService {
 
       return {
         hasActiveSubscription,
+        hasCourseEntitlement: entitlementSubs.length > 0,
         activePlans,
         totalActiveSubscriptions: activeSubscriptions.length,
         featureAccess: aggregatedFeatures,
@@ -831,12 +928,23 @@ class SubscriptionService {
           return { status: "error", message: "Subscription not found" };
         }
 
+        const wasPending = subscription.status === "pending";
+
         // Update subscription status
         subscription.status = "active";
         subscription.paystackReference = data.reference;
         subscription.paymentMethod = data.channel;
         subscription.metadata = { ...subscription.metadata, paymentData: data };
+        subscription.featureAccess = this.setupFeatureAccess(
+          subscription.plan,
+          subscription.startDate,
+          subscription.endDate,
+        );
         await subscription.save();
+
+        if (wasPending) {
+          await this.sendPaymentSuccessNotification(subscription);
+        }
 
         logger.info(
           `Subscription ${subscription._id} activated for user ${subscription.user}`,
@@ -853,9 +961,10 @@ class SubscriptionService {
             );
             if (originalSubscription) {
               originalSubscription.endDate = subscription.endDate;
+              originalSubscription.status = "active";
               originalSubscription.featureAccess = this.setupFeatureAccess(
                 originalSubscription.plan,
-                originalSubscription.startDate,
+                subscription.startDate,
                 subscription.endDate,
               );
               await originalSubscription.save();
@@ -974,19 +1083,30 @@ class SubscriptionService {
           ? new mongoose.Types.ObjectId(courseId)
           : courseId;
 
-      const now = new Date();
-      const subscriptions = await Subscription.find({
+      const paidSubscriptions = await Subscription.find({
         user: userObjectId,
         courseId: courseObjectId,
-        status: "active",
-        endDate: { $gt: now },
+        status: { $in: PAID_SUBSCRIPTION_STATUSES },
       })
         .populate("courseId", "title category level")
         .sort({ endDate: -1, createdAt: -1 });
 
-      if (!subscriptions || subscriptions.length === 0) {
+      for (const sub of paidSubscriptions) {
+        await this.markExpiredIfDue(sub);
+      }
+
+      const entitlementSubs = paidSubscriptions.filter((sub) =>
+        hasCourseEntitlement(sub),
+      );
+      const billingSubs = paidSubscriptions.filter((sub) =>
+        isBillingPeriodActive(sub),
+      );
+
+      if (entitlementSubs.length === 0) {
         return {
           hasSubscription: false,
+          hasCourseEntitlement: false,
+          hasActiveBilling: false,
           plan: null,
           featureAccess: {
             aiTutor: false,
@@ -1002,50 +1122,44 @@ class SubscriptionService {
         };
       }
 
-      // Prefer highest plan when multiple active subscriptions exist
-      const planPriority = { gold: 3, silver: 2, bronze: 1 };
-      const subscription = [...subscriptions].sort((a, b) => {
-        const pa = planPriority[a.plan] || 0;
-        const pb = planPriority[b.plan] || 0;
-        if (pb !== pa) return pb - pa;
-        // fallback to later end date
-        const ea = new Date(a.endDate).getTime();
-        const eb = new Date(b.endDate).getTime();
-        return eb - ea;
-      })[0];
+      const entitlementSub = this.pickBestSubscription(entitlementSubs);
+      const billingSub =
+        billingSubs.length > 0
+          ? this.pickBestSubscription(billingSubs)
+          : null;
 
-      // Build feature access object with detailed info
-      const featureAccess = {
-        aiTutor: subscription.hasFeatureAccess("aiTutor"),
-        mentorship: subscription.hasFeatureAccess("mentorship"),
-        courseAccess: subscription.hasFeatureAccess("courseAccess"),
-        premiumResources: subscription.hasFeatureAccess("premiumResources"),
-        certificate: subscription.hasFeatureAccess("certificate"),
-        alumniCommunity: subscription.hasFeatureAccess("alumniCommunity"),
-        linkedinOptimization: subscription.hasFeatureAccess("linkedinOptimization"),
-        networking: subscription.hasFeatureAccess("networking"),
-      };
+      const featureAccess = this.buildAggregatedFeatureAccess(
+        entitlementSubs,
+        billingSubs,
+      );
 
-      // Include mentorship session tracking
-      const mentorshipDetails = subscription.featureAccess?.mentorship || {};
+      const mentorshipSource =
+        billingSub?.featureAccess?.mentorship ||
+        entitlementSub.featureAccess?.mentorship ||
+        {};
 
       return {
         hasSubscription: true,
-        plan: subscription.plan,
+        hasCourseEntitlement: true,
+        hasActiveBilling: billingSubs.length > 0,
+        plan: entitlementSub.plan,
         featureAccess,
         mentorshipDetails: {
-          sessionsUsed: mentorshipDetails.sessionsUsed || 0,
-          sessionsLimit: mentorshipDetails.sessionsLimit || 0,
+          sessionsUsed: mentorshipSource.sessionsUsed || 0,
+          sessionsLimit: mentorshipSource.sessionsLimit || 0,
           hasAccess: featureAccess.mentorship,
-          expiresAt: mentorshipDetails.expiresAt,
+          expiresAt: mentorshipSource.expiresAt,
         },
         subscription: {
-          id: subscription._id,
-          plan: subscription.plan,
-          course: subscription.courseId,
-          startDate: subscription.startDate,
-          endDate: subscription.endDate,
-          isRecurring: subscription.isRecurring,
+          id: entitlementSub._id,
+          plan: entitlementSub.plan,
+          status: entitlementSub.status,
+          course: entitlementSub.courseId,
+          startDate: entitlementSub.startDate,
+          endDate: entitlementSub.endDate,
+          isRecurring: entitlementSub.isRecurring,
+          billingActive: !!billingSub,
+          billingEndDate: billingSub?.endDate || null,
         },
       };
     } catch (error) {
@@ -1073,11 +1187,25 @@ class SubscriptionService {
       // If no courseId provided, use global subscription status
       if (!courseId) {
         const globalStatus = await this.getUserSubscriptionStatus(userId);
-        
-        if (!globalStatus.hasActiveSubscription) {
+
+        const needsBilling = BILLING_PERIOD_FEATURES.includes(featureName);
+        const needsEntitlement =
+          LIFETIME_COURSE_FEATURES.includes(featureName);
+
+        if (needsEntitlement && !globalStatus.hasCourseEntitlement) {
           return {
             allowed: false,
-            reason: "No active subscription found. Please subscribe to access this feature.",
+            reason:
+              "No subscription found. Please subscribe to access this feature.",
+            subscription: null,
+          };
+        }
+
+        if (needsBilling && !globalStatus.hasActiveSubscription) {
+          return {
+            allowed: false,
+            reason:
+              "Your subscription period has ended. Renew to continue using the AI tutor and booking sessions.",
             subscription: null,
           };
         }
@@ -1102,11 +1230,29 @@ class SubscriptionService {
       // Course-specific check
       const status = await this.getCourseSubscriptionStatus(userId, courseId);
 
-      if (!status.hasSubscription) {
+      const needsCourseEntitlement = LIFETIME_COURSE_FEATURES.includes(
+        featureName,
+      );
+
+      if (needsCourseEntitlement && !status.hasCourseEntitlement) {
         return {
           allowed: false,
-          reason: "No active subscription found for this course. Please subscribe to access this feature.",
+          reason:
+            "No subscription found for this course. Please subscribe to access this feature.",
           subscription: null,
+        };
+      }
+
+      if (
+        BILLING_PERIOD_FEATURES.includes(featureName) &&
+        !status.hasActiveBilling
+      ) {
+        return {
+          allowed: false,
+          reason:
+            "Your subscription period has ended. Renew to continue using the AI tutor and booking sessions.",
+          subscription: status.subscription,
+          plan: status.plan,
         };
       }
 

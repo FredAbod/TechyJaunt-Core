@@ -260,14 +260,15 @@ class ProgressController {
       const Progress = (await import("../models/progress.js")).default;
       const progresses = await Progress.find({ userId })
         .populate('courseId', 'title description thumbnail category level')
-        .populate('subscriptionId', 'status endDate plan')
+        .populate('subscriptionId', 'status endDate plan featureAccess')
         .sort({ lastActivityAt: -1 });
 
-      const activeProgresses = progresses.filter(progress => 
-        progress.subscriptionId && 
-        progress.subscriptionId.status === 'active' &&
-        progress.subscriptionId.endDate > new Date()
-      );
+      const activeProgresses = progresses.filter((progress) => {
+        const sub = progress.subscriptionId;
+        if (!sub) return false;
+        if (!["active", "expired"].includes(sub.status)) return false;
+        return !!sub.featureAccess?.courseAccess?.hasLifetimeAccess;
+      });
 
       const dashboardData = activeProgresses.map(progress => ({
         courseId: progress.courseId._id,

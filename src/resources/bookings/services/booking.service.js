@@ -108,6 +108,52 @@ class BookingService {
     }
   }
 
+  /**
+   * Replace all availability for a tutor (or one course) with the payload sent by the client.
+   * Deletes existing schedule rows first, then creates the new ones.
+   */
+  async replaceTutorAvailability(tutorId, availabilityData) {
+    const tutor = await User.findById(tutorId);
+    if (!tutor || !["admin", "tutor", "super admin"].includes(tutor.role)) {
+      throw new Error("Only tutors and admins can set availability");
+    }
+
+    const deleteQuery = { tutorId };
+    if (availabilityData.courseSpecific) {
+      deleteQuery.courseSpecific = availabilityData.courseSpecific;
+    }
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const upcomingBookings = await BookingSession.countDocuments({
+      tutorId,
+      status: { $in: ["pending", "confirmed"] },
+      sessionDate: { $gte: startOfToday },
+      ...(availabilityData.courseSpecific
+        ? { courseId: availabilityData.courseSpecific }
+        : {}),
+    });
+
+    if (upcomingBookings > 0) {
+      throw new Error(
+        "Cannot replace availability while there are upcoming booked sessions. Reschedule or cancel them first.",
+      );
+    }
+
+    await TutorAvailability.deleteMany(deleteQuery);
+
+    const created = await this.setTutorAvailability(tutorId, availabilityData);
+
+    return {
+      replaced: true,
+      deletedScope: availabilityData.courseSpecific
+        ? "course"
+        : "all",
+      availability: created,
+    };
+  }
+
   // Helper method: Set availability using selectedDates format (new)
   async setAvailabilityBySelectedDates(tutorId, availabilityData, tutor) {
     try {

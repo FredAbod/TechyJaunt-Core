@@ -8,6 +8,7 @@ import sessionBookingTutorTemplate from "../templates/session-booking-tutor-temp
 import sessionBookingAdminTemplate from "../templates/session-booking-admin-template.js";
 import sessionReminderStudentTemplate from "../templates/session-reminder-student-template.js";
 import sessionReminderTutorTemplate from "../templates/session-reminder-tutor-template.js";
+import subscriptionPaymentSuccessTemplate from "../templates/subscription-payment-success-template.js";
 import logger from "../log/logger.js";
 
 // Create a reusable transporter
@@ -337,9 +338,41 @@ const sendSessionReminderTutorEmail = async (
   }
 };
 
+const sendSubscriptionPaymentSuccessEmail = async (
+  email,
+  { firstName, planName, courseTitle },
+) => {
+  try {
+    const transporter = createTransporter();
+    const mailOptions = {
+      from: `"TechyJaunt" <${process.env.EMAIL_NODEMAILER}>`,
+      to: email,
+      subject: "Your TechyJaunt subscription is confirmed",
+      html: subscriptionPaymentSuccessTemplate({
+        firstName,
+        planName,
+        courseTitle,
+      }),
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    logger.info("Subscription payment email sent", {
+      to: email,
+      response: info.response,
+    });
+  } catch (error) {
+    logger.error("Subscription payment email error", {
+      to: email,
+      error: error.message,
+    });
+    throw new Error("Couldn't send subscription confirmation email.");
+  }
+};
+
 export {
   sendOtpEmail,
   sendWelcomeOnboardingEmail,
+  sendSubscriptionPaymentSuccessEmail,
   sendMail,
   sendPasswordResetEmail,
   sendServerFailure,

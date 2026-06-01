@@ -28,6 +28,30 @@ const setAvailability = async (req, res) => {
 };
 
 /**
+ * Replace tutor availability (delete existing schedule, then save new payload)
+ */
+const replaceAvailability = async (req, res) => {
+  try {
+    const tutorId = req.user.userId;
+    const availabilityData = req.body;
+
+    const result = await bookingService.replaceTutorAvailability(
+      tutorId,
+      availabilityData,
+    );
+
+    logger.info(`Tutor ${tutorId} replaced availability`);
+    return successResMsg(res, 200, {
+      message: "Availability updated successfully",
+      data: result,
+    });
+  } catch (error) {
+    logger.error("Error replacing availability:", error);
+    return errorResMsg(res, error.statusCode || 500, error.message);
+  }
+};
+
+/**
  * Get tutor availability
  */
 const getAvailability = async (req, res) => {
@@ -390,6 +414,7 @@ const getSessionParticipants = async (req, res) => {
 
 export {
   setAvailability,
+  replaceAvailability,
   getAvailability,
   bookSession,
   getAvailableSessionSlots,
