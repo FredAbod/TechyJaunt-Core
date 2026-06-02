@@ -235,11 +235,26 @@ router.post("/promote-role", profileLimiter, isAuthenticated, promoteUserRole);
  *         name: limit
  *         schema:
  *           type: integer
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search by first name, last name, or email
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
  *         description: List of all students
  */
-router.get("/admin/students", profileLimiter, isAuthenticated, getAllStudents);
+router.get(
+  "/admin/students",
+  profileLimiter,
+  isAuthenticated,
+  roleBasedAccess(["admin", "super admin"]),
+  getAllStudents,
+);
 
 /**
  * @swagger
