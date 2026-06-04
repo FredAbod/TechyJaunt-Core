@@ -1,4 +1,3 @@
-import nodemailer from "nodemailer";
 import otpVerificationTemplate from "../templates/otp-verification-template.js";
 import welcomeOnboardingTemplate from "../templates/welcome-onboarding-template.js";
 import FgPasswordTemplate from "../templates/FgPassword-template.js";
@@ -9,35 +8,19 @@ import sessionBookingAdminTemplate from "../templates/session-booking-admin-temp
 import sessionReminderStudentTemplate from "../templates/session-reminder-student-template.js";
 import sessionReminderTutorTemplate from "../templates/session-reminder-tutor-template.js";
 import subscriptionPaymentSuccessTemplate from "../templates/subscription-payment-success-template.js";
+import { sendZeptoEmail } from "./zeptomail-client.js";
 import logger from "../log/logger.js";
-
-// Create a reusable transporter
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.EMAIL_HOST || "smtp.gmail.com",
-    port: process.env.EMAIL_PORT || 587,
-    secure: process.env.EMAIL_SECURE === "true", // true for 465, false for other ports
-    auth: {
-      user: process.env.EMAIL_NODEMAILER,
-      pass: process.env.PASSWORD_NODEMAILER,
-    },
-  });
-};
 
 // Send OTP verification email for TechyJaunt
 const sendOtpEmail = async (email, otp, firstName = "") => {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: email,
+      toName: firstName,
       subject: "Verify Your Email - TechyJaunt Registration",
       html: otpVerificationTemplate(firstName, otp),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("OTP email sent", { to: email, response: info.response });
+    });
+    logger.info("OTP email sent", { to: email });
   } catch (error) {
     logger.error("OTP email error", { to: email, error: error.message });
     throw new Error("Couldn't send OTP email.");
@@ -47,17 +30,13 @@ const sendOtpEmail = async (email, otp, firstName = "") => {
 // Send welcome email after successful registration
 const sendWelcomeOnboardingEmail = async (email, firstName) => {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: email,
+      toName: firstName,
       subject: "Welcome to TechyJaunt Learning Platform!",
       html: welcomeOnboardingTemplate(firstName),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Welcome email sent", { to: email, response: info.response });
+    });
+    logger.info("Welcome email sent", { to: email });
   } catch (error) {
     logger.error("Welcome email error", { to: email, error: error.message });
     throw new Error("Couldn't send welcome email.");
@@ -67,17 +46,13 @@ const sendWelcomeOnboardingEmail = async (email, firstName) => {
 // Send reset password email with token
 const sendResetPasswordEmail = async (email, firstName, resetToken) => {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: email,
+      toName: firstName,
       subject: "Reset Your Password - TechyJaunt",
       html: FgPasswordTemplate(resetToken, firstName),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Reset password email sent", { to: email, response: info.response });
+    });
+    logger.info("Reset password email sent", { to: email });
   } catch (error) {
     logger.error("Reset password email error", { to: email, error: error.message });
     throw new Error("Couldn't send reset password email.");
@@ -87,19 +62,18 @@ const sendResetPasswordEmail = async (email, firstName, resetToken) => {
 // Send password reset confirmation email
 const sendPasswordResetConfirmationEmail = async (email, firstName) => {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: email,
+      toName: firstName,
       subject: "Password Reset Successful - TechyJaunt",
       html: resetPasswordTemplate(firstName),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Password reset confirmation email sent", { to: email, response: info.response });
+    });
+    logger.info("Password reset confirmation email sent", { to: email });
   } catch (error) {
-    logger.error("Password reset confirmation email error", { to: email, error: error.message });
+    logger.error("Password reset confirmation email error", {
+      to: email,
+      error: error.message,
+    });
     throw new Error("Couldn't send password reset confirmation email.");
   }
 };
@@ -107,18 +81,13 @@ const sendPasswordResetConfirmationEmail = async (email, firstName) => {
 // Send general email
 const sendMail = async (to, subject, text, html = null) => {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+    const info = await sendZeptoEmail({
       to,
       subject,
       text,
       html: html || undefined,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Email sent", { to, messageId: info.messageId });
+    });
+    logger.info("Email sent", { to, subject });
     return info;
   } catch (error) {
     logger.error("Email error", { to, subject, error: error.message });
@@ -129,13 +98,11 @@ const sendMail = async (to, subject, text, html = null) => {
 // Send password reset email
 const sendPasswordResetEmail = async (email, resetToken, firstName = "") => {
   try {
-    const transporter = createTransporter();
-
     const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
 
-    const mailOptions = {
-      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: email,
+      toName: firstName,
       subject: "Password Reset Request - TechyJaunt",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -149,10 +116,8 @@ const sendPasswordResetEmail = async (email, resetToken, firstName = "") => {
           <p>Best regards,<br>TechyJaunt Team</p>
         </div>
       `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Password reset email sent", { to: email, response: info.response });
+    });
+    logger.info("Password reset email sent", { to: email });
   } catch (error) {
     logger.error("Password reset email error", { to: email, error: error.message });
     throw new Error("Couldn't send password reset email.");
@@ -162,12 +127,10 @@ const sendPasswordResetEmail = async (email, resetToken, firstName = "") => {
 // Send server failure notification email
 const sendServerFailure = async (email, errorMessage) => {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"TechyJaunt System" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: email,
       subject: "TechyJaunt - Server Issue Notification",
+      fromName: "TechyJaunt System",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #e74c3c;">Server Issue Alert</h2>
@@ -183,10 +146,8 @@ const sendServerFailure = async (email, errorMessage) => {
           </p>
         </div>
       `,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Server failure email sent", { to: email, response: info.response });
+    });
+    logger.info("Server failure email sent", { to: email });
   } catch (error) {
     logger.error("Server failure email error", { to: email, error: error.message });
     // Don't throw error here to avoid infinite loops
@@ -201,23 +162,22 @@ const sendSessionBookingStudentEmail = async (
   sessionDetails,
 ) => {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: studentEmail,
+      toName: studentName,
       subject: "Session Booking Confirmed - TechyJaunt",
       html: sessionBookingStudentTemplate(
         studentName,
         tutorName,
         sessionDetails,
       ),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Session booking email sent (student)", { to: studentEmail, response: info.response });
+    });
+    logger.info("Session booking email sent (student)", { to: studentEmail });
   } catch (error) {
-    logger.error("Session booking email error (student)", { to: studentEmail, error: error.message });
+    logger.error("Session booking email error (student)", {
+      to: studentEmail,
+      error: error.message,
+    });
     throw new Error(
       "Couldn't send session booking confirmation email to student.",
     );
@@ -232,19 +192,18 @@ const sendSessionBookingTutorEmail = async (
   sessionDetails,
 ) => {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: tutorEmail,
+      toName: tutorName,
       subject: "New Session Booking - TechyJaunt",
       html: sessionBookingTutorTemplate(tutorName, studentName, sessionDetails),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Session booking email sent (tutor)", { to: tutorEmail, response: info.response });
+    });
+    logger.info("Session booking email sent (tutor)", { to: tutorEmail });
   } catch (error) {
-    logger.error("Session booking email error (tutor)", { to: tutorEmail, error: error.message });
+    logger.error("Session booking email error (tutor)", {
+      to: tutorEmail,
+      error: error.message,
+    });
     throw new Error(
       "Couldn't send session booking notification email to tutor.",
     );
@@ -259,19 +218,17 @@ const sendSessionBookingAdminEmail = async (
   sessionDetails,
 ) => {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: adminEmail,
       subject: "New Session Booking - Admin Notification",
       html: sessionBookingAdminTemplate(studentName, tutorName, sessionDetails),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Session booking email sent (admin)", { to: adminEmail, response: info.response });
+    });
+    logger.info("Session booking email sent (admin)", { to: adminEmail });
   } catch (error) {
-    logger.error("Session booking email error (admin)", { to: adminEmail, error: error.message });
+    logger.error("Session booking email error (admin)", {
+      to: adminEmail,
+      error: error.message,
+    });
     // Don't throw error for admin notifications to avoid blocking booking process
   }
 };
@@ -285,11 +242,9 @@ const sendSessionReminderStudentEmail = async (
   reminderType,
 ) => {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: studentEmail,
+      toName: studentName,
       subject: `Session Reminder - ${reminderType} - TechyJaunt`,
       html: sessionReminderStudentTemplate(
         studentName,
@@ -297,12 +252,13 @@ const sendSessionReminderStudentEmail = async (
         sessionDetails,
         reminderType,
       ),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Session reminder email sent (student)", { to: studentEmail, response: info.response });
+    });
+    logger.info("Session reminder email sent (student)", { to: studentEmail });
   } catch (error) {
-    logger.error("Session reminder email error (student)", { to: studentEmail, error: error.message });
+    logger.error("Session reminder email error (student)", {
+      to: studentEmail,
+      error: error.message,
+    });
     // Don't throw to avoid blocking reminder loop; just log
   }
 };
@@ -316,11 +272,9 @@ const sendSessionReminderTutorEmail = async (
   reminderType,
 ) => {
   try {
-    const transporter = createTransporter();
-
-    const mailOptions = {
-      from: `"TechyJaunt Learning Platform" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: tutorEmail,
+      toName: tutorName,
       subject: `Session Reminder - ${reminderType} - TechyJaunt`,
       html: sessionReminderTutorTemplate(
         tutorName,
@@ -328,12 +282,13 @@ const sendSessionReminderTutorEmail = async (
         sessionDetails,
         reminderType,
       ),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Session reminder email sent (tutor)", { to: tutorEmail, response: info.response });
+    });
+    logger.info("Session reminder email sent (tutor)", { to: tutorEmail });
   } catch (error) {
-    logger.error("Session reminder email error (tutor)", { to: tutorEmail, error: error.message });
+    logger.error("Session reminder email error (tutor)", {
+      to: tutorEmail,
+      error: error.message,
+    });
     // Don't throw to avoid blocking reminder loop; just log
   }
 };
@@ -343,23 +298,18 @@ const sendSubscriptionPaymentSuccessEmail = async (
   { firstName, planName, courseTitle },
 ) => {
   try {
-    const transporter = createTransporter();
-    const mailOptions = {
-      from: `"TechyJaunt" <${process.env.EMAIL_NODEMAILER}>`,
+    await sendZeptoEmail({
       to: email,
+      toName: firstName,
+      fromName: "TechyJaunt",
       subject: "Your TechyJaunt subscription is confirmed",
       html: subscriptionPaymentSuccessTemplate({
         firstName,
         planName,
         courseTitle,
       }),
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    logger.info("Subscription payment email sent", {
-      to: email,
-      response: info.response,
     });
+    logger.info("Subscription payment email sent", { to: email });
   } catch (error) {
     logger.error("Subscription payment email error", {
       to: email,

@@ -115,11 +115,28 @@ async function run() {
   }
 
   const pending = subscriptions.filter((s) => s.status === "pending");
-  if (!pending.length) {
-    console.error("\nNo pending subscriptions to recover. Check failed records or Paystack reference manually.");
+  const recoverable = subscriptions.filter((s) =>
+    ["pending", "failed"].includes(s.status),
+  );
+
+  if (!recoverable.length && !FORCED_REFERENCE) {
+    console.error(
+      "\nNo pending or failed subscriptions to recover. Check Paystack reference manually.",
+    );
     await mongoose.disconnect();
     process.exit(1);
   }
+
+  if (!pending.length && !FORCED_REFERENCE) {
+    console.log(
+      "\nNo pending subscriptions; pass --reference with --force to recover a failed record.",
+    );
+    await mongoose.disconnect();
+    process.exit(1);
+  }
+
+  const findRecoverable = (reference) =>
+    recoverable.find((s) => s.transactionReference === reference);
 
   let targetReference = FORCED_REFERENCE;
   let paystackStatus = null;
@@ -130,18 +147,22 @@ async function run() {
       await mongoose.disconnect();
       process.exit(1);
     }
-    const match = pending.find((s) => s.transactionReference === FORCED_REFERENCE);
+    const match = findRecoverable(FORCED_REFERENCE);
     if (!match) {
-      console.error(`Reference ${FORCED_REFERENCE} is not among this user's pending subscriptions.`);
+      console.error(
+        `Reference ${FORCED_REFERENCE} is not among this user's pending/failed subscriptions.`,
+      );
       await mongoose.disconnect();
       process.exit(1);
     }
     targetReference = FORCED_REFERENCE;
     console.log(`\n--force: skipping Paystack verify, activating ${targetReference}`);
   } else if (targetReference) {
-    const match = pending.find((s) => s.transactionReference === targetReference);
+    const match = findRecoverable(targetReference);
     if (!match) {
-      console.error(`Reference ${targetReference} is not among this user's pending subscriptions.`);
+      console.error(
+        `Reference ${targetReference} is not among this user's pending/failed subscriptions.`,
+      );
       await mongoose.disconnect();
       process.exit(1);
     }
@@ -193,8 +214,12 @@ async function run() {
     console.log(`\nSelected reference to activate: ${targetReference}`);
   }
 
-  const targetSub = pending.find((s) => s.transactionReference === targetReference);
-  const otherPending = pending.filter((s) => s.transactionReference !== targetReference);
+  const targetSub =
+    findRecoverable(targetReference) ||
+    subscriptions.find((s) => s.transactionReference === targetReference);
+  const otherPending = pending.filter(
+    (s) => s.transactionReference !== targetReference,
+  );
 
   if (DRY_RUN) {
     console.log("\nDry run — would:");
@@ -217,6 +242,11 @@ async function run() {
       user: user._id,
     });
     sub.status = "active";
+    sub.featureAccess = SubscriptionService.setupFeatureAccess(
+      sub.plan,
+      sub.startDate,
+      sub.endDate,
+    );
     sub.metadata = {
       ...(sub.metadata || {}),
       manualRecovery: true,
