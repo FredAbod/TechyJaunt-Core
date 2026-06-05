@@ -590,6 +590,8 @@ class CourseService {
       // Calculate learning streak
       const learningStreak = this.calculateLearningStreak(validEnrolledCourses);
 
+      const now = new Date();
+
       // Format enrolled courses data for frontend
       const formattedCourses = activeEnrolledCourses
         .map((progress) => ({
