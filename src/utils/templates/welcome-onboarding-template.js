@@ -82,6 +82,33 @@ const welcomeOnboardingTemplate = (firstName) => {
                 border-radius: 10px;
                 margin: 25px 0;
             }
+            .community-banner {
+                text-align: center;
+                background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+                color: white;
+                padding: 28px 24px;
+                border-radius: 10px;
+                margin-bottom: 30px;
+            }
+            .community-banner h3 {
+                margin: 0 0 12px 0;
+                font-size: 20px;
+            }
+            .community-banner p {
+                margin: 0 0 18px 0;
+                font-size: 15px;
+                opacity: 0.95;
+            }
+            .community-button {
+                display: inline-block;
+                padding: 14px 28px;
+                background-color: #ffffff;
+                color: #128C7E;
+                text-decoration: none;
+                border-radius: 25px;
+                font-weight: bold;
+                font-size: 16px;
+            }
         </style>
     </head>
     <body>
@@ -91,6 +118,12 @@ const welcomeOnboardingTemplate = (firstName) => {
                 <p>Your Learning Adventure Begins Now</p>
             </div>
             <div class="content">
+                <div class="community-banner">
+                    <h3>👋 Join the TechyJaunt community first!</h3>
+                    <p>Follow our WhatsApp channel for updates, tips, and support from fellow learners — do this before anything else.</p>
+                    <a href="https://whatsapp.com/channel/0029VanpOlGFXUuZFZ30i91r" class="community-button">Join on WhatsApp</a>
+                </div>
+
                 <div class="welcome-message">
                     <h2>Hello ${firstName}! 🌟</h2>
                     <p>Congratulations on joining TechyJaunt! You've just taken the first step towards transforming your career with cutting-edge tech skills.</p>
@@ -145,11 +178,6 @@ const welcomeOnboardingTemplate = (firstName) => {
                     <p>Complete your profile to unlock all features and get personalized course recommendations.</p>
                     <a href="#" class="button">Complete Your Profile</a>
                 </div>
-
-                <p style="text-align: center; margin: 24px 0;">
-                    Follow the TechyJaunt channel on WhatsApp:
-                    <a href="https://whatsapp.com/channel/0029VanpOlGFXUuZFZ30i91r" style="color: #667eea; font-weight: 600;">https://whatsapp.com/channel/0029VanpOlGFXUuZFZ30i91r</a>
-                </p>
 
                 <p style="text-align: center; color: #666; font-style: italic;">
                     "The best time to plant a tree was 20 years ago. The second best time is now." - Chinese Proverb
