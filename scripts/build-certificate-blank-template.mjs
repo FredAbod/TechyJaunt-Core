@@ -1,6 +1,8 @@
 /**
- * Paints out sample name/course/ID on the certificate artwork.
+ * Paints out sample course line + certificate ID on the certificate artwork.
  * Output: src/resources/courses/assets/certificate-template-blank.png
+ *
+ * Masks are pixel-tight (891×622) so the seal, border, and underline stay intact.
  */
 import { createCanvas, loadImage } from "canvas";
 import fs from "fs";
@@ -18,14 +20,9 @@ const outPath = path.join(
   "src/resources/courses/assets/certificate-template-blank.png",
 );
 
-/**
- * Erase only dynamic placeholder text (name line, course line, cert ID).
- * Stops before the seal (~x 72%) so ribbons/border stay intact.
- */
-const MASKS_FRACTION = [
-  { x: 0.1, y: 0.412, w: 0.58, h: 0.068 }, // recipient name line
-  { x: 0.04, y: 0.472, w: 0.68, h: 0.1 }, // "For completing…" + course + date
-  { x: 0.54, y: 0.655, w: 0.44, h: 0.12 }, // certificate ID block (footer right)
+/** Pixel masks on 891×622 artwork — stop before the ribbon seal (~x 585). */
+const MASKS_PX = [
+  { x: 42, y: 358, w: 542, h: 40 }, // sample course + date (inside white area only)
 ];
 
 const img = await loadImage(srcPath);
@@ -33,13 +30,8 @@ const canvas = createCanvas(img.width, img.height);
 const ctx = canvas.getContext("2d");
 ctx.drawImage(img, 0, 0);
 ctx.fillStyle = "#ffffff";
-for (const m of MASKS_FRACTION) {
-  ctx.fillRect(
-    m.x * img.width,
-    m.y * img.height,
-    m.w * img.width,
-    m.h * img.height,
-  );
+for (const m of MASKS_PX) {
+  ctx.fillRect(m.x, m.y, m.w, m.h);
 }
 fs.writeFileSync(outPath, canvas.toBuffer("image/png"));
 console.log("Wrote", outPath, `${img.width}x${img.height}`);

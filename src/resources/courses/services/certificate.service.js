@@ -23,22 +23,32 @@ const CERTIFICATE_TEMPLATE_BLANK_PNG = path.join(
 const ARTBOARD_W = 891;
 const ARTBOARD_H = 622;
 
-/** Max width for the achievement line (keeps text left of the seal). */
-const ACHIEVEMENT_MAX_WIDTH = 640;
+/** Text stays in the clear area left of the ribbon seal. */
+const LEFT_MARGIN = 42;
+const RIGHT_EDGE = 578;
+const ACHIEVEMENT_MAX_WIDTH = RIGHT_EDGE - LEFT_MARGIN;
+const NAME_MAX_WIDTH = 520;
 
 const LAYOUT = {
-  nameTop: 286,
+  /** Distance from top of page to name baseline minus nameSize. */
+  nameTop: 256,
   nameSize: 22,
-  achievementTop: 338,
-  achievementSize: 9.5,
-  courseSize: 10,
-  certIdLeft: 578,
-  certIdTop: 472,
+  nameLineHeight: 26,
+  /** Distance from top to achievement block baseline minus bodySize. */
+  achievementTop: 352,
+  bodySize: 10,
+  lineHeight: 13,
+  certIdLeft: 548,
+  certIdTop: 476,
   certIdSize: 7,
 };
 
 const NAVY = rgb(0.059, 0.165, 0.42);
 const TEXT_BLACK = rgb(0.067, 0.094, 0.153);
+
+function topToBaselineY(topY, fontSize, pageHeight, sy) {
+  return pageHeight - topY * sy - fontSize;
+}
 
 function drawCenteredOnPage(
   page,
@@ -47,14 +57,13 @@ function drawCenteredOnPage(
   font,
   size,
   color,
-  sx,
   sy,
   pageWidth,
   pageHeight,
 ) {
   const textWidth = font.widthOfTextAtSize(text, size);
   const x = (pageWidth - textWidth) / 2;
-  const y = pageHeight - topY * sy - size;
+  const y = topToBaselineY(topY, size, pageHeight, sy);
   page.drawText(text, { x, y, size, font, color });
 }
 
@@ -75,12 +84,92 @@ function wrapTextLines(font, text, size, maxWidth) {
   return lines;
 }
 
+function drawCenteredLines(
+  page,
+  lines,
+  startTopY,
+  font,
+  size,
+  color,
+  lineHeight,
+  sy,
+  pageWidth,
+  pageHeight,
+) {
+  let topY = startTopY;
+  for (const line of lines) {
+    drawCenteredOnPage(
+      page,
+      line,
+      topY,
+      font,
+      size,
+      color,
+      sy,
+      pageWidth,
+      pageHeight,
+    );
+    topY += lineHeight;
+  }
+  return topY;
+}
+
+function drawLeftLines(
+  page,
+  lines,
+  startTopY,
+  font,
+  size,
+  color,
+  lineHeight,
+  sy,
+  pageWidth,
+  pageHeight,
+  leftX = LEFT_MARGIN * (pageWidth / ARTBOARD_W),
+) {
+  let topY = startTopY;
+  for (const line of lines) {
+    page.drawText(line, {
+      x: leftX,
+      y: topToBaselineY(topY, size, pageHeight, sy),
+      size,
+      font,
+      color,
+    });
+    topY += lineHeight;
+  }
+  return topY;
+}
+
+function drawMixedLineLeft(
+  page,
+  segments,
+  topY,
+  lineSize,
+  sy,
+  pageWidth,
+  pageHeight,
+  leftX = LEFT_MARGIN * (pageWidth / ARTBOARD_W),
+) {
+  const y = topToBaselineY(topY, lineSize, pageHeight, sy);
+  let x = leftX;
+  for (const seg of segments) {
+    page.drawText(seg.text, {
+      x,
+      y,
+      size: seg.size,
+      font: seg.font,
+      color: seg.color,
+    });
+    x += seg.font.widthOfTextAtSize(seg.text, seg.size);
+  }
+}
+
 function drawAchievementFromTop(
   page,
   courseTitle,
   completionDate,
   fonts,
-  sx,
   sy,
   pageWidth,
   pageHeight,
@@ -91,15 +180,15 @@ function drawAchievementFromTop(
   });
   const prefix = "For completing the ";
   const middle = " concluded in ";
-  const maxWidth = ACHIEVEMENT_MAX_WIDTH * sx;
-  const size = LAYOUT.achievementSize;
-  const courseSize = LAYOUT.courseSize;
+  const size = LAYOUT.bodySize;
+  const maxWidth = ACHIEVEMENT_MAX_WIDTH * (pageWidth / ARTBOARD_W);
+  const leftX = LEFT_MARGIN * (pageWidth / ARTBOARD_W);
 
   const segments = [
     { text: prefix, font: fonts.regular, size, color: TEXT_BLACK },
-    { text: courseTitle, font: fonts.bold, size: courseSize, color: NAVY },
+    { text: courseTitle, font: fonts.bold, size, color: NAVY },
     { text: middle, font: fonts.regular, size, color: TEXT_BLACK },
-    { text: monthYear, font: fonts.bold, size: courseSize, color: NAVY },
+    { text: monthYear, font: fonts.bold, size, color: NAVY },
   ];
 
   const totalWidth = segments.reduce(
@@ -110,60 +199,87 @@ function drawAchievementFromTop(
   let topY = LAYOUT.achievementTop;
 
   if (totalWidth <= maxWidth) {
-    let x = (pageWidth - totalWidth) / 2;
-    const y = pageHeight - topY * sy - courseSize;
-    for (const seg of segments) {
-      page.drawText(seg.text, {
-        x,
-        y,
-        size: seg.size,
-        font: seg.font,
-        color: seg.color,
-      });
-      x += seg.font.widthOfTextAtSize(seg.text, seg.size);
-    }
+    drawMixedLineLeft(
+      page,
+      segments,
+      topY,
+      size,
+      sy,
+      pageWidth,
+      pageHeight,
+      leftX,
+    );
     return;
   }
 
-  drawCenteredOnPage(
+  topY = drawLeftLines(
     page,
-    "For completing the",
+    ["For completing the"],
     topY,
     fonts.regular,
     size,
     TEXT_BLACK,
-    sx,
+    LAYOUT.lineHeight,
     sy,
     pageWidth,
     pageHeight,
+    leftX,
   );
-  topY += 14;
 
-  const courseLines = wrapTextLines(fonts.bold, courseTitle, courseSize, maxWidth);
-  for (const line of courseLines) {
-    drawCenteredOnPage(
-      page,
-      line,
-      topY,
-      fonts.bold,
-      courseSize,
-      NAVY,
-      sx,
-      sy,
-      pageWidth,
-      pageHeight,
-    );
-    topY += 14;
-  }
-
-  drawCenteredOnPage(
+  const courseLines = wrapTextLines(fonts.bold, courseTitle, size, maxWidth);
+  topY = drawLeftLines(
     page,
-    `concluded in ${monthYear}`,
-    topY + 2,
+    courseLines,
+    topY,
     fonts.bold,
-    courseSize,
+    size,
     NAVY,
-    sx,
+    LAYOUT.lineHeight,
+    sy,
+    pageWidth,
+    pageHeight,
+    leftX,
+  );
+
+  drawLeftLines(
+    page,
+    [`concluded in ${monthYear}`],
+    topY,
+    fonts.bold,
+    size,
+    NAVY,
+    LAYOUT.lineHeight,
+    sy,
+    pageWidth,
+    pageHeight,
+    leftX,
+  );
+}
+
+function drawStudentName(
+  page,
+  studentName,
+  font,
+  sy,
+  pageWidth,
+  pageHeight,
+) {
+  const size = LAYOUT.nameSize;
+  const maxWidth = NAME_MAX_WIDTH * (pageWidth / ARTBOARD_W);
+  const lines = wrapTextLines(font, studentName, size, maxWidth);
+  const lineCount = lines.length;
+  const blockHeight =
+    (lineCount - 1) * LAYOUT.nameLineHeight;
+  let topY = LAYOUT.nameTop - blockHeight / 2;
+
+  drawCenteredLines(
+    page,
+    lines,
+    topY,
+    font,
+    size,
+    NAVY,
+    LAYOUT.nameLineHeight,
     sy,
     pageWidth,
     pageHeight,
@@ -324,14 +440,10 @@ class CertificateService {
       const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
       const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
-      drawCenteredOnPage(
+      drawStudentName(
         page,
         studentName,
-        LAYOUT.nameTop,
         timesBold,
-        LAYOUT.nameSize,
-        NAVY,
-        sx,
         sy,
         pageWidth,
         pageHeight,
@@ -342,7 +454,6 @@ class CertificateService {
         courseTitle,
         completionDate,
         { regular: helvetica, bold: helveticaBold },
-        sx,
         sy,
         pageWidth,
         pageHeight,
@@ -351,7 +462,12 @@ class CertificateService {
       const certIdText = `Certificate ID NO: ${certificateNumber}`;
       page.drawText(certIdText, {
         x: LAYOUT.certIdLeft * sx,
-        y: pageHeight - LAYOUT.certIdTop * sy - LAYOUT.certIdSize,
+        y: topToBaselineY(
+          LAYOUT.certIdTop,
+          LAYOUT.certIdSize,
+          pageHeight,
+          sy,
+        ),
         size: LAYOUT.certIdSize,
         font: helvetica,
         color: TEXT_BLACK,
