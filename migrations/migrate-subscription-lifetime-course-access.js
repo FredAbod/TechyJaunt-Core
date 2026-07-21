@@ -1,6 +1,7 @@
 /**
- * Grant lifetime course + bundled perks on all paid subscriptions (active/expired).
- * Resets featureAccess from plan rules; preserves mentorship sessionsUsed.
+ * Rebuild feature access for paid subscriptions from current plan rules.
+ * Bronze/Gold receive course ownership; Silver remains mentorship-only.
+ * Preserves mentorship sessions used.
  *
  * Usage:
  *   npm run migrate:lifetime-course-access
@@ -22,7 +23,7 @@ async function run() {
     process.exit(1);
   }
 
-  console.log("Subscription lifetime course access migration");
+  console.log("Subscription feature access migration");
   console.log(`Mode: ${DRY_RUN ? "DRY RUN (no writes)" : "LIVE"}\n`);
 
   await connectDB(mongoUri);
@@ -36,9 +37,6 @@ async function run() {
   for (const sub of subscriptions) {
     const priorSessions =
       sub.featureAccess?.mentorship?.sessionsUsed ?? 0;
-    const priorLimit =
-      sub.featureAccess?.mentorship?.sessionsLimit ?? 4;
-
     const nextAccess = SubscriptionService.setupFeatureAccess(
       sub.plan,
       sub.startDate,
@@ -48,7 +46,6 @@ async function run() {
 
     if (nextAccess.mentorship) {
       nextAccess.mentorship.sessionsUsed = priorSessions;
-      nextAccess.mentorship.sessionsLimit = priorLimit;
     }
 
     console.log(

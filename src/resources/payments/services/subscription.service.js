@@ -10,6 +10,7 @@ import logger from "../../../utils/log/logger.js";
 import {
   PAID_SUBSCRIPTION_STATUSES,
   LIFETIME_COURSE_FEATURES,
+  COURSE_REQUIRED_FEATURES,
   BILLING_PERIOD_FEATURES,
   hasCourseEntitlement,
   isBillingPeriodActive,
@@ -528,8 +529,7 @@ class SubscriptionService {
 
   /**
    * Setup feature access based on subscription plan.
-   * Course + certificate/resources/community: lifetime on the subscribed course.
-   * AI tutor + mentorship: limited to the billing period (endDate).
+   * Bronze/Gold own the course. Silver only provides mentorship-focused features.
    */
   setupFeatureAccess(planType, startDate, endDate, existingFeatureAccess = null) {
     const billingEnd = new Date(endDate);
@@ -548,16 +548,22 @@ class SubscriptionService {
         sessionsUsed: priorMentorship.sessionsUsed || 0,
         sessionsLimit: priorMentorship.sessionsLimit || 4,
       },
-      courseAccess: { hasLifetimeAccess: true, courses: [] },
-      premiumResources: { hasAccess: true },
-      certificate: { hasAccess: true },
-      alumniCommunity: { hasAccess: true },
-      linkedinOptimization: { hasAccess: true },
-      networking: { hasAccess: true },
+      courseAccess: { hasLifetimeAccess: false, courses: [] },
+      premiumResources: { hasAccess: false },
+      certificate: { hasAccess: false },
+      alumniCommunity: { hasAccess: false },
+      linkedinOptimization: { hasAccess: false },
+      networking: { hasAccess: false },
     };
 
     switch (planType) {
       case "bronze":
+        featureAccess.courseAccess.hasLifetimeAccess = true;
+        featureAccess.premiumResources.hasAccess = true;
+        featureAccess.certificate.hasAccess = true;
+        featureAccess.alumniCommunity.hasAccess = true;
+        featureAccess.linkedinOptimization.hasAccess = true;
+        featureAccess.networking.hasAccess = true;
         featureAccess.aiTutor = {
           hasAccess: true,
           expiresAt: aiMentorshipExpiresAt,
@@ -565,6 +571,15 @@ class SubscriptionService {
         break;
 
       case "silver":
+        featureAccess.linkedinOptimization.hasAccess = true;
+        featureAccess.alumniCommunity = {
+          hasAccess: true,
+          expiresAt: billingEnd,
+        };
+        featureAccess.networking = {
+          hasAccess: true,
+          expiresAt: billingEnd,
+        };
         featureAccess.aiTutor = {
           hasAccess: true,
           expiresAt: aiMentorshipExpiresAt,
@@ -573,11 +588,17 @@ class SubscriptionService {
           hasAccess: true,
           expiresAt: aiMentorshipExpiresAt,
           sessionsUsed: 0,
-          sessionsLimit: 4,
+          sessionsLimit: 5,
         };
         break;
 
       case "gold":
+        featureAccess.courseAccess.hasLifetimeAccess = true;
+        featureAccess.premiumResources.hasAccess = true;
+        featureAccess.certificate.hasAccess = true;
+        featureAccess.alumniCommunity.hasAccess = true;
+        featureAccess.linkedinOptimization.hasAccess = true;
+        featureAccess.networking.hasAccess = true;
         featureAccess.aiTutor = {
           hasAccess: true,
           expiresAt: aiMentorshipExpiresAt,
@@ -623,10 +644,13 @@ class SubscriptionService {
     })[0];
   }
 
-  buildAggregatedFeatureAccess(entitlementSubs, billingSubs) {
+  buildAggregatedFeatureAccess(paidSubs, entitlementSubs, billingSubs) {
     const featureAccess = {};
     for (const feature of LIFETIME_COURSE_FEATURES) {
-      featureAccess[feature] = entitlementSubs.some((sub) =>
+      const source = COURSE_REQUIRED_FEATURES.includes(feature)
+        ? entitlementSubs
+        : paidSubs;
+      featureAccess[feature] = source.some((sub) =>
         sub.hasFeatureAccess(feature),
       );
     }
@@ -722,7 +746,11 @@ class SubscriptionService {
         if (wasPending) {
           await this.sendPaymentSuccessNotification(subscription);
         }
-        try {
+        if (!subscription.hasFeatureAccess("courseAccess")) {
+          logger.info(
+            `Skipping course progress for ${subscription.plan} subscription ${subscription._id}`,
+          );
+        } else try {
           const progressService = (
             await import("../../courses/services/progress.service.js")
           ).default;
@@ -849,8 +877,14 @@ class SubscriptionService {
         networking: false,
       };
 
-      entitlementSubs.forEach((sub) => {
+      paidSubscriptions.forEach((sub) => {
         LIFETIME_COURSE_FEATURES.forEach((feature) => {
+          if (
+            COURSE_REQUIRED_FEATURES.includes(feature) &&
+            !hasCourseEntitlement(sub)
+          ) {
+            return;
+          }
           if (sub.hasFeatureAccess(feature)) {
             aggregatedFeatures[feature] = true;
           }
@@ -979,7 +1013,19 @@ class SubscriptionService {
           }
         }
 
-        // Initialize progress tracking for the user
+        // Initialize progress only for plans that include course ownership.
+        if (!subscription.hasFeatureAccess("courseAccess")) {
+          logger.info(
+            `Skipping course progress for ${subscription.plan} subscription ${subscription._id}`,
+          );
+          return {
+            status: "success",
+            message: "Subscription activated without course access",
+            subscriptionId: subscription._id,
+            progressInitialized: false,
+          };
+        }
+
         try {
           // Import progress service dynamically to avoid circular dependencies
           const progressService = (
@@ -1102,7 +1148,7 @@ class SubscriptionService {
         isBillingPeriodActive(sub),
       );
 
-      if (entitlementSubs.length === 0) {
+      if (paidSubscriptions.length === 0) {
         return {
           hasSubscription: false,
           hasCourseEntitlement: false,
@@ -1122,27 +1168,28 @@ class SubscriptionService {
         };
       }
 
-      const entitlementSub = this.pickBestSubscription(entitlementSubs);
+      const primarySub = this.pickBestSubscription(paidSubscriptions);
       const billingSub =
         billingSubs.length > 0
           ? this.pickBestSubscription(billingSubs)
           : null;
 
       const featureAccess = this.buildAggregatedFeatureAccess(
+        paidSubscriptions,
         entitlementSubs,
         billingSubs,
       );
 
       const mentorshipSource =
         billingSub?.featureAccess?.mentorship ||
-        entitlementSub.featureAccess?.mentorship ||
+        primarySub.featureAccess?.mentorship ||
         {};
 
       return {
         hasSubscription: true,
-        hasCourseEntitlement: true,
+        hasCourseEntitlement: entitlementSubs.length > 0,
         hasActiveBilling: billingSubs.length > 0,
-        plan: entitlementSub.plan,
+        plan: primarySub.plan,
         featureAccess,
         mentorshipDetails: {
           sessionsUsed: mentorshipSource.sessionsUsed || 0,
@@ -1151,13 +1198,13 @@ class SubscriptionService {
           expiresAt: mentorshipSource.expiresAt,
         },
         subscription: {
-          id: entitlementSub._id,
-          plan: entitlementSub.plan,
-          status: entitlementSub.status,
-          course: entitlementSub.courseId,
-          startDate: entitlementSub.startDate,
-          endDate: entitlementSub.endDate,
-          isRecurring: entitlementSub.isRecurring,
+          id: primarySub._id,
+          plan: primarySub.plan,
+          status: primarySub.status,
+          course: primarySub.courseId,
+          startDate: primarySub.startDate,
+          endDate: primarySub.endDate,
+          isRecurring: primarySub.isRecurring,
           billingActive: !!billingSub,
           billingEndDate: billingSub?.endDate || null,
         },
@@ -1190,7 +1237,7 @@ class SubscriptionService {
 
         const needsBilling = BILLING_PERIOD_FEATURES.includes(featureName);
         const needsEntitlement =
-          LIFETIME_COURSE_FEATURES.includes(featureName);
+          COURSE_REQUIRED_FEATURES.includes(featureName);
 
         if (needsEntitlement && !globalStatus.hasCourseEntitlement) {
           return {
@@ -1230,7 +1277,7 @@ class SubscriptionService {
       // Course-specific check
       const status = await this.getCourseSubscriptionStatus(userId, courseId);
 
-      const needsCourseEntitlement = LIFETIME_COURSE_FEATURES.includes(
+      const needsCourseEntitlement = COURSE_REQUIRED_FEATURES.includes(
         featureName,
       );
 

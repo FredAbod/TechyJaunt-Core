@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 import {
   hasPaidEntitlement,
   isBillingPeriodActive,
-  isLifetimeCourseFeature,
   isBillingPeriodFeature,
 } from "../../../utils/subscription/subscriptionEntitlements.js";
 
@@ -166,10 +165,6 @@ subscriptionSchema.methods.hasFeatureAccess = function (featureName) {
   const feature = this.featureAccess[featureName];
   if (!feature) {
     return false;
-  }
-
-  if (isLifetimeCourseFeature(featureName)) {
-    return !!feature.hasAccess;
   }
 
   if (isBillingPeriodFeature(featureName)) {

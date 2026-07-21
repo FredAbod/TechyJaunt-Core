@@ -9,9 +9,44 @@ import Lesson from "../models/lesson.js";
 import logger from "../../../utils/log/logger.js";
 
 class ProgressService {
+  async assertCourseEntitlement(userId, courseId) {
+    const subscription = await Subscription.findOne({
+      user: userId,
+      courseId,
+      status: { $in: ["active", "expired"] },
+      "featureAccess.courseAccess.hasLifetimeAccess": true,
+    }).select("_id");
+
+    if (!subscription) {
+      throw new AppError(
+        "This subscription does not include access to course content.",
+        403,
+      );
+    }
+
+    return subscription;
+  }
+
   // Initialize progress when user subscribes to a course
   async initializeProgress(userId, courseId, subscriptionId = null) {
     try {
+      if (subscriptionId) {
+        const subscription = await Subscription.findOne({
+          _id: subscriptionId,
+          user: userId,
+          courseId,
+          status: { $in: ["active", "expired"] },
+          "featureAccess.courseAccess.hasLifetimeAccess": true,
+        }).select("_id");
+
+        if (!subscription) {
+          throw new AppError(
+            "This subscription does not include access to course content.",
+            403,
+          );
+        }
+      }
+
       // Check if progress already exists
       const existingProgress = await Progress.findOne({ userId, courseId });
       if (existingProgress) {
@@ -102,6 +137,8 @@ class ProgressService {
     });
 
     try {
+      await this.assertCourseEntitlement(userId, courseId);
+
       // Step 1: Find user progress
       logger.info(`[SERVICE] Step 1: Finding user progress`, {
         userId,
@@ -497,6 +534,8 @@ class ProgressService {
   // Get user's progress for a course
   async getUserProgress(userId, courseId) {
     try {
+      await this.assertCourseEntitlement(userId, courseId);
+
       // First get the progress without population to check if it exists
       const progress = await Progress.findOne({ userId, courseId });
 
@@ -825,6 +864,8 @@ class ProgressService {
   // Get module access status
   async getModuleAccess(userId, courseId, moduleId) {
     try {
+      await this.assertCourseEntitlement(userId, courseId);
+
       const progress = await Progress.findOne({ userId, courseId });
       if (!progress) {
         throw new AppError("Progress not found", 404);

@@ -224,7 +224,11 @@ async function run() {
   if (DRY_RUN) {
     console.log("\nDry run — would:");
     console.log(`  • Activate subscription ${targetSub._id} (ref ${targetReference})`);
-    console.log(`  • Initialize course progress for course ${targetSub.courseId?._id || targetSub.courseId}`);
+    console.log(
+      targetSub.plan === "silver"
+        ? "  • Keep course content unavailable (Silver is mentorship-only)"
+        : `  • Initialize course progress for course ${targetSub.courseId?._id || targetSub.courseId}`,
+    );
     if (otherPending.length) {
       console.log(`  • Mark ${otherPending.length} other pending attempt(s) as failed:`);
       otherPending.forEach((s) => console.log(`      - ${s.transactionReference}`));
@@ -255,15 +259,23 @@ async function run() {
     };
     await sub.save();
 
-    const progressService = (
-      await import("../src/resources/courses/services/progress.service.js")
-    ).default;
-    await progressService.initializeProgress(
-      sub.user,
-      sub.courseId,
-      sub._id,
-    );
-    await Course.findByIdAndUpdate(sub.courseId, { $inc: { totalStudents: 1 } });
+    if (sub.hasFeatureAccess("courseAccess")) {
+      const progressService = (
+        await import("../src/resources/courses/services/progress.service.js")
+      ).default;
+      await progressService.initializeProgress(
+        sub.user,
+        sub.courseId,
+        sub._id,
+      );
+      await Course.findByIdAndUpdate(sub.courseId, {
+        $inc: { totalStudents: 1 },
+      });
+    } else {
+      console.log(
+        `Plan ${sub.plan} does not include course content; progress was not initialized.`,
+      );
+    }
     activated = sub;
   } else {
     activated = await SubscriptionService.verifySubscription(targetReference);
@@ -300,7 +312,15 @@ async function run() {
   console.log("\nDone.");
   console.log(`Subscription status: ${activated.status}`);
   console.log(`Course access until: ${activated.endDate?.toISOString?.() || activated.endDate}`);
-  console.log(`Progress record: ${progress ? "yes" : "MISSING — check logs"}`);
+  console.log(
+    `Progress record: ${
+      activated.hasFeatureAccess("courseAccess")
+        ? progress
+          ? "yes"
+          : "MISSING — check logs"
+        : "not applicable for this plan"
+    }`,
+  );
 
   await mongoose.disconnect();
   process.exit(0);

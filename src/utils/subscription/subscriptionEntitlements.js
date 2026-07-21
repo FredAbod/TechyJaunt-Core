@@ -1,11 +1,16 @@
 /** Subscription statuses that represent a completed (paid) purchase. */
 export const PAID_SUBSCRIPTION_STATUSES = ["active", "expired"];
 
-/** Features tied to the subscribed course for life after first payment. */
-export const LIFETIME_COURSE_FEATURES = [
+/** Features that require course ownership (Bronze or Gold). */
+export const COURSE_REQUIRED_FEATURES = [
   "courseAccess",
   "certificate",
   "premiumResources",
+];
+
+/** Non-billing features aggregated from paid subscriptions. */
+export const LIFETIME_COURSE_FEATURES = [
+  ...COURSE_REQUIRED_FEATURES,
   "linkedinOptimization",
   "alumniCommunity",
   "networking",
@@ -42,6 +47,10 @@ export function hasCourseEntitlement(subscription) {
 
 export function isLifetimeCourseFeature(featureName) {
   return LIFETIME_COURSE_FEATURES.includes(featureName);
+}
+
+export function isCourseRequiredFeature(featureName) {
+  return COURSE_REQUIRED_FEATURES.includes(featureName);
 }
 
 export function isBillingPeriodFeature(featureName) {
