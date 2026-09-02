@@ -51,10 +51,15 @@ export const verifySubscription = async (req, res) => {
     const { reference } = req.params;
 
     const subscription = await SubscriptionService.verifySubscription(reference);
+    const summary = SubscriptionService.buildSubscriptionSummary(subscription);
 
     return successResMsg(res, 200, {
       message: "Subscription verified successfully",
-      subscription
+      subscription: {
+        ...summary,
+        courseId: subscription.courseId,
+        user: subscription.user,
+      },
     });
   } catch (error) {
     logger.error(`Verify subscription error: ${error.message}`);
@@ -93,6 +98,28 @@ export const getUserSubscriptionStatus = async (req, res) => {
   } catch (error) {
     logger.error(`Get subscription status error: ${error.message}`);
     return errorResMsg(res, error.status || 500, error.message || "Failed to retrieve subscription status");
+  }
+};
+
+export const getCourseSubscriptionStatus = async (req, res) => {
+  try {
+    const { userId } = req.user;
+    const { courseId } = req.params;
+
+    const subscriptionStatus =
+      await SubscriptionService.getCourseSubscriptionStatus(userId, courseId);
+
+    return successResMsg(res, 200, {
+      message: "Course subscription status retrieved successfully",
+      ...subscriptionStatus,
+    });
+  } catch (error) {
+    logger.error(`Get course subscription status error: ${error.message}`);
+    return errorResMsg(
+      res,
+      error.status || 500,
+      error.message || "Failed to retrieve course subscription status",
+    );
   }
 };
 

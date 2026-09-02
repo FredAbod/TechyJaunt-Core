@@ -5,6 +5,7 @@ import connectDB from "./src/database/db.js"
 import { sendServerFailure } from "./src/utils/email/email-sender.js";
 // Start background schedulers
 import './src/resources/bookings/services/reminderScheduler.js';
+import './src/resources/payments/services/subscriptionReconciliationScheduler.js';
 
 
 const port = process.env.PORT || 4000;

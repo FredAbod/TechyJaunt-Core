@@ -6,6 +6,7 @@ import {
   verifySubscription,
   getUserSubscriptions,
   getUserSubscriptionStatus,
+  getCourseSubscriptionStatus,
   getSubscriptionDetails,
 } from "../controllers/subscription.controller.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
@@ -155,6 +156,31 @@ router.get("/my-subscriptions",
 router.get("/status", 
   isAuthenticated, 
   getUserSubscriptionStatus
+);
+
+/**
+ * @swagger
+ * /api/v1/subscriptions/course/{courseId}/status:
+ *   get:
+ *     tags:
+ *       - Subscriptions
+ *     summary: Get subscription status for a specific course
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Course-specific subscription status
+ */
+router.get(
+  "/course/:courseId/status",
+  isAuthenticated,
+  getCourseSubscriptionStatus,
 );
 
 // Note: Webhook handling is now centralized at /api/v1/webhooks/paystack

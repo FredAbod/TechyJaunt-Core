@@ -525,15 +525,20 @@ class CourseService {
 
   async getUserDashboard(userId) {
     try {
-      // Convert userId to ObjectId if it's a string (e.g. from JWT token)
       const mongoose = (await import("mongoose")).default;
+      const Subscription = (
+        await import("../../payments/models/subscription.js")
+      ).default;
+      const SubscriptionService = (
+        await import("../../payments/services/subscription.service.js")
+      ).default;
+      const { PAID_SUBSCRIPTION_STATUSES, isBillingPeriodActive } =
+        await import("../../../utils/subscription/subscriptionEntitlements.js");
+
       const userObjectId =
         typeof userId === "string"
           ? new mongoose.Types.ObjectId(userId)
           : userId;
-
-      // Get enrolled courses from Progress collection (active subscriptions)
-      const Progress = (await import("../models/progress.js")).default;
 
       const enrolledCourses = await Progress.find({ userId: userObjectId })
         .populate({
@@ -562,88 +567,155 @@ class CourseService {
         hasLifetimeCourseAccess,
       );
 
-      // Calculate statistics
-      const validEnrolledCourses = activeEnrolledCourses; // already filtered + populated
+      const paidSubscriptions = await Subscription.find({
+        user: userObjectId,
+        status: { $in: PAID_SUBSCRIPTION_STATUSES },
+      })
+        .populate({
+          path: "courseId",
+          select:
+            "title description thumbnail category level instructor duration price",
+          populate: {
+            path: "instructor",
+            select: "firstName lastName",
+          },
+        })
+        .sort({ endDate: -1, createdAt: -1 });
+
+      for (const sub of paidSubscriptions) {
+        await SubscriptionService.markExpiredIfDue(sub);
+      }
+
+      const billingActiveSubs = paidSubscriptions.filter((sub) =>
+        isBillingPeriodActive(sub),
+      );
+
+      const progressCourseIds = new Set(
+        activeEnrolledCourses.map((progress) =>
+          progress.courseId._id.toString(),
+        ),
+      );
+
+      const mentorshipOnlySubs = billingActiveSubs.filter((sub) => {
+        const courseId = sub.courseId?._id?.toString();
+        if (!courseId || progressCourseIds.has(courseId)) {
+          return false;
+        }
+
+        return (
+          sub.hasFeatureAccess("mentorship") || sub.hasFeatureAccess("aiTutor")
+        );
+      });
+
+      const formatInstructor = (instructor) =>
+        instructor
+          ? {
+              name:
+                `${instructor.firstName || ""} ${instructor.lastName || ""}`.trim() ||
+                "Unknown Instructor",
+              id: instructor._id,
+            }
+          : {
+              name: "Unknown Instructor",
+              id: null,
+            };
+
+      const formatSubscription = (sub) => {
+        const summary = SubscriptionService.buildSubscriptionSummary(sub);
+        return {
+          id: summary.id,
+          plan: summary.plan,
+          status: summary.status,
+          billingActive: summary.billingActive,
+          endDate: summary.endDate,
+          startDate: summary.startDate,
+          createdAt: sub.createdAt,
+          hasCourseContent: summary.hasCourseContent,
+          accessType: summary.accessType,
+          featureAccess: summary.featureAccess,
+          mentorshipDetails: summary.mentorshipDetails,
+        };
+      };
+
+      const formatCourseEntry = ({
+        course,
+        subscription,
+        progress = null,
+      }) => ({
+        courseId: course._id,
+        title: course.title,
+        description: course.description,
+        thumbnail: course.thumbnail,
+        category: course.category,
+        level: course.level,
+        instructor: formatInstructor(course.instructor),
+        duration: course.duration,
+        price: course.price,
+        subscription,
+        progress: progress
+          ? {
+              overallProgress: progress.overallProgress || 0,
+              currentModuleIndex: progress.currentModuleIndex || 0,
+              totalModules: progress.modules ? progress.modules.length : 0,
+              isCompleted: progress.isCompleted || false,
+              completedAt: progress.completedAt,
+              lastActivityAt: progress.lastActivityAt,
+              totalWatchTime: progress.totalWatchTime || 0,
+            }
+          : {
+              overallProgress: 0,
+              currentModuleIndex: 0,
+              totalModules: 0,
+              isCompleted: false,
+              completedAt: null,
+              lastActivityAt: null,
+              totalWatchTime: 0,
+            },
+      });
+
+      const contentCourses = activeEnrolledCourses.map((progress) =>
+        formatCourseEntry({
+          course: progress.courseId,
+          subscription: formatSubscription(progress.subscriptionId),
+          progress,
+        }),
+      );
+
+      const mentorshipCourses = mentorshipOnlySubs.map((sub) =>
+        formatCourseEntry({
+          course: sub.courseId,
+          subscription: formatSubscription(sub),
+        }),
+      );
+
+      const formattedCourses = [...contentCourses, ...mentorshipCourses];
 
       const stats = {
-        totalCourses: validEnrolledCourses.length,
-        completedCourses: validEnrolledCourses.filter((p) => p.isCompleted)
+        totalCourses: formattedCourses.length,
+        coursesWithContent: contentCourses.length,
+        mentorshipOnlyCourses: mentorshipCourses.length,
+        completedCourses: contentCourses.filter((course) => course.progress.isCompleted)
           .length,
-        inProgressCourses: validEnrolledCourses.filter((p) => !p.isCompleted)
-          .length,
+        inProgressCourses: contentCourses.filter(
+          (course) => !course.progress.isCompleted,
+        ).length,
         overallProgress: 0,
         totalWatchTime: 0,
       };
 
-      if (stats.totalCourses > 0) {
-        const totalProgress = validEnrolledCourses.reduce(
-          (sum, course) => sum + (course.overallProgress || 0),
+      if (contentCourses.length > 0) {
+        const totalProgress = contentCourses.reduce(
+          (sum, course) => sum + (course.progress.overallProgress || 0),
           0,
         );
-        stats.overallProgress = Math.round(totalProgress / stats.totalCourses);
-        stats.totalWatchTime = validEnrolledCourses.reduce(
-          (sum, course) => sum + (course.totalWatchTime || 0),
+        stats.overallProgress = Math.round(totalProgress / contentCourses.length);
+        stats.totalWatchTime = contentCourses.reduce(
+          (sum, course) => sum + (course.progress.totalWatchTime || 0),
           0,
         );
       }
 
-      // Calculate learning streak
-      const learningStreak = this.calculateLearningStreak(validEnrolledCourses);
-
-      const now = new Date();
-
-      // Format enrolled courses data for frontend
-      const formattedCourses = activeEnrolledCourses
-        .map((progress) => ({
-          courseId: progress.courseId._id,
-          title: progress.courseId.title,
-          description: progress.courseId.description,
-          thumbnail: progress.courseId.thumbnail,
-          category: progress.courseId.category,
-          level: progress.courseId.level,
-          instructor: progress.courseId.instructor
-            ? {
-                name:
-                  `${progress.courseId.instructor.firstName || ""} ${
-                    progress.courseId.instructor.lastName || ""
-                  }`.trim() || "Unknown Instructor",
-                id: progress.courseId.instructor._id,
-              }
-            : {
-                name: "Unknown Instructor",
-                id: null,
-              },
-          duration: progress.courseId.duration,
-          price: progress.courseId.price,
-          subscription: progress.subscriptionId
-            ? {
-                plan: progress.subscriptionId.plan,
-                status: progress.subscriptionId.status,
-                billingActive:
-                  progress.subscriptionId.status === "active" &&
-                  progress.subscriptionId.endDate &&
-                  new Date(progress.subscriptionId.endDate) > now,
-                endDate: progress.subscriptionId.endDate,
-                startDate: progress.subscriptionId.startDate,
-                createdAt: progress.subscriptionId.createdAt,
-              }
-            : {
-                plan: "unknown",
-                status: "inactive",
-                endDate: null,
-                startDate: null,
-                createdAt: null,
-              },
-          progress: {
-            overallProgress: progress.overallProgress || 0,
-            currentModuleIndex: progress.currentModuleIndex || 0,
-            totalModules: progress.modules ? progress.modules.length : 0,
-            isCompleted: progress.isCompleted || false,
-            completedAt: progress.completedAt,
-            lastActivityAt: progress.lastActivityAt,
-            totalWatchTime: progress.totalWatchTime || 0,
-          },
-        }));
+      const learningStreak = this.calculateLearningStreak(activeEnrolledCourses);
 
       return {
         stats: {

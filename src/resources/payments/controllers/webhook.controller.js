@@ -59,6 +59,17 @@ export const handlePaystackWebhook = async (req, res) => {
         });
     }
 
+    if (result?.status === "error") {
+      logger.error(`Webhook processing returned error for ${data.reference}`, {
+        result,
+      });
+      return errorResMsg(
+        res,
+        500,
+        result.message || "Webhook processing failed",
+      );
+    }
+
     logger.info(`Webhook processed successfully for ${transactionType}: ${data.reference}`);
     
     return successResMsg(res, 200, {
@@ -74,12 +85,11 @@ export const handlePaystackWebhook = async (req, res) => {
       headers: req.headers
     });
     
-    // Always return 200 to prevent Paystack from retrying failed webhooks
-    // Log the error for investigation
-    return successResMsg(res, 200, {
-      message: "Webhook received but processing failed",
-      error: error.message
-    });
+    return errorResMsg(
+      res,
+      error.status || 500,
+      error.message || "Webhook processing failed",
+    );
   }
 };
 

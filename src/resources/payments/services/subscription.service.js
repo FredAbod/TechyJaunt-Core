@@ -662,6 +662,139 @@ class SubscriptionService {
     return featureAccess;
   }
 
+  buildFeatureAccessSummary(subscription) {
+    return {
+      aiTutor: subscription.hasFeatureAccess("aiTutor"),
+      mentorship: subscription.hasFeatureAccess("mentorship"),
+      courseAccess: subscription.hasFeatureAccess("courseAccess"),
+      premiumResources: subscription.hasFeatureAccess("premiumResources"),
+      certificate: subscription.hasFeatureAccess("certificate"),
+      alumniCommunity: subscription.hasFeatureAccess("alumniCommunity"),
+      linkedinOptimization: subscription.hasFeatureAccess("linkedinOptimization"),
+      networking: subscription.hasFeatureAccess("networking"),
+    };
+  }
+
+  buildMentorshipDetails(subscription, featureAccessSummary = null) {
+    const mentorship = subscription.featureAccess?.mentorship || {};
+    const summary = featureAccessSummary || this.buildFeatureAccessSummary(subscription);
+
+    return {
+      hasAccess: summary.mentorship,
+      sessionsUsed: mentorship.sessionsUsed || 0,
+      sessionsLimit: mentorship.sessionsLimit || 0,
+      expiresAt: mentorship.expiresAt || null,
+    };
+  }
+
+  buildSubscriptionSummary(subscription) {
+    const featureAccess = this.buildFeatureAccessSummary(subscription);
+    const hasCourseContent = featureAccess.courseAccess;
+
+    return {
+      id: subscription._id,
+      plan: subscription.plan,
+      planName: subscription.planDetails?.name || subscription.plan,
+      status: subscription.status,
+      startDate: subscription.startDate,
+      endDate: subscription.endDate,
+      billingActive: isBillingPeriodActive(subscription),
+      isRecurring: subscription.isRecurring,
+      amount: subscription.amount,
+      currency: subscription.currency,
+      transactionReference: subscription.transactionReference,
+      hasCourseContent,
+      accessType: hasCourseContent ? "full" : "mentorship-only",
+      featureAccess,
+      mentorshipDetails: this.buildMentorshipDetails(subscription, featureAccess),
+    };
+  }
+
+  /**
+   * Verify pending subscriptions with Paystack and activate successful payments.
+   * Used by the reconciliation scheduler and manual recovery scripts.
+   */
+  async reconcilePendingSubscriptions(options = {}) {
+    const {
+      minAgeMinutes = 2,
+      limit = 50,
+      dryRun = false,
+    } = options;
+
+    const cutoff = new Date(Date.now() - minAgeMinutes * 60 * 1000);
+    const pendingSubscriptions = await Subscription.find({
+      status: "pending",
+      createdAt: { $lte: cutoff },
+    })
+      .sort({ createdAt: 1 })
+      .limit(limit);
+
+    const results = {
+      checked: pendingSubscriptions.length,
+      activated: 0,
+      stillPending: 0,
+      failed: 0,
+      errors: [],
+    };
+
+    for (const subscription of pendingSubscriptions) {
+      try {
+        const response = await axios.get(
+          `https://api.paystack.co/transaction/verify/${subscription.transactionReference}`,
+          this.paystackConfig,
+        );
+
+        const paymentData = response.data?.data;
+        const paystackStatus = paymentData?.status;
+
+        if (!response.data?.status) {
+          results.stillPending += 1;
+          continue;
+        }
+
+        if (paystackStatus === "success") {
+          if (!dryRun) {
+            await this.verifySubscription(subscription.transactionReference);
+          }
+          results.activated += 1;
+          logger.info(
+            `Reconciled pending subscription ${subscription._id} (${subscription.transactionReference})`,
+          );
+          continue;
+        }
+
+        if (["failed", "abandoned", "reversed"].includes(paystackStatus)) {
+          if (!dryRun) {
+            subscription.status = "failed";
+            subscription.metadata = {
+              ...(subscription.metadata || {}),
+              reconciliation: {
+                checkedAt: new Date().toISOString(),
+                paystackStatus,
+              },
+            };
+            await subscription.save();
+          }
+          results.failed += 1;
+          continue;
+        }
+
+        results.stillPending += 1;
+      } catch (error) {
+        results.errors.push({
+          subscriptionId: subscription._id.toString(),
+          reference: subscription.transactionReference,
+          message: error.message,
+        });
+        logger.error(
+          `Reconciliation failed for ${subscription.transactionReference}: ${error.message}`,
+        );
+      }
+    }
+
+    return results;
+  }
+
   async sendPaymentSuccessNotification(subscription) {
     try {
       const User = (await import("../../user/models/user.js")).default;
@@ -805,9 +938,7 @@ class SubscriptionService {
         .sort({ createdAt: -1 });
 
       return subscriptions.map((sub) => ({
-        id: sub._id,
-        plan: sub.plan,
-        planName: sub.planDetails.name,
+        ...this.buildSubscriptionSummary(sub),
         course: sub.courseId
           ? {
               id: sub.courseId._id,
@@ -818,15 +949,8 @@ class SubscriptionService {
               thumbnail: sub.courseId.thumbnail,
             }
           : null,
-        status: sub.status,
-        startDate: sub.startDate,
-        endDate: sub.endDate,
         isCurrentlyActive: sub.isCurrentlyActive,
-        isRecurring: sub.isRecurring,
-        amount: sub.amount,
-        currency: sub.currency,
-        featureAccess: sub.featureAccess,
-        transactionReference: sub.transactionReference,
+        rawFeatureAccess: sub.featureAccess,
       }));
     } catch (error) {
       throw new AppError(
@@ -899,14 +1023,27 @@ class SubscriptionService {
         });
       });
 
+      const primaryBillingSub =
+        activeSubscriptions.length > 0
+          ? this.pickBestSubscription(activeSubscriptions)
+          : null;
+
       return {
         hasActiveSubscription,
         hasCourseEntitlement: entitlementSubs.length > 0,
         activePlans,
         totalActiveSubscriptions: activeSubscriptions.length,
         featureAccess: aggregatedFeatures,
+        mentorshipDetails: primaryBillingSub
+          ? this.buildMentorshipDetails(primaryBillingSub)
+          : {
+              hasAccess: aggregatedFeatures.mentorship,
+              sessionsUsed: 0,
+              sessionsLimit: 0,
+              expiresAt: null,
+            },
         subscriptions: activeSubscriptions.map((sub) => ({
-          plan: sub.plan,
+          ...this.buildSubscriptionSummary(sub),
           course: sub.courseId
             ? {
                 id: sub.courseId._id,
@@ -917,8 +1054,6 @@ class SubscriptionService {
                 thumbnail: sub.courseId.thumbnail,
               }
             : null,
-          endDate: sub.endDate,
-          isRecurring: sub.isRecurring,
         })),
       };
     } catch (error) {
@@ -959,7 +1094,22 @@ class SubscriptionService {
 
         if (!subscription) {
           logger.warn(`Subscription not found for reference: ${reference}`);
-          return { status: "error", message: "Subscription not found" };
+          throw new AppError(
+            `Subscription not found for reference: ${reference}`,
+            404,
+          );
+        }
+
+        if (subscription.status === "active") {
+          logger.info(
+            `Subscription ${subscription._id} already active for reference ${reference}`,
+          );
+          return {
+            status: "success",
+            message: "Subscription already active",
+            subscriptionId: subscription._id,
+            progressInitialized: subscription.hasFeatureAccess("courseAccess"),
+          };
         }
 
         const wasPending = subscription.status === "pending";
