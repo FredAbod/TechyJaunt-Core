@@ -1,7 +1,21 @@
 /**
  * Email template for session booking notification (Tutor)
  */
+import {
+  tutorBookingsUrl,
+} from "../helper/frontendUrls.js";
+
 const sessionBookingTutorTemplate = (tutorName, studentName, sessionDetails) => {
+  const confirmUrl = tutorBookingsUrl({
+    action: "confirm",
+    id: sessionDetails.bookingId,
+  });
+  const rescheduleUrl = tutorBookingsUrl({
+    action: "reschedule",
+    id: sessionDetails.bookingId,
+  });
+  const allBookingsUrl = tutorBookingsUrl();
+
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -169,12 +183,12 @@ const sessionBookingTutorTemplate = (tutorName, studentName, sessionDetails) => 
           </ul>
           
           <div class="action-buttons">
-            <a href="${process.env.FRONTEND_URL}/dashboard/bookings?action=confirm&id=${sessionDetails.bookingId}" class="cta-button confirm-btn">Confirm Session</a>
-            <a href="${process.env.FRONTEND_URL}/dashboard/bookings?action=reschedule&id=${sessionDetails.bookingId}" class="cta-button reschedule-btn">Reschedule</a>
+            <a href="${confirmUrl}" class="cta-button confirm-btn">Confirm Session</a>
+            <a href="${rescheduleUrl}" class="cta-button reschedule-btn">Reschedule</a>
           </div>
           
           <div style="text-align: center; margin: 20px 0;">
-            <a href="${process.env.FRONTEND_URL}/dashboard/bookings" style="color: #3498db; text-decoration: none;">View All Bookings →</a>
+            <a href="${allBookingsUrl}" style="color: #3498db; text-decoration: none;">View All Bookings →</a>
           </div>
         </div>
         

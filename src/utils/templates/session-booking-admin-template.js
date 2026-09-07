@@ -1,7 +1,11 @@
 /**
  * Email template for session booking notification (Admin)
  */
+import { adminDashboardUrl } from "../helper/frontendUrls.js";
+
 const sessionBookingAdminTemplate = (studentName, tutorName, sessionDetails) => {
+  const dashboardUrl = adminDashboardUrl();
+
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -177,7 +181,7 @@ const sessionBookingAdminTemplate = (studentName, tutorName, sessionDetails) => 
           </div>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${process.env.FRONTEND_URL}/admin/bookings" class="cta-button">View Admin Dashboard</a>
+            <a href="${dashboardUrl}" class="cta-button">View Admin Dashboard</a>
           </div>
           
           <div class="stats-row">

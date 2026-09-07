@@ -1,7 +1,12 @@
 /**
  * Email template for session booking confirmation (Student)
  */
+import { studentMentorshipUrl } from "../helper/frontendUrls.js";
+
 const sessionBookingStudentTemplate = (studentName, tutorName, sessionDetails) => {
+  const mentorshipUrl = studentMentorshipUrl();
+  const isConfirmed = sessionDetails.status === "confirmed";
+
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -129,24 +134,29 @@ const sessionBookingStudentTemplate = (studentName, tutorName, sessionDetails) =
             </div>
           </div>
           
-          ${sessionDetails.meetingUrl ? `
+          ${isConfirmed && sessionDetails.meetingUrl ? `
           <div class="meeting-info">
             <h3 style="margin-top: 0; color: #27ae60;">💻 Meeting Information</h3>
             <p><strong>Meeting URL:</strong> <a href="${sessionDetails.meetingUrl}" target="_blank">${sessionDetails.meetingUrl}</a></p>
             <p><strong>Meeting ID:</strong> ${sessionDetails.meetingId}</p>
             ${sessionDetails.password ? `<p><strong>Password:</strong> ${sessionDetails.password}</p>` : ''}
           </div>
-          ` : ''}
+          ` : `
+          <div class="meeting-info">
+            <h3 style="margin-top: 0; color: #f39c12;">⏳ Awaiting Tutor Confirmation</h3>
+            <p>Your booking request was received. Meeting details will be available after your tutor confirms the session.</p>
+          </div>
+          `}
           
           <p><strong>What's Next?</strong></p>
           <ul>
             <li>Wait for your tutor to confirm the session</li>
             <li>Prepare any questions or materials you'd like to discuss</li>
-            <li>Join the meeting 5 minutes before the scheduled time</li>
+            <li>Join the meeting 5 minutes before the scheduled time (after confirmation)</li>
           </ul>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${process.env.FRONTEND_URL}/dashboard/bookings" class="cta-button">View My Bookings</a>
+            <a href="${mentorshipUrl}" class="cta-button">View My Bookings</a>
           </div>
         </div>
         
