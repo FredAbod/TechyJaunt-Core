@@ -52,6 +52,7 @@ const sessionReminderTutorTemplate = (
         <li><strong>Duration:</strong> ${durationMinutes ?? "N/A"} minutes</li>
       </ul>
       ${sessionDetails.meetingUrl ? `<p><strong>Meeting link:</strong> <a href="${sessionDetails.meetingUrl}">${sessionDetails.meetingUrl}</a></p>` : ''}
+      ${sessionDetails.googleCalendarUrl ? `<p><a href="${sessionDetails.googleCalendarUrl}" class="cta" target="_blank" rel="noreferrer">Add to Google Calendar</a></p>` : ''}
       <p>Please be ready and join the meeting on time.</p>
       <p style="margin-top:20px">Thanks,<br/>TechyJaunt Team</p>
       <p style="font-size:12px;color:#777">This is an automated reminder.</p>

@@ -1,5 +1,7 @@
 import bookingService from "../services/booking.service.js";
 import User from "../../user/models/user.js";
+import BookingSession from "../models/bookingSession.js";
+import { calendarLinksForBooking } from "../../../utils/helper/calendarLinks.js";
 import { successResMsg, errorResMsg } from "../../../utils/lib/response.js";
 import logger from "../../../utils/log/logger.js";
 
@@ -412,6 +414,52 @@ const getSessionParticipants = async (req, res) => {
   }
 };
 
+const getBookingCalendar = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user.userId;
+
+    const booking = await BookingSession.findById(bookingId)
+      .populate("studentId", "firstName lastName email")
+      .populate("tutorId", "firstName lastName email");
+
+    if (!booking) {
+      return errorResMsg(res, 404, "Booking not found");
+    }
+
+    const isStudent = booking.studentId._id.toString() === userId;
+    const isTutor = booking.tutorId._id.toString() === userId;
+    if (!isStudent && !isTutor && !["admin", "super admin"].includes(req.user.role)) {
+      return errorResMsg(res, 403, "Access denied");
+    }
+
+    const otherPartyName = isTutor
+      ? `${booking.studentId.firstName} ${booking.studentId.lastName}`
+      : `${booking.tutorId.firstName} ${booking.tutorId.lastName}`;
+
+    const { googleCalendarUrl, icsContent } = calendarLinksForBooking(booking, {
+      otherPartyName,
+    });
+
+    if (req.query.format === "google") {
+      return successResMsg(res, 200, {
+        message: "Calendar link generated",
+        data: { googleCalendarUrl },
+      });
+    }
+
+    res.setHeader("Content-Type", "text/calendar; charset=utf-8");
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="techyjaunt-session.ics"`,
+    );
+    return res.status(200).send(icsContent);
+  } catch (error) {
+    logger.error("Error generating calendar file:", error);
+    return errorResMsg(res, error.statusCode || 500, error.message);
+  }
+};
+
 export {
   setAvailability,
   replaceAvailability,
@@ -428,4 +476,5 @@ export {
   submitFeedback,
   getSessionStats,
   getSessionParticipants,
+  getBookingCalendar,
 };

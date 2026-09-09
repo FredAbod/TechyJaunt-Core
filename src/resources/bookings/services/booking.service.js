@@ -11,6 +11,9 @@ import {
 } from "../../../utils/email/email-sender.js";
 import SubscriptionService from "../../payments/services/subscription.service.js";
 import logger from "../../../utils/log/logger.js";
+import { assertMinimumLeadTime, isSlotBookable } from "../../../utils/helper/bookingLeadTime.js";
+import { calendarLinksForBooking } from "../../../utils/helper/calendarLinks.js";
+import moment from "moment-timezone";
 
 const MAX_CONCURRENT_BOOKINGS_PER_BLOCK = 50;
 
@@ -463,6 +466,16 @@ class BookingService {
                 );
 
                 timeSlots.forEach((timeSlot, slotIndex) => {
+                  if (
+                    !isSlotBookable(
+                      dateString,
+                      timeSlot.startTime,
+                      availability.timezone || "UTC",
+                    )
+                  ) {
+                    return;
+                  }
+
                   const sessionSlot = {
                     sessionId: `${availability._id}_${index}_${slotIndex}_${dateString}`,
                     availabilityId: availability._id,
@@ -748,6 +761,8 @@ class BookingService {
         );
       }
 
+      assertMinimumLeadTime(date, startTime, availability.timezone || "UTC");
+
       // Check for existing bookings count at the same time
       const existingBookingsCount = await BookingSession.countDocuments({
         tutorId: tutorId,
@@ -866,6 +881,10 @@ class BookingService {
 
       // Send email notifications
       try {
+        const { googleCalendarUrl } = calendarLinksForBooking(populatedBooking, {
+          otherPartyName: `${populatedBooking.tutorId.firstName} ${populatedBooking.tutorId.lastName}`,
+        });
+
         const sessionDetails = {
           bookingId: populatedBooking._id.toString(),
           date: new Date(populatedBooking.sessionDate).toLocaleDateString(),
@@ -878,6 +897,8 @@ class BookingService {
           meetingUrl: populatedBooking.meetingDetails?.meetingUrl,
           meetingId: populatedBooking.meetingDetails?.meetingId,
           password: populatedBooking.meetingDetails?.password,
+          timezone: populatedBooking.timezone,
+          googleCalendarUrl,
         };
 
         // Send confirmation email to student
@@ -1378,15 +1399,16 @@ class BookingService {
         throw new Error("Booking not found");
       }
 
-      // Check permissions
-      const isStudent = booking.studentId.toString() === userId;
+      const actor = await User.findById(userId);
       const isTutor = booking.tutorId.toString() === userId;
+      const isAdmin = actor && ["admin", "super admin"].includes(actor.role);
 
-      if (!isStudent && !isTutor) {
-        const user = await User.findById(userId);
-        if (!user || user.role !== "super admin") {
-          throw new Error("Access denied");
-        }
+      if (!isTutor && !isAdmin) {
+        const error = new Error(
+          "Only tutors can reschedule sessions. Message your tutor to request a new time.",
+        );
+        error.statusCode = 403;
+        throw error;
       }
 
       // Check if tutor is available at the new time
@@ -1424,6 +1446,8 @@ class BookingService {
       if (!availableSlot) {
         throw new Error("Tutor is not available at the requested time slot");
       }
+
+      assertMinimumLeadTime(date, startTime, availability.timezone || "UTC");
 
       // Check for existing bookings at the same time (excluding current booking)
       const existingBookingsCount = await BookingSession.countDocuments({
@@ -1841,6 +1865,43 @@ class BookingService {
     } catch (error) {
       throw new Error(`Failed to get session slot details: ${error.message}`);
     }
+  }
+
+  async markOverdueSessionsAsMissed() {
+    const now = moment();
+    const sessions = await BookingSession.find({
+      status: { $in: ["pending", "confirmed"] },
+      sessionDate: {
+        $gte: now.clone().subtract(21, "days").startOf("day").toDate(),
+        $lte: now.clone().endOf("day").toDate(),
+      },
+    });
+
+    let marked = 0;
+    for (const session of sessions) {
+      const timezone = session.timezone || "UTC";
+      const dateStr = moment(session.sessionDate).format("YYYY-MM-DD");
+      const start = moment.tz(
+        `${dateStr} ${session.startTime}`,
+        "YYYY-MM-DD HH:mm",
+        timezone,
+      );
+      let end = moment.tz(
+        `${dateStr} ${session.endTime}`,
+        "YYYY-MM-DD HH:mm",
+        timezone,
+      );
+      if (end.isValid() && start.isValid() && !end.isAfter(start)) {
+        end = end.add(1, "day");
+      }
+      if (!end.isValid()) continue;
+      if (now.isAfter(end.clone().add(15, "minutes"))) {
+        session.status = "no_show";
+        await session.save();
+        marked += 1;
+      }
+    }
+    return marked;
   }
 }
 

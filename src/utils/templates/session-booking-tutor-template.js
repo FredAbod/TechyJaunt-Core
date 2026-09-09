@@ -185,6 +185,7 @@ const sessionBookingTutorTemplate = (tutorName, studentName, sessionDetails) => 
           <div class="action-buttons">
             <a href="${confirmUrl}" class="cta-button confirm-btn">Confirm Session</a>
             <a href="${rescheduleUrl}" class="cta-button reschedule-btn">Reschedule</a>
+            ${sessionDetails.googleCalendarUrl ? `<a href="${sessionDetails.googleCalendarUrl}" class="cta-button" style="background-color:#0f9d58;" target="_blank" rel="noreferrer">Add to Google Calendar</a>` : ""}
           </div>
           
           <div style="text-align: center; margin: 20px 0;">

@@ -8,6 +8,7 @@ import sessionBookingAdminTemplate from "../templates/session-booking-admin-temp
 import sessionReminderStudentTemplate from "../templates/session-reminder-student-template.js";
 import sessionReminderTutorTemplate from "../templates/session-reminder-tutor-template.js";
 import subscriptionPaymentSuccessTemplate from "../templates/subscription-payment-success-template.js";
+import unreadMessageTemplate from "../templates/unread-message-template.js";
 import { sendZeptoEmail } from "./zeptomail-client.js";
 import logger from "../log/logger.js";
 
@@ -319,6 +320,36 @@ const sendSubscriptionPaymentSuccessEmail = async (
   }
 };
 
+const sendUnreadMessageEmail = async ({
+  recipientEmail,
+  recipientName,
+  senderName,
+  preview,
+  inboxUrl,
+}) => {
+  try {
+    await sendZeptoEmail({
+      to: recipientEmail,
+      toName: recipientName,
+      subject: `New message from ${senderName} - TechyJaunt`,
+      html: unreadMessageTemplate({
+        recipientName,
+        senderName,
+        preview,
+        inboxUrl,
+      }),
+    });
+    logger.info("Unread message email sent", { to: recipientEmail });
+    return true;
+  } catch (error) {
+    logger.error("Unread message email error", {
+      to: recipientEmail,
+      error: error.message,
+    });
+    return false;
+  }
+};
+
 export {
   sendOtpEmail,
   sendWelcomeOnboardingEmail,
@@ -333,4 +364,5 @@ export {
   sendSessionBookingAdminEmail,
   sendSessionReminderStudentEmail,
   sendSessionReminderTutorEmail,
+  sendUnreadMessageEmail,
 };

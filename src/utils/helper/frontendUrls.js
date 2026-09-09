@@ -20,6 +20,18 @@ export function studentMentorshipUrl() {
   return `${getFrontendBaseUrl()}/learning-hub/dashboard/mentorship`;
 }
 
+export function studentMessagesUrl({ withUserId } = {}) {
+  const base = `${getFrontendBaseUrl()}/learning-hub/dashboard/mentorship/messages`;
+  if (!withUserId) return base;
+  return `${base}?with=${encodeURIComponent(withUserId)}`;
+}
+
+export function tutorMessagesUrl({ withUserId } = {}) {
+  const base = `${getFrontendBaseUrl()}/learning-hub/tutor/dashboard/messages`;
+  if (!withUserId) return base;
+  return `${base}?with=${encodeURIComponent(withUserId)}`;
+}
+
 export function adminDashboardUrl() {
   return `${getFrontendBaseUrl()}/learning-hub/admin/dashboard`;
 }

@@ -118,6 +118,14 @@ const bookingSessionSchema = new mongoose.Schema(
         student: { type: Boolean, default: false },
         tutor: { type: Boolean, default: false }
       },
+      sent30min: {
+        student: { type: Boolean, default: false },
+        tutor: { type: Boolean, default: false }
+      },
+      sent15min: {
+        student: { type: Boolean, default: false },
+        tutor: { type: Boolean, default: false }
+      },
       reminderSentAt: {
         type: Date
       }

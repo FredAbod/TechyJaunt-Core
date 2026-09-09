@@ -1,5 +1,6 @@
 import express from 'express';
 import * as bookingController from '../controllers/booking.controller.js';
+import * as chatController from '../controllers/chat.controller.js';
 import { isAuthenticated } from '../../../middleware/isAuthenticated.js';
 import roleBasedAccess from '../../../middleware/rbac.js';
 import { checkFeatureAccess } from '../../../middleware/checkSubscriptionAccess.js';
@@ -27,7 +28,53 @@ const strictBookingLimiter = rateLimit({
   message: 'Too many booking attempts, please try again later.'
 });
 
+const chatLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 60,
+  message: 'Too many chat requests, please try again later.'
+});
+
 const router = express.Router();
+
+router.get(
+  '/chat/contacts',
+  chatLimiter,
+  isAuthenticated,
+  roleBasedAccess(['user', 'student', 'tutor', 'admin', 'super admin']),
+  chatController.listContacts
+);
+
+router.get(
+  '/chat/conversations',
+  chatLimiter,
+  isAuthenticated,
+  roleBasedAccess(['user', 'student', 'tutor', 'admin', 'super admin']),
+  chatController.listConversations
+);
+
+router.post(
+  '/chat/conversations',
+  chatLimiter,
+  isAuthenticated,
+  roleBasedAccess(['user', 'student', 'tutor', 'admin', 'super admin']),
+  chatController.getOrCreateConversation
+);
+
+router.get(
+  '/chat/conversations/:conversationId/messages',
+  chatLimiter,
+  isAuthenticated,
+  roleBasedAccess(['user', 'student', 'tutor', 'admin', 'super admin']),
+  chatController.listMessages
+);
+
+router.post(
+  '/chat/conversations/:conversationId/messages',
+  chatLimiter,
+  isAuthenticated,
+  roleBasedAccess(['user', 'student', 'tutor', 'admin', 'super admin']),
+  chatController.sendMessage
+);
 
 // ==================== TUTOR AVAILABILITY ROUTES ====================
 
@@ -278,6 +325,12 @@ router.get('/sessions/:bookingId',
   bookingController.getBookingDetails
 );
 
+router.get('/sessions/:bookingId/calendar',
+  bookingLimiter,
+  isAuthenticated,
+  bookingController.getBookingCalendar
+);
+
 // ==================== SESSION MANAGEMENT ROUTES ====================
 
 /**
@@ -384,6 +437,7 @@ router.post('/sessions/:bookingId/cancel',
 router.patch('/sessions/:bookingId/reschedule',
   bookingLimiter,
   isAuthenticated,
+  roleBasedAccess(['tutor', 'admin', 'super admin']),
   validateRequest(rescheduleBookingSchema),
   bookingController.rescheduleBooking
 );
@@ -509,6 +563,7 @@ router.get('/sessions/participants',
 router.patch('/sessions/:bookingId/reschedule',
   bookingLimiter,
   isAuthenticated,
+  roleBasedAccess(['tutor', 'admin', 'super admin']),
   validateRequest(rescheduleBookingSchema),
   bookingController.rescheduleBooking
 );
