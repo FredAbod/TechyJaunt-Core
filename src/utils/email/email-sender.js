@@ -9,6 +9,7 @@ import sessionReminderStudentTemplate from "../templates/session-reminder-studen
 import sessionReminderTutorTemplate from "../templates/session-reminder-tutor-template.js";
 import subscriptionPaymentSuccessTemplate from "../templates/subscription-payment-success-template.js";
 import unreadMessageTemplate from "../templates/unread-message-template.js";
+import sessionRescheduledTemplate from "../templates/session-rescheduled-template.js";
 import { sendZeptoEmail } from "./zeptomail-client.js";
 import logger from "../log/logger.js";
 
@@ -350,6 +351,39 @@ const sendUnreadMessageEmail = async ({
   }
 };
 
+const sendSessionRescheduledEmail = async ({
+  recipientEmail,
+  recipientName,
+  otherPartyName,
+  role,
+  sessionDetails,
+}) => {
+  try {
+    await sendZeptoEmail({
+      to: recipientEmail,
+      toName: recipientName,
+      subject: "Your TechyJaunt session was rescheduled",
+      html: sessionRescheduledTemplate({
+        recipientName,
+        otherPartyName,
+        role,
+        sessionDetails,
+      }),
+    });
+    logger.info("Session rescheduled email sent", {
+      to: recipientEmail,
+      role,
+    });
+    return true;
+  } catch (error) {
+    logger.error("Session rescheduled email error", {
+      to: recipientEmail,
+      error: error.message,
+    });
+    return false;
+  }
+};
+
 export {
   sendOtpEmail,
   sendWelcomeOnboardingEmail,
@@ -365,4 +399,5 @@ export {
   sendSessionReminderStudentEmail,
   sendSessionReminderTutorEmail,
   sendUnreadMessageEmail,
+  sendSessionRescheduledEmail,
 };

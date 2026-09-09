@@ -8,6 +8,7 @@ import {
   sendSessionBookingStudentEmail,
   sendSessionBookingTutorEmail,
   sendSessionBookingAdminEmail,
+  sendSessionRescheduledEmail,
 } from "../../../utils/email/email-sender.js";
 import SubscriptionService from "../../payments/services/subscription.service.js";
 import logger from "../../../utils/log/logger.js";
@@ -1470,17 +1471,69 @@ class BookingService {
       booking.sessionDate = date;
       booking.startTime = startTime;
       booking.endTime = endTime;
-      booking.status = "confirmed"; // Set to confirmed instead of rescheduled
+      booking.timezone = availability.timezone || booking.timezone;
+      booking.status = "confirmed";
       booking.rescheduleReason = reason;
       booking.rescheduledBy = userId;
       booking.rescheduledAt = new Date();
+      booking.reminders = {
+        sent2days: { student: false, tutor: false },
+        sent1day: { student: false, tutor: false },
+        sent1hour: { student: false, tutor: false },
+        sent10min: { student: false, tutor: false },
+        sent30min: { student: false, tutor: false },
+        sent15min: { student: false, tutor: false },
+        reminderSentAt: null,
+      };
 
       await booking.save();
 
-      return await BookingSession.findById(bookingId)
+      const populatedBooking = await BookingSession.findById(bookingId)
         .populate("studentId", "firstName lastName email")
         .populate("tutorId", "firstName lastName email")
         .populate("courseId", "title");
+
+      try {
+        const student = populatedBooking.studentId;
+        const tutor = populatedBooking.tutorId;
+        const studentName = `${student.firstName} ${student.lastName}`.trim();
+        const tutorName = `${tutor.firstName} ${tutor.lastName}`.trim();
+        const { googleCalendarUrl } = calendarLinksForBooking(
+          populatedBooking,
+          { otherPartyName: tutorName },
+        );
+        const sessionDetails = {
+          date: new Date(populatedBooking.sessionDate).toLocaleDateString(),
+          startTime: populatedBooking.startTime,
+          endTime: populatedBooking.endTime,
+          timezone: populatedBooking.timezone,
+          reason: reason || "",
+          meetingUrl: populatedBooking.meetingDetails?.meetingUrl,
+          googleCalendarUrl,
+        };
+
+        await sendSessionRescheduledEmail({
+          recipientEmail: student.email,
+          recipientName: studentName,
+          otherPartyName: tutorName,
+          role: "student",
+          sessionDetails,
+        });
+        await sendSessionRescheduledEmail({
+          recipientEmail: tutor.email,
+          recipientName: tutorName,
+          otherPartyName: studentName,
+          role: "tutor",
+          sessionDetails,
+        });
+      } catch (emailError) {
+        logger.error("Error sending reschedule emails", {
+          error: emailError?.message || String(emailError),
+          bookingId,
+        });
+      }
+
+      return populatedBooking;
     } catch (error) {
       throw error;
     }
