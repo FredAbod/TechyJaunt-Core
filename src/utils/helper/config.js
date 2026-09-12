@@ -27,6 +27,6 @@ export const {
   SENDER_API_TOKEN = "",
   // Comma-separated group IDs (e.g. "eZVD4w,b2vAR1")
   SENDER_GROUP_IDS = "",
-  // Optional: set to "true" to trigger Sender automations
-  SENDER_TRIGGER_AUTOMATION = "false",
+  // Set "false" only if you must add subscribers without firing automations
+  SENDER_TRIGGER_AUTOMATION = "true",
 } = process.env;

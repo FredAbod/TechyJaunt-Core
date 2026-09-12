@@ -26,6 +26,13 @@ function parseGroupIds(raw) {
     .filter(Boolean);
 }
 
+function shouldTriggerAutomation() {
+  const raw = String(SENDER_TRIGGER_AUTOMATION ?? "true")
+    .trim()
+    .toLowerCase();
+  return raw !== "false" && raw !== "0" && raw !== "no";
+}
+
 class SenderService {
   enabled() {
     return Boolean(SENDER_API_TOKEN);
@@ -39,7 +46,7 @@ class SenderService {
       ...(typeof firstName === "string" ? { firstname: firstName } : {}),
       ...(typeof lastName === "string" ? { lastname: lastName } : {}),
       ...(phone ? { phone } : {}),
-      trigger_automation: String(SENDER_TRIGGER_AUTOMATION).toLowerCase() === "true",
+      trigger_automation: shouldTriggerAutomation(),
     };
 
     // Nothing to update
@@ -65,18 +72,23 @@ class SenderService {
   async createSubscriber({ email, firstName, lastName, phone }) {
     if (!this.enabled()) return { skipped: true };
 
+    const groups = parseGroupIds(SENDER_GROUP_IDS);
     const payload = {
       email,
       firstname: firstName,
       lastname: lastName,
       ...(phone ? { phone } : {}),
-      trigger_automation: String(SENDER_TRIGGER_AUTOMATION).toLowerCase() === "true",
+      ...(groups.length ? { groups } : {}),
+      trigger_automation: shouldTriggerAutomation(),
     };
 
     try {
       const res = await senderClient.post("/subscribers", payload);
       if (res?.data?.success) {
-        logger.info(`Sender subscriber upserted: ${email}`);
+        logger.info(`Sender subscriber upserted: ${email}`, {
+          trigger_automation: payload.trigger_automation,
+          groups,
+        });
       }
       return res.data;
     } catch (error) {
@@ -100,10 +112,12 @@ class SenderService {
       try {
         const res = await senderClient.post(`/subscribers/groups/${groupId}`, {
           subscribers: [email],
-          trigger_automation: String(SENDER_TRIGGER_AUTOMATION).toLowerCase() === "true",
+          trigger_automation: shouldTriggerAutomation(),
         });
         if (res?.data?.success) {
-          logger.info(`Sender group added: ${email} -> ${groupId}`);
+          logger.info(`Sender group added: ${email} -> ${groupId}`, {
+            trigger_automation: shouldTriggerAutomation(),
+          });
         }
         results.push({ groupId, ok: true, data: res.data });
       } catch (error) {
