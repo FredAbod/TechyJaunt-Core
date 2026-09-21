@@ -16,25 +16,37 @@ import {
 import rateLimit from 'express-rate-limit';
 
 // Rate limiting for booking operations
+const userKeyGenerator = (req) => {
+  if (req.user?.userId) return `user:${req.user.userId}`;
+  return req.ip || "anonymous";
+};
+
 const bookingLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // limit each IP to 20 requests per windowMs
-  message: 'Too many booking requests, please try again later.'
+  max: 20,
+  message: 'Too many booking requests, please try again later.',
+  keyGenerator: userKeyGenerator,
+  validate: { keyGeneratorIpFallback: false },
 });
 
 const strictBookingLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 10, // increased limit to allow multiple students to book the same session
-  message: 'Too many booking attempts, please try again later.'
+  max: 10,
+  message: 'Too many booking attempts, please try again later.',
+  keyGenerator: userKeyGenerator,
+  validate: { keyGeneratorIpFallback: false },
 });
 
 const chatLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 60,
-  message: 'Too many chat requests, please try again later.'
+  message: 'Too many chat requests, please try again later.',
+  keyGenerator: userKeyGenerator,
+  validate: { keyGeneratorIpFallback: false },
 });
 
 const router = express.Router();
+router.use(isAuthenticated);
 
 router.get(
   '/chat/contacts',

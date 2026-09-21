@@ -1,6 +1,10 @@
 import mongoose from "mongoose";
 import Progress from "../models/progress.js";
 import User from "../../user/models/user.js";
+import Subscription from "../../payments/models/subscription.js";
+
+/** Webhook-activated purchases. Cancelled still means they paid. */
+const WEBHOOK_PAID_STATUSES = ["active", "expired", "cancelled"];
 
 /** Progress rows with lifetime course access (paid active or expired subscription). */
 export const COURSE_ENTITLEMENT_PROGRESS_STAGES = [
@@ -116,8 +120,12 @@ export async function getEnrollmentStatsByUserIds(userIds) {
 export async function getPlatformStats() {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
-  const [totalRegisteredUsers, enrollmentRows, totalActiveUsers] =
-    await Promise.all([
+  const [
+    totalRegisteredUsers,
+    enrollmentRows,
+    totalActiveUsers,
+    paidUserIds,
+  ] = await Promise.all([
       User.countDocuments({ role: "user" }),
       Progress.aggregate([
         ...COURSE_ENTITLEMENT_PROGRESS_STAGES,
@@ -138,6 +146,10 @@ export async function getPlatformStats() {
         role: "user",
         lastLogin: { $gte: thirtyDaysAgo },
       }),
+      Subscription.distinct("user", {
+        plan: { $in: ["bronze", "silver", "gold"] },
+        status: { $in: WEBHOOK_PAID_STATUSES },
+      }),
     ]);
 
   const enrollment = enrollmentRows[0] || {};
@@ -152,6 +164,8 @@ export async function getPlatformStats() {
 
   return {
     totalRegisteredUsers,
+    /** Unique people with a webhook-confirmed Bronze/Silver/Gold payment. */
+    totalPaidUsers: paidUserIds.length,
     totalActiveEnrollments,
     totalCompletedEnrollments,
     totalInProgressEnrollments,

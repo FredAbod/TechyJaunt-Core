@@ -35,3 +35,8 @@ export function tutorMessagesUrl({ withUserId } = {}) {
 export function adminDashboardUrl() {
   return `${getFrontendBaseUrl()}/learning-hub/admin/dashboard`;
 }
+
+/** Paystack return URL after a successful course/plan checkout. */
+export function subscriptionConfirmationUrl(courseId) {
+  return `${getFrontendBaseUrl()}/learning-hub/dashboard/courses/checkout/confirmation/${courseId}`;
+}

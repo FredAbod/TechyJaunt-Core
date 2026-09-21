@@ -16,27 +16,114 @@ import { assertMinimumLeadTime, isSlotBookable } from "../../../utils/helper/boo
 import { calendarLinksForBooking } from "../../../utils/helper/calendarLinks.js";
 import moment from "moment-timezone";
 
-const MAX_CONCURRENT_BOOKINGS_PER_BLOCK = 50;
+/** Hard cap: every session (book + reschedule) holds at most 5 students. */
+const MAX_STUDENTS_PER_SESSION = 5;
+const OCCUPYING_BOOKING_STATUSES = ["pending", "confirmed"];
 
-/** Capacity persisted on a tutor time block (missing/invalid → 5, capped at 50). */
-function effectiveMaxBookings(slot) {
-  const n = Number(slot?.maxBookings);
-  if (!Number.isFinite(n) || n < 1) return 5;
-  return Math.min(Math.floor(n), MAX_CONCURRENT_BOOKINGS_PER_BLOCK);
+function effectiveMaxBookings(_slot) {
+  return MAX_STUDENTS_PER_SESSION;
+}
+
+function sessionDateKey(value) {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) {
+    return value.slice(0, 10);
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toISOString().slice(0, 10);
+}
+
+function occupyingQuery({
+  tutorId,
+  sessionDate,
+  startTime,
+  endTime,
+  excludeBookingId,
+}) {
+  const query = {
+    tutorId,
+    sessionDate,
+    startTime,
+    status: { $in: OCCUPYING_BOOKING_STATUSES },
+  };
+  if (endTime) query.endTime = endTime;
+  if (excludeBookingId) query._id = { $ne: excludeBookingId };
+  return query;
+}
+
+async function countOccupyingStudents(params) {
+  return BookingSession.countDocuments(occupyingQuery(params));
+}
+
+function slotFullError(cap = MAX_STUDENTS_PER_SESSION) {
+  return new Error(
+    `Session is full. Maximum ${cap} student(s) can join this time slot`,
+  );
 }
 
 function normalizeIncomingTimeSlot(slot) {
   const n = Number(slot.maxBookings ?? slot.slots);
   const maxBookings =
     !Number.isFinite(n) || n < 1
-      ? 5
-      : Math.min(Math.floor(n), MAX_CONCURRENT_BOOKINGS_PER_BLOCK);
+      ? MAX_STUDENTS_PER_SESSION
+      : Math.min(Math.floor(n), MAX_STUDENTS_PER_SESSION);
   const { slots: _slots, ...rest } = slot;
   return {
     ...rest,
     maxBookings,
     currentBookings: Number(slot.currentBookings) || 0,
   };
+}
+
+function deny(message, statusCode = 403) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+const STATUS_TRANSITIONS = {
+  student: {
+    pending: ["cancelled"],
+    confirmed: ["cancelled"],
+  },
+  tutor: {
+    pending: ["confirmed", "cancelled"],
+    confirmed: ["completed", "cancelled", "no_show"],
+  },
+  admin: {
+    pending: ["confirmed", "cancelled"],
+    confirmed: ["completed", "cancelled", "no_show"],
+  },
+};
+
+function actorKind({ isStudent, isTutor, isAdmin }) {
+  if (isAdmin) return "admin";
+  if (isTutor) return "tutor";
+  if (isStudent) return "student";
+  return null;
+}
+
+function assertStatusTransition(kind, from, to) {
+  const allowed = STATUS_TRANSITIONS[kind]?.[from] || [];
+  if (!allowed.includes(to)) {
+    throw deny(`Cannot change booking from ${from} to ${to}`);
+  }
+}
+
+function resolveBookingAdminEmails() {
+  const emails = [];
+  const add = (value) => {
+    String(value || "")
+      .split(",")
+      .map((part) => part.trim().toLowerCase())
+      .filter(Boolean)
+      .forEach((email) => {
+        if (!emails.includes(email)) emails.push(email);
+      });
+  };
+  add(process.env.ADMIN_EMAIL);
+  add(process.env.BOOKING_ADMIN_NOTIFY_EMAILS);
+  return emails;
 }
 
 class BookingService {
@@ -413,15 +500,38 @@ class BookingService {
         .populate("courseSpecific", "title")
         .sort({ dayOfWeek: 1 });
 
+      const occupancyTutorIds = [
+        ...new Set(
+          availabilities
+            .map((a) => a.tutorId?._id?.toString())
+            .filter(Boolean),
+        ),
+      ];
+      const occupancyFrom = new Date();
+      occupancyFrom.setHours(0, 0, 0, 0);
+      const occupancyTo = new Date(occupancyFrom);
+      occupancyTo.setDate(occupancyTo.getDate() + 28);
+
+      const occupyingBookings = occupancyTutorIds.length
+        ? await BookingSession.find({
+            tutorId: { $in: occupancyTutorIds },
+            sessionDate: { $gte: occupancyFrom, $lte: occupancyTo },
+            status: { $in: OCCUPYING_BOOKING_STATUSES },
+          }).select("tutorId sessionDate startTime")
+        : [];
+
+      const occupyingBySlot = new Map();
+      for (const booking of occupyingBookings) {
+        const key = `${booking.tutorId.toString()}|${sessionDateKey(booking.sessionDate)}|${booking.startTime}`;
+        occupyingBySlot.set(key, (occupyingBySlot.get(key) || 0) + 1);
+      }
+
       // Format slots for easy booking
       const sessionSlots = [];
 
       availabilities.forEach((availability, availIndex) => {
         availability.timeSlots.forEach((slot, index) => {
-          if (
-            slot.isAvailable &&
-            slot.currentBookings < effectiveMaxBookings(slot)
-          ) {
+          if (slot.isAvailable) {
             // Generate future dates for this day of week (next 4 weeks)
             const today = new Date();
             const targetDay = [
@@ -477,6 +587,14 @@ class BookingService {
                     return;
                   }
 
+                  const cap = effectiveMaxBookings(slot);
+                  const occupied =
+                    occupyingBySlot.get(
+                      `${availability.tutorId._id.toString()}|${dateString}|${timeSlot.startTime}`,
+                    ) || 0;
+                  const remaining = Math.max(0, cap - occupied);
+                  if (remaining <= 0) return;
+
                   const sessionSlot = {
                     sessionId: `${availability._id}_${index}_${slotIndex}_${dateString}`,
                     availabilityId: availability._id,
@@ -489,9 +607,8 @@ class BookingService {
                     startTime: timeSlot.startTime,
                     endTime: timeSlot.endTime,
                     duration: sessionDuration,
-                    availableSlots:
-                      effectiveMaxBookings(slot) - slot.currentBookings,
-                    totalSlots: effectiveMaxBookings(slot),
+                    availableSlots: remaining,
+                    totalSlots: cap,
                     pricing: availability.hourlyRate || {
                       amount: 0,
                       currency: "USD",
@@ -518,12 +635,31 @@ class BookingService {
         ...new Set(sessionSlots.map((slot) => slot.tutorId.toString())),
       ];
       const tutorCourses = {};
+      uniqueTutorIds.forEach((id) => {
+        tutorCourses[id] = [];
+      });
 
-      for (const tutorId of uniqueTutorIds) {
+      if (uniqueTutorIds.length) {
         const courses = await Course.find({
-          $or: [{ instructor: tutorId }, { assistants: tutorId }],
-        }).select("_id title category level price thumbnail");
-        tutorCourses[tutorId] = courses;
+          $or: [
+            { instructor: { $in: uniqueTutorIds } },
+            { assistants: { $in: uniqueTutorIds } },
+          ],
+        }).select("_id title category level price thumbnail instructor assistants");
+
+        for (const course of courses) {
+          const related = new Set(
+            [
+              course.instructor?.toString(),
+              ...(course.assistants || []).map((id) => id.toString()),
+            ].filter(Boolean),
+          );
+          for (const tutorId of uniqueTutorIds) {
+            if (related.has(tutorId)) {
+              tutorCourses[tutorId].push(course);
+            }
+          }
+        }
       }
 
       // Add tutor courses to each session slot
@@ -548,19 +684,16 @@ class BookingService {
       // Get session slot details
       const slotDetails = await this.getSessionSlotDetails(sessionId);
 
-      // Verify the slot is still available
-      const existingBookingsCount = await BookingSession.countDocuments({
+      const slotCap = MAX_STUDENTS_PER_SESSION;
+      const existingBookingsCount = await countOccupyingStudents({
         tutorId: slotDetails.tutorId,
         sessionDate: slotDetails.sessionDate,
-        status: { $in: ["pending", "confirmed"] },
         startTime: slotDetails.startTime,
         endTime: slotDetails.endTime,
       });
 
-      if (existingBookingsCount >= slotDetails.totalSlots) {
-        throw new Error(
-          `Session is full. Maximum ${slotDetails.totalSlots} student(s) can book this time slot`,
-        );
+      if (existingBookingsCount >= slotCap) {
+        throw slotFullError(slotCap);
       }
 
       // Use the existing bookSession method with formatted data
@@ -751,7 +884,6 @@ class BookingService {
       const availableSlot = availability.timeSlots.find((slot) => {
         return (
           slot.isAvailable &&
-          slot.currentBookings < effectiveMaxBookings(slot) &&
           this.isTimeConflict(startTime, endTime, slot.startTime, slot.endTime)
         );
       });
@@ -764,20 +896,27 @@ class BookingService {
 
       assertMinimumLeadTime(date, startTime, availability.timezone || "UTC");
 
-      // Check for existing bookings count at the same time
-      const existingBookingsCount = await BookingSession.countDocuments({
-        tutorId: tutorId,
+      const duplicate = await BookingSession.findOne({
+        studentId,
+        tutorId,
         sessionDate: date,
-        status: { $in: ["pending", "confirmed"] },
-        startTime: startTime,
-        endTime: endTime,
+        startTime,
+        status: { $in: OCCUPYING_BOOKING_STATUSES },
+      });
+      if (duplicate) {
+        throw new Error("You already have a booking for this session time");
+      }
+
+      const existingBookingsCount = await countOccupyingStudents({
+        tutorId,
+        sessionDate: date,
+        startTime,
+        endTime,
       });
 
-      const slotCap = effectiveMaxBookings(availableSlot);
+      const slotCap = MAX_STUDENTS_PER_SESSION;
       if (existingBookingsCount >= slotCap) {
-        throw new Error(
-          `Session is full. Maximum ${slotCap} student(s) can book this time slot`,
-        );
+        throw slotFullError(slotCap);
       }
 
       // Generate meeting details
@@ -841,6 +980,26 @@ class BookingService {
         throw saveError;
       }
 
+      const occupyingAfterSave = await countOccupyingStudents({
+        tutorId,
+        sessionDate: date,
+        startTime,
+        endTime,
+      });
+      if (occupyingAfterSave > slotCap) {
+        const keepers = await BookingSession.find(
+          occupyingQuery({ tutorId, sessionDate: date, startTime, endTime }),
+        )
+          .sort({ createdAt: 1 })
+          .limit(slotCap)
+          .select("_id");
+        const keepIds = new Set(keepers.map((doc) => doc._id.toString()));
+        if (!keepIds.has(booking._id.toString())) {
+          await BookingSession.deleteOne({ _id: booking._id });
+          throw slotFullError(slotCap);
+        }
+      }
+
       // Increment mentorship session count for subscription tracking
       if (courseId) {
         try {
@@ -856,17 +1015,7 @@ class BookingService {
         }
       }
 
-      // Update availability slot booking count
-      try {
-        availableSlot.currentBookings += 1;
-        await availability.save();
-      } catch (availError) {
-        logger.warn("Error updating availability booking count", {
-          error: availError.message,
-          availabilityId: availability?._id,
-        });
-        // Don't throw - booking is already saved
-      }
+      // Occupancy is the live BookingSession count, not availability.currentBookings.
 
       const populatedBooking = await BookingSession.findById(booking._id)
         .populate("studentId", "firstName lastName email")
@@ -918,29 +1067,23 @@ class BookingService {
           sessionDetails,
         );
 
-        // Send notification email to admin (get admin email from env or find admin users)
-        const adminEmails = process.env.ADMIN_EMAIL
-          ? [process.env.ADMIN_EMAIL]
-          : [];
-
-        // Also find admin users from database
-        const adminUsers = await User.find({
-          role: { $in: ["admin", "super admin"] },
-        }).select("email");
-        adminUsers.forEach((admin) => {
-          if (admin.email && !adminEmails.includes(admin.email)) {
-            adminEmails.push(admin.email);
-          }
-        });
-
-        // Send admin notifications
-        for (const adminEmail of adminEmails) {
-          await sendSessionBookingAdminEmail(
-            adminEmail,
-            `${populatedBooking.studentId.firstName} ${populatedBooking.studentId.lastName}`,
-            `${populatedBooking.tutorId.firstName} ${populatedBooking.tutorId.lastName}`,
-            sessionDetails,
-          );
+        const adminEmails = resolveBookingAdminEmails();
+        if (adminEmails.length) {
+          Promise.allSettled(
+            adminEmails.map((adminEmail) =>
+              sendSessionBookingAdminEmail(
+                adminEmail,
+                `${populatedBooking.studentId.firstName} ${populatedBooking.studentId.lastName}`,
+                `${populatedBooking.tutorId.firstName} ${populatedBooking.tutorId.lastName}`,
+                sessionDetails,
+              ),
+            ),
+          ).catch((err) => {
+            logger.warn("Admin booking notification failed", {
+              error: err?.message || String(err),
+              bookingId: booking._id,
+            });
+          });
         }
       } catch (emailError) {
         logger.error("Error sending booking notification emails", {
@@ -1060,30 +1203,36 @@ class BookingService {
         throw new Error("Booking not found");
       }
 
-      // Check permissions
+      const actor = await User.findById(userId).select("role");
       const isStudent = booking.studentId.toString() === userId;
       const isTutor = booking.tutorId.toString() === userId;
+      const isAdmin = actor && ["admin", "super admin"].includes(actor.role);
+      const kind = actorKind({ isStudent, isTutor, isAdmin });
 
-      if (!isStudent && !isTutor) {
-        const user = await User.findById(userId);
-        if (!user || user.role !== "super admin") {
-          throw new Error("Access denied");
-        }
+      if (!kind) {
+        throw deny("Access denied");
       }
 
-      // Update booking
+      assertStatusTransition(kind, booking.status, status);
+
+      const noteBag =
+        typeof notes === "string"
+          ? { cancellationReason: notes }
+          : notes || {};
+
       booking.status = status;
 
-      if (notes.tutorNotes && isTutor) {
-        booking.tutorNotes = notes.tutorNotes;
+      if (noteBag.tutorNotes && (isTutor || isAdmin)) {
+        booking.tutorNotes = noteBag.tutorNotes;
       }
 
-      if (notes.sessionNotes && isTutor) {
-        booking.sessionNotes = notes.sessionNotes;
+      if (noteBag.sessionNotes && (isTutor || isAdmin)) {
+        booking.sessionNotes = noteBag.sessionNotes;
       }
 
-      if (notes.cancellationReason) {
-        booking.cancellationReason = notes.cancellationReason;
+      if (status === "cancelled") {
+        booking.cancellationReason =
+          noteBag.cancellationReason || noteBag.reason || booking.cancellationReason;
         booking.cancelledBy = userId;
         booking.cancelledAt = new Date();
       }
@@ -1098,9 +1247,7 @@ class BookingService {
 
       await booking.save();
 
-      // If cancelled, update availability slot and decrement session count
       if (status === "cancelled") {
-        // Decrement mentorship session count for subscription tracking
         if (booking.courseId) {
           try {
             await SubscriptionService.decrementMentorshipSession(
@@ -1121,29 +1268,12 @@ class BookingService {
           }
         }
 
-        const dayOfWeek = new Date(booking.sessionDate)
-          .toLocaleDateString("en-US", { weekday: "long" })
-          .toLowerCase();
-        const availability = await TutorAvailability.findOne({
-          tutorId: booking.tutorId,
-          dayOfWeek,
-          isActive: true,
-        });
-
-        if (availability) {
-          const slot = availability.timeSlots.find((slot) =>
-            this.isTimeConflict(
-              booking.startTime,
-              booking.endTime,
-              slot.startTime,
-              slot.endTime,
-            ),
-          );
-          if (slot && slot.currentBookings > 0) {
-            slot.currentBookings -= 1;
-            await availability.save();
-          }
-        }
+        await this.updateGroupSessionType(
+          booking.tutorId,
+          booking.sessionDate,
+          booking.startTime,
+          booking.endTime,
+        );
       }
 
       return await BookingSession.findById(bookingId)
@@ -1306,16 +1436,17 @@ class BookingService {
         throw new Error("Booking not found");
       }
 
-      // Check permissions
+      const actor = await User.findById(userId).select("role");
       const isStudent = booking.studentId.toString() === userId;
       const isTutor = booking.tutorId.toString() === userId;
+      const isAdmin = actor && ["admin", "super admin"].includes(actor.role);
+      const kind = actorKind({ isStudent, isTutor, isAdmin });
 
-      if (!isStudent && !isTutor) {
-        const user = await User.findById(userId);
-        if (!user || user.role !== "super admin") {
-          throw new Error("Access denied");
-        }
+      if (!kind) {
+        throw deny("Access denied");
       }
+
+      assertStatusTransition(kind, booking.status, "cancelled");
 
       // Update booking status
       booking.status = "cancelled";
@@ -1344,31 +1475,6 @@ class BookingService {
             courseId: booking.courseId,
             bookingId: booking._id,
           });
-        }
-      }
-
-      // Update availability slot count
-      const dayOfWeek = new Date(booking.sessionDate)
-        .toLocaleDateString("en-US", { weekday: "long" })
-        .toLowerCase();
-      const availability = await TutorAvailability.findOne({
-        tutorId: booking.tutorId,
-        dayOfWeek,
-        isActive: true,
-      });
-
-      if (availability) {
-        const slot = availability.timeSlots.find((slot) =>
-          this.isTimeConflict(
-            booking.startTime,
-            booking.endTime,
-            slot.startTime,
-            slot.endTime,
-          ),
-        );
-        if (slot && slot.currentBookings > 0) {
-          slot.currentBookings -= 1;
-          await availability.save();
         }
       }
 
@@ -1431,17 +1537,13 @@ class BookingService {
 
       // Check if the specific time slot is available
       const availableSlot = availability.timeSlots.find((slot) => {
-        const slotAvailable =
-          slot.isAvailable &&
-          slot.currentBookings < effectiveMaxBookings(slot);
         const timeOverlap = this.isTimeConflict(
           startTime,
           endTime,
           slot.startTime,
           slot.endTime,
         );
-
-        return slotAvailable && timeOverlap;
+        return slot.isAvailable && timeOverlap;
       });
 
       if (!availableSlot) {
@@ -1450,22 +1552,26 @@ class BookingService {
 
       assertMinimumLeadTime(date, startTime, availability.timezone || "UTC");
 
-      // Check for existing bookings at the same time (excluding current booking)
-      const existingBookingsCount = await BookingSession.countDocuments({
-        _id: { $ne: bookingId }, // Exclude current booking
+      const existingBookingsCount = await countOccupyingStudents({
         tutorId: booking.tutorId,
         sessionDate: date,
-        status: { $in: ["pending", "confirmed"] },
-        startTime: startTime,
-        endTime: endTime,
+        startTime,
+        endTime,
+        excludeBookingId: bookingId,
       });
 
-      const slotCap = effectiveMaxBookings(availableSlot);
+      const slotCap = MAX_STUDENTS_PER_SESSION;
       if (existingBookingsCount >= slotCap) {
-        throw new Error(
-          `Time slot is full. Maximum ${slotCap} student(s) can book this time slot`,
-        );
+        throw slotFullError(slotCap);
       }
+
+      const previous = {
+        sessionDate: booking.sessionDate,
+        startTime: booking.startTime,
+        endTime: booking.endTime,
+        timezone: booking.timezone,
+        status: booking.status,
+      };
 
       // Update booking
       booking.sessionDate = date;
@@ -1487,6 +1593,22 @@ class BookingService {
       };
 
       await booking.save();
+
+      const occupyingAfterMove = await countOccupyingStudents({
+        tutorId: booking.tutorId,
+        sessionDate: date,
+        startTime,
+        endTime,
+      });
+      if (occupyingAfterMove > slotCap) {
+        booking.sessionDate = previous.sessionDate;
+        booking.startTime = previous.startTime;
+        booking.endTime = previous.endTime;
+        booking.timezone = previous.timezone;
+        booking.status = previous.status;
+        await booking.save();
+        throw slotFullError(slotCap);
+      }
 
       const populatedBooking = await BookingSession.findById(bookingId)
         .populate("studentId", "firstName lastName email")
@@ -1767,8 +1889,11 @@ class BookingService {
 
       return {
         totalParticipants: participants.length,
-        maxParticipants: 5,
-        availableSlots: 5 - participants.length,
+        maxParticipants: MAX_STUDENTS_PER_SESSION,
+        availableSlots: Math.max(
+          0,
+          MAX_STUDENTS_PER_SESSION - participants.length,
+        ),
         participants: participants.map((booking) => ({
           bookingId: booking._id,
           student: booking.studentId,
@@ -1895,6 +2020,14 @@ class BookingService {
 
       const specificTimeSlot = timeSlots[timeSlotIndex];
 
+      const cap = MAX_STUDENTS_PER_SESSION;
+      const occupied = await countOccupyingStudents({
+        tutorId: availability.tutorId._id,
+        sessionDate,
+        startTime: specificTimeSlot.startTime,
+        endTime: specificTimeSlot.endTime,
+      });
+
       return {
         sessionId: slotId,
         availabilityId: availability._id,
@@ -1908,8 +2041,8 @@ class BookingService {
         startTime: specificTimeSlot.startTime,
         endTime: specificTimeSlot.endTime,
         duration: sessionDuration,
-        availableSlots: effectiveMaxBookings(slot) - slot.currentBookings,
-        totalSlots: effectiveMaxBookings(slot),
+        availableSlots: Math.max(0, cap - occupied),
+        totalSlots: cap,
         pricing: availability.hourlyRate || { amount: 0, currency: "USD" },
         course: availability.courseSpecific,
         timezone: availability.timezone,
@@ -1925,7 +2058,7 @@ class BookingService {
     const sessions = await BookingSession.find({
       status: { $in: ["pending", "confirmed"] },
       sessionDate: {
-        $gte: now.clone().subtract(21, "days").startOf("day").toDate(),
+        $gte: now.clone().subtract(3, "days").startOf("day").toDate(),
         $lte: now.clone().endOf("day").toDate(),
       },
     });

@@ -164,6 +164,17 @@ const bookingSessionSchema = new mongoose.Schema(
     confirmedAt: {
       type: Date
     },
+    rescheduledAt: {
+      type: Date,
+    },
+    rescheduledBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    rescheduleReason: {
+      type: String,
+      maxlength: 1000,
+    },
     completedAt: {
       type: Date
     }
@@ -179,5 +190,12 @@ bookingSessionSchema.index({ studentId: 1, sessionDate: 1 });
 bookingSessionSchema.index({ tutorId: 1, sessionDate: 1 });
 bookingSessionSchema.index({ status: 1, sessionDate: 1 });
 bookingSessionSchema.index({ courseId: 1 });
+bookingSessionSchema.index({
+  tutorId: 1,
+  sessionDate: 1,
+  startTime: 1,
+  status: 1,
+});
+bookingSessionSchema.index({ status: 1, sessionDate: 1, startTime: 1 });
 
 export default mongoose.model("BookingSession", bookingSessionSchema);

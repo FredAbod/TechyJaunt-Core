@@ -16,6 +16,7 @@ import {
   isBillingPeriodActive,
 } from "../../../utils/subscription/subscriptionEntitlements.js";
 import { sendSubscriptionPaymentSuccessEmail } from "../../../utils/email/email-sender.js";
+import { subscriptionConfirmationUrl } from "../../../utils/helper/frontendUrls.js";
 
 class SubscriptionService {
   constructor() {
@@ -156,7 +157,7 @@ class SubscriptionService {
             amount: planDetails.price,
             currency: planDetails.currency,
             reference: renewalReference,
-            callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/courses/${courseId}/subscription/confirmation`,
+            callback_url: subscriptionConfirmationUrl(courseId),
             metadata: {
               custom_fields: [
                 {
@@ -281,7 +282,7 @@ class SubscriptionService {
               amount: planDetails.price,
               currency: planDetails.currency,
               reference: existingSubscription.transactionReference, // Use existing reference
-              callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/courses/${courseId}/subscription/confirmation`,
+              callback_url: subscriptionConfirmationUrl(courseId),
               metadata: {
                 custom_fields: [
                   {
@@ -405,7 +406,7 @@ class SubscriptionService {
         amount: planDetails.price,
         currency: planDetails.currency,
         reference: transactionReference,
-        callback_url: `${process.env.FRONTEND_URL}/learning-hub/dashboard/courses/${courseId}/subscription/confirmation`,
+        callback_url: subscriptionConfirmationUrl(courseId),
         metadata: {
           custom_fields: [
             {

@@ -33,6 +33,29 @@ const TYPE_LABEL = {
   "15min": "15 minutes",
 };
 
+function sessionStartMoment(session, now) {
+  const timezone = session.timezone || "UTC";
+  return moment.tz(
+    `${moment(session.sessionDate).format("YYYY-MM-DD")} ${session.startTime}`,
+    "YYYY-MM-DD HH:mm",
+    timezone,
+  );
+}
+
+function needsAnyReminder(session, diffMinutes) {
+  if (diffMinutes > 70 || diffMinutes < 0) return false;
+  for (const type of Object.keys(REMINDER_TARGETS)) {
+    const target = REMINDER_TARGETS[type];
+    const window = REMINDER_WINDOWS[type] || 5;
+    if (diffMinutes <= target && diffMinutes > target - window) {
+      const flagPath = FLAG_PATH[type];
+      const flags = session.reminders?.[flagPath];
+      if (!flags?.student || !flags?.tutor) return true;
+    }
+  }
+  return false;
+}
+
 cron.schedule("* * * * *", async () => {
   try {
     logger.info("[ReminderScheduler] running check for upcoming sessions");
@@ -47,23 +70,32 @@ cron.schedule("* * * * *", async () => {
     }
 
     const now = moment();
-    const sessions = await BookingSession.find({
+    const candidates = await BookingSession.find({
       status: "confirmed",
       sessionDate: {
-        $gte: now.clone().startOf("day").toDate(),
+        $gte: now.clone().subtract(1, "day").startOf("day").toDate(),
         $lte: now.clone().add(1, "day").endOf("day").toDate(),
       },
-    }).populate("studentId tutorId");
+    }).select("sessionDate startTime timezone reminders");
+
+    const dueIds = [];
+    for (const session of candidates) {
+      const diffMinutes = sessionStartMoment(session, now).diff(now, "minutes");
+      if (needsAnyReminder(session, diffMinutes)) {
+        dueIds.push(session._id);
+      }
+    }
+
+    if (!dueIds.length) return;
+
+    const sessions = await BookingSession.find({ _id: { $in: dueIds } }).populate(
+      "studentId tutorId",
+    );
 
     for (const session of sessions) {
       try {
         const timezone = session.timezone || "UTC";
-        const sessionStart = moment.tz(
-          `${moment(session.sessionDate).format("YYYY-MM-DD")} ${session.startTime}`,
-          "YYYY-MM-DD HH:mm",
-          timezone,
-        );
-
+        const sessionStart = sessionStartMoment(session, now);
         const diffMinutes = sessionStart.diff(now, "minutes");
         if (diffMinutes > 70 || diffMinutes < 0) continue;
 

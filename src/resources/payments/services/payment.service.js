@@ -5,6 +5,7 @@ import CoursePayment from "../models/coursePayment.js";
 import AppError from "../../../utils/lib/appError.js";
 import { PAYSTACK_SECRET_KEY } from "../../../utils/helper/config.js";
 import { generateRandomString } from "../../../utils/helper/helper.js";
+import { subscriptionConfirmationUrl } from "../../../utils/helper/frontendUrls.js";
 
 class PaymentService {
   constructor() {
@@ -50,7 +51,7 @@ class PaymentService {
         amount: course.price * 100,
         reference: transactionReference,
         // Updated callback_url to match required format
-        callback_url: `http://localhost:5173/learning-hub/dashboard/${course._id}/subscription/verify?trxref=${transactionReference}&reference=${transactionReference}`,
+        callback_url: subscriptionConfirmationUrl(course._id),
         metadata: {
           custom_fields: [
             {

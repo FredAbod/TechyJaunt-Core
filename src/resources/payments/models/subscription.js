@@ -189,6 +189,9 @@ subscriptionSchema.methods.hasFeatureAccess = function (featureName) {
   return true;
 };
 
+subscriptionSchema.index({ user: 1, status: 1 });
+subscriptionSchema.index({ status: 1, plan: 1, user: 1 });
+
 // Method to extend feature access
 subscriptionSchema.methods.extendFeatureAccess = function(featureName, durationInDays) {
   if (!this.featureAccess) {

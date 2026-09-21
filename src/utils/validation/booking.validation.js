@@ -29,21 +29,21 @@ const timeSlotSchema = Joi.object({
   maxBookings: Joi.number()
     .integer()
     .min(1)
-    .max(50)
+    .max(5)
     .optional()
     .messages({
       "number.min": "Max bookings must be at least 1",
-      "number.max": "Max bookings cannot exceed 50",
+      "number.max": "Max bookings cannot exceed 5 students per session",
     }),
   // Frontend alias for max concurrent bookings in this time block
   slots: Joi.number()
     .integer()
     .min(1)
-    .max(50)
+    .max(5)
     .optional()
     .messages({
       "number.min": "Slots must be at least 1",
-      "number.max": "Slots cannot exceed 50",
+      "number.max": "Slots cannot exceed 5 students per session",
     }),
 }).custom((value) => {
   const out = { ...value };

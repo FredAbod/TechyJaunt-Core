@@ -216,14 +216,14 @@ const getBookingDetails = async (req, res) => {
 const updateBookingStatus = async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const { status, reason } = req.body;
+    const { status } = req.body;
     const userId = req.user.userId;
 
     const booking = await bookingService.updateBookingStatus(
       bookingId,
       status,
       userId,
-      reason,
+      req.body,
     );
 
     logger.info(
