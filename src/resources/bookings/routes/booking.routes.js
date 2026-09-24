@@ -480,6 +480,13 @@ router.post('/sessions/:bookingId/complete',
   bookingController.completeSession
 );
 
+router.post('/sessions/:bookingId/join',
+  bookingLimiter,
+  isAuthenticated,
+  roleBasedAccess(['user', 'student', 'tutor', 'admin', 'super admin']),
+  bookingController.joinSession
+);
+
 // ==================== FEEDBACK ROUTES ====================
 
 /**
@@ -585,6 +592,13 @@ router.post('/sessions/:bookingId/complete',
   isAuthenticated,
   roleBasedAccess(['tutor', 'admin', 'super admin']),
   bookingController.completeSession
+);
+
+router.post('/sessions/:bookingId/join',
+  bookingLimiter,
+  isAuthenticated,
+  roleBasedAccess(['user', 'student', 'tutor', 'admin', 'super admin']),
+  bookingController.joinSession
 );
 
 // Feedback routes

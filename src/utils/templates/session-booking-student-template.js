@@ -134,17 +134,15 @@ const sessionBookingStudentTemplate = (studentName, tutorName, sessionDetails) =
             </div>
           </div>
           
-          ${isConfirmed && sessionDetails.meetingUrl ? `
+          ${isConfirmed ? `
           <div class="meeting-info">
-            <h3 style="margin-top: 0; color: #27ae60;">💻 Meeting Information</h3>
-            <p><strong>Meeting URL:</strong> <a href="${sessionDetails.meetingUrl}" target="_blank">${sessionDetails.meetingUrl}</a></p>
-            <p><strong>Meeting ID:</strong> ${sessionDetails.meetingId}</p>
-            ${sessionDetails.password ? `<p><strong>Password:</strong> ${sessionDetails.password}</p>` : ''}
+            <h3 style="margin-top: 0; color: #27ae60;">Join from your dashboard</h3>
+            <p>Meeting links are only available inside Learning Hub so we can track who joined.</p>
           </div>
           ` : `
           <div class="meeting-info">
             <h3 style="margin-top: 0; color: #f39c12;">⏳ Awaiting Tutor Confirmation</h3>
-            <p>Your booking request was received. Meeting details will be available after your tutor confirms the session.</p>
+            <p>Your booking request was received. After your tutor confirms, open the session from your dashboard to join.</p>
           </div>
           `}
           
@@ -152,11 +150,11 @@ const sessionBookingStudentTemplate = (studentName, tutorName, sessionDetails) =
           <ul>
             <li>Wait for your tutor to confirm the session</li>
             <li>Prepare any questions or materials you'd like to discuss</li>
-            <li>Join the meeting 5 minutes before the scheduled time (after confirmation)</li>
+            <li>Open the session from your dashboard a few minutes before start time</li>
           </ul>
           
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${mentorshipUrl}" class="cta-button">View My Bookings</a>
+            <a href="${sessionDetails.dashboardUrl || mentorshipUrl}" class="cta-button">Open session in dashboard</a>
             ${sessionDetails.googleCalendarUrl ? `<a href="${sessionDetails.googleCalendarUrl}" class="cta-button" style="background-color:#0f9d58;margin-left:8px;" target="_blank" rel="noreferrer">Add to Google Calendar</a>` : ""}
           </div>
         </div>

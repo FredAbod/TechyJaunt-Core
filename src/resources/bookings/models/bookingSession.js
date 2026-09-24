@@ -38,7 +38,7 @@ const bookingSessionSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "confirmed", "cancelled", "completed", "no_show"],
+      enum: ["pending", "confirmed", "cancelled", "completed", "no_show", "waiting"],
       default: "pending"
     },
     sessionType: {
@@ -79,6 +79,10 @@ const bookingSessionSchema = new mongoose.Schema(
       location: {
         type: String // For in-person sessions
       }
+    },
+    attendance: {
+      studentJoinedAt: { type: Date },
+      tutorJoinedAt: { type: Date },
     },
     pricing: {
       amount: {

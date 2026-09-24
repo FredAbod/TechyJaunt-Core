@@ -10,6 +10,7 @@ import {
   tutorMessagesUrl,
 } from "../../../utils/helper/frontendUrls.js";
 import logger from "../../../utils/log/logger.js";
+import moment from "moment-timezone";
 
 const TUTOR_ROLES = ["tutor", "admin", "super admin"];
 const MAX_BODY = 2000;
@@ -17,6 +18,7 @@ const MESSAGE_EMAIL_COOLDOWN_MS = 15 * 60 * 1000;
 const CHAT_BOOKING_STATUSES = [
   "pending",
   "confirmed",
+  "waiting",
   "completed",
   "no_show",
 ];
@@ -101,7 +103,7 @@ function assertParticipant(conversation, userId) {
   }
 }
 
-async function notifyRecipientOfNewMessage(conversation, senderId, preview) {
+async function notifyRecipientOfNewMessage(conversation, senderId, preview, sentAtDate) {
   try {
     const senderIsTutor =
       conversation.tutorId.toString() === senderId.toString();
@@ -136,6 +138,9 @@ async function notifyRecipientOfNewMessage(conversation, senderId, preview) {
       senderName,
       preview: (preview || "").slice(0, 160),
       inboxUrl,
+      sentAt: moment(sentAtDate || new Date())
+        .tz("Africa/Lagos")
+        .format("ddd, D MMM YYYY · h:mm A [WAT]"),
     });
 
     if (sent) {
@@ -370,7 +375,7 @@ const chatService = {
     conversation.lastMessagePreview = text.slice(0, 200);
     await conversation.save();
 
-    await notifyRecipientOfNewMessage(conversation, userId, text);
+    await notifyRecipientOfNewMessage(conversation, userId, text, message.createdAt);
 
     return Message.findById(message._id).populate(
       "senderId",

@@ -334,6 +334,22 @@ const completeSession = async (req, res) => {
   }
 };
 
+const joinSession = async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const result = await bookingService.joinSession(bookingId, req.user.userId);
+    return successResMsg(res, 200, {
+      message: "Join recorded",
+      meetingUrl: result.meetingUrl,
+      attendance: result.attendance,
+      attendanceState: result.attendanceState,
+    });
+  } catch (error) {
+    logger.error("Error joining session:", error);
+    return errorResMsg(res, error.statusCode || 500, error.message);
+  }
+};
+
 /**
  * Submit session feedback
  */
@@ -473,6 +489,7 @@ export {
   cancelBooking,
   rescheduleBooking,
   completeSession,
+  joinSession,
   submitFeedback,
   getSessionStats,
   getSessionParticipants,

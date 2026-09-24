@@ -14,6 +14,7 @@ import SubscriptionService from "../../payments/services/subscription.service.js
 import logger from "../../../utils/log/logger.js";
 import { assertMinimumLeadTime, isSlotBookable } from "../../../utils/helper/bookingLeadTime.js";
 import { calendarLinksForBooking } from "../../../utils/helper/calendarLinks.js";
+import { dashboardSessionUrl } from "../../../utils/helper/frontendUrls.js";
 import moment from "moment-timezone";
 
 /** Hard cap: every session (book + reschedule) holds at most 5 students. */
@@ -85,14 +86,17 @@ const STATUS_TRANSITIONS = {
   student: {
     pending: ["cancelled"],
     confirmed: ["cancelled"],
+    waiting: ["cancelled"],
   },
   tutor: {
     pending: ["confirmed", "cancelled"],
     confirmed: ["completed", "cancelled", "no_show"],
+    waiting: ["completed", "cancelled"],
   },
   admin: {
     pending: ["confirmed", "cancelled"],
     confirmed: ["completed", "cancelled", "no_show"],
+    waiting: ["completed", "cancelled"],
   },
 };
 
@@ -108,6 +112,15 @@ function assertStatusTransition(kind, from, to) {
   if (!allowed.includes(to)) {
     throw deny(`Cannot change booking from ${from} to ${to}`);
   }
+}
+
+function attendanceSnapshot(booking) {
+  const studentJoined = Boolean(booking.attendance?.studentJoinedAt);
+  const tutorJoined = Boolean(booking.attendance?.tutorJoinedAt);
+  let state = "upcoming";
+  if (studentJoined && tutorJoined) state = "attended";
+  else if (studentJoined || tutorJoined) state = "waiting";
+  return { studentJoined, tutorJoined, state };
 }
 
 function resolveBookingAdminEmails() {
@@ -1033,6 +1046,7 @@ class BookingService {
       try {
         const { googleCalendarUrl } = calendarLinksForBooking(populatedBooking, {
           otherPartyName: `${populatedBooking.tutorId.firstName} ${populatedBooking.tutorId.lastName}`,
+          role: "user",
         });
 
         const sessionDetails = {
@@ -1044,11 +1058,12 @@ class BookingService {
           sessionType: populatedBooking.sessionType,
           status: populatedBooking.status,
           studentNotes: populatedBooking.studentNotes,
-          meetingUrl: populatedBooking.meetingDetails?.meetingUrl,
-          meetingId: populatedBooking.meetingDetails?.meetingId,
-          password: populatedBooking.meetingDetails?.password,
           timezone: populatedBooking.timezone,
           googleCalendarUrl,
+          dashboardUrl: dashboardSessionUrl({
+            bookingId: populatedBooking._id,
+            role: "user",
+          }),
         };
 
         // Send confirmation email to student
@@ -1064,7 +1079,17 @@ class BookingService {
           populatedBooking.tutorId.email,
           `${populatedBooking.tutorId.firstName} ${populatedBooking.tutorId.lastName}`,
           `${populatedBooking.studentId.firstName} ${populatedBooking.studentId.lastName}`,
-          sessionDetails,
+          {
+            ...sessionDetails,
+            dashboardUrl: dashboardSessionUrl({
+              bookingId: populatedBooking._id,
+              role: "tutor",
+            }),
+            googleCalendarUrl: calendarLinksForBooking(populatedBooking, {
+              otherPartyName: `${populatedBooking.studentId.firstName} ${populatedBooking.studentId.lastName}`,
+              role: "tutor",
+            }).googleCalendarUrl,
+          },
         );
 
         const adminEmails = resolveBookingAdminEmails();
@@ -1622,7 +1647,7 @@ class BookingService {
         const tutorName = `${tutor.firstName} ${tutor.lastName}`.trim();
         const { googleCalendarUrl } = calendarLinksForBooking(
           populatedBooking,
-          { otherPartyName: tutorName },
+          { otherPartyName: tutorName, role: "user" },
         );
         const sessionDetails = {
           date: new Date(populatedBooking.sessionDate).toLocaleDateString(),
@@ -1630,8 +1655,11 @@ class BookingService {
           endTime: populatedBooking.endTime,
           timezone: populatedBooking.timezone,
           reason: reason || "",
-          meetingUrl: populatedBooking.meetingDetails?.meetingUrl,
           googleCalendarUrl,
+          dashboardUrl: dashboardSessionUrl({
+            bookingId: populatedBooking._id,
+            role: "user",
+          }),
         };
 
         await sendSessionRescheduledEmail({
@@ -1646,7 +1674,17 @@ class BookingService {
           recipientName: tutorName,
           otherPartyName: studentName,
           role: "tutor",
-          sessionDetails,
+          sessionDetails: {
+            ...sessionDetails,
+            dashboardUrl: dashboardSessionUrl({
+              bookingId: populatedBooking._id,
+              role: "tutor",
+            }),
+            googleCalendarUrl: calendarLinksForBooking(populatedBooking, {
+              otherPartyName: studentName,
+              role: "tutor",
+            }).googleCalendarUrl,
+          },
         });
       } catch (emailError) {
         logger.error("Error sending reschedule emails", {
@@ -1673,8 +1711,8 @@ class BookingService {
           throw new Error("Only the assigned tutor can complete the session");
         }
 
-        if (booking.status !== "confirmed") {
-          throw new Error("Only confirmed bookings can be completed");
+        if (!["confirmed", "waiting"].includes(booking.status)) {
+          throw new Error("Only confirmed or waiting bookings can be completed");
         }
 
         booking.status = "completed";
@@ -2082,12 +2120,55 @@ class BookingService {
       }
       if (!end.isValid()) continue;
       if (now.isAfter(end.clone().add(15, "minutes"))) {
-        session.status = "no_show";
+        const snap = attendanceSnapshot(session);
+        if (snap.state === "attended") {
+          session.status = "completed";
+          session.completedAt = session.completedAt || new Date();
+        } else if (snap.state === "waiting") {
+          session.status = "waiting";
+        } else {
+          session.status = "no_show";
+        }
         await session.save();
         marked += 1;
       }
     }
     return marked;
+  }
+
+  async joinSession(bookingId, userId) {
+    const booking = await BookingSession.findById(bookingId);
+    if (!booking) {
+      throw deny("Booking not found", 404);
+    }
+
+    const isStudent = booking.studentId.toString() === userId;
+    const isTutor = booking.tutorId.toString() === userId;
+    if (!isStudent && !isTutor) {
+      throw deny("Access denied");
+    }
+
+    if (!["pending", "confirmed", "waiting"].includes(booking.status)) {
+      throw deny("This session can no longer be joined", 400);
+    }
+
+    if (!booking.attendance) booking.attendance = {};
+    const now = new Date();
+    if (isStudent && !booking.attendance.studentJoinedAt) {
+      booking.attendance.studentJoinedAt = now;
+    }
+    if (isTutor && !booking.attendance.tutorJoinedAt) {
+      booking.attendance.tutorJoinedAt = now;
+    }
+    booking.markModified("attendance");
+    await booking.save();
+
+    const snap = attendanceSnapshot(booking);
+    return {
+      meetingUrl: booking.meetingDetails?.meetingUrl,
+      attendance: booking.attendance,
+      attendanceState: snap.state,
+    };
   }
 }
 

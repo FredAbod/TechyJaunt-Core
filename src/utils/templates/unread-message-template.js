@@ -10,6 +10,7 @@ const unreadMessageTemplate = ({
   senderName,
   preview,
   inboxUrl,
+  sentAt,
 }) => {
   const safePreview = escapeHtml(preview || "You have a new message.");
   const safeSender = escapeHtml(senderName);
@@ -33,7 +34,7 @@ const unreadMessageTemplate = ({
     <div class="container">
       <h2>You have a message waiting</h2>
       <p>Hi <strong>${safeRecipient}</strong>,</p>
-      <p><strong>${safeSender}</strong> sent you a message on TechyJaunt.</p>
+      <p><strong>${safeSender}</strong> sent you a message on TechyJaunt${sentAt ? ` on <strong>${escapeHtml(sentAt)}</strong>` : ""}.</p>
       <div class="preview">${safePreview}</div>
       <p style="text-align:center;margin:28px 0;">
         <a href="${inboxUrl}" class="cta">Open Messages</a>

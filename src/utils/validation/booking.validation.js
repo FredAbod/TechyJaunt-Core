@@ -229,7 +229,7 @@ export const bookSessionSchema = Joi.object({
 // Update booking validation
 export const updateBookingSchema = Joi.object({
   status: Joi.string()
-    .valid("pending", "confirmed", "cancelled", "completed", "no_show")
+    .valid("pending", "confirmed", "cancelled", "completed", "no_show", "waiting")
     .optional(),
   tutorNotes: Joi.string()
     .max(1000)

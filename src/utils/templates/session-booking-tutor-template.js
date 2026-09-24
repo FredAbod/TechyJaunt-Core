@@ -166,12 +166,10 @@ const sessionBookingTutorTemplate = (tutorName, studentName, sessionDetails) => 
           </div>
           ` : ''}
           
-          ${sessionDetails.meetingUrl ? `
+          ${sessionDetails.dashboardUrl ? `
           <div class="meeting-info">
-            <h3 style="margin-top: 0; color: #27ae60;">💻 Meeting Information</h3>
-            <p><strong>Meeting URL:</strong> <a href="${sessionDetails.meetingUrl}" target="_blank">${sessionDetails.meetingUrl}</a></p>
-            <p><strong>Meeting ID:</strong> ${sessionDetails.meetingId}</p>
-            ${sessionDetails.password ? `<p><strong>Password:</strong> ${sessionDetails.password}</p>` : ''}
+            <h3 style="margin-top: 0; color: #27ae60;">Join from your dashboard</h3>
+            <p>Open the session in Learning Hub to join. Meeting links are not sent by email so we can track attendance.</p>
           </div>
           ` : ''}
           
@@ -179,11 +177,11 @@ const sessionBookingTutorTemplate = (tutorName, studentName, sessionDetails) => 
           <ul>
             <li>Review the session details and confirm your availability</li>
             <li>Confirm or reschedule the session through your dashboard</li>
-            <li>Prepare materials if needed for the session</li>
+            <li>Join from the dashboard when it is time</li>
           </ul>
           
           <div class="action-buttons">
-            <a href="${confirmUrl}" class="cta-button confirm-btn">Confirm Session</a>
+            <a href="${sessionDetails.dashboardUrl || confirmUrl}" class="cta-button confirm-btn">Open session in dashboard</a>
             <a href="${rescheduleUrl}" class="cta-button reschedule-btn">Reschedule</a>
             ${sessionDetails.googleCalendarUrl ? `<a href="${sessionDetails.googleCalendarUrl}" class="cta-button" style="background-color:#0f9d58;" target="_blank" rel="noreferrer">Add to Google Calendar</a>` : ""}
           </div>

@@ -51,9 +51,9 @@ const sessionReminderStudentTemplate = (
         <li><strong>Time:</strong> ${sessionDetails.startTime} - ${sessionDetails.endTime} (${sessionDetails.timezone || 'UTC'})</li>
         <li><strong>Duration:</strong> ${durationMinutes ?? "N/A"} minutes</li>
       </ul>
-      ${sessionDetails.meetingUrl ? `<p><strong>Meeting link:</strong> <a href="${sessionDetails.meetingUrl}">${sessionDetails.meetingUrl}</a></p>` : ''}
+      ${sessionDetails.dashboardUrl ? `<p><a href="${sessionDetails.dashboardUrl}" class="cta">Open session in dashboard</a></p>` : ''}
       ${sessionDetails.googleCalendarUrl ? `<p><a href="${sessionDetails.googleCalendarUrl}" class="cta" target="_blank" rel="noreferrer">Add to Google Calendar</a></p>` : ''}
-      <p>Please join the meeting a few minutes before the scheduled start time.</p>
+      <p>Open the session from your dashboard a few minutes before the scheduled start time.</p>
       <p style="margin-top:20px">Thanks,<br/>TechyJaunt Team</p>
       <p style="font-size:12px;color:#777">This is an automated reminder.</p>
     </div>

@@ -10,7 +10,8 @@ const sessionRescheduledTemplate = ({
   sessionDetails,
 }) => {
   const inboxUrl =
-    role === "tutor" ? tutorBookingsUrl() : studentMentorshipUrl();
+    sessionDetails.dashboardUrl ||
+    (role === "tutor" ? tutorBookingsUrl() : studentMentorshipUrl());
   const otherLabel = role === "tutor" ? "Student" : "Tutor";
   const calendarBtn = sessionDetails.googleCalendarUrl
     ? `<a href="${sessionDetails.googleCalendarUrl}" class="cta" style="background-color:#0f9d58;margin-left:8px;" target="_blank" rel="noreferrer">Add to Google Calendar</a>`
@@ -40,11 +41,10 @@ const sessionRescheduledTemplate = ({
         <p><strong>New date:</strong> ${sessionDetails.date}</p>
         <p><strong>New time:</strong> ${sessionDetails.startTime} - ${sessionDetails.endTime} (${sessionDetails.timezone || "UTC"})</p>
         ${sessionDetails.reason ? `<p><strong>Reason:</strong> ${sessionDetails.reason}</p>` : ""}
-        ${sessionDetails.meetingUrl ? `<p><strong>Meeting link:</strong> <a href="${sessionDetails.meetingUrl}">${sessionDetails.meetingUrl}</a></p>` : ""}
       </div>
-      <p>You will still get reminder emails 1 hour, 30 minutes, and 15 minutes before the new start time.</p>
+      <p>You will still get reminder emails 1 hour, 30 minutes, and 15 minutes before the new start time. Join from the dashboard so attendance can be tracked.</p>
       <p style="text-align:center;margin:28px 0;">
-        <a href="${inboxUrl}" class="cta">View session</a>
+        <a href="${inboxUrl}" class="cta">Open session in dashboard</a>
         ${calendarBtn}
       </p>
       <p style="font-size:12px;color:#777">This is an automated message from TechyJaunt.</p>

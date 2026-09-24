@@ -1,5 +1,6 @@
 import moment from "moment-timezone";
 import { getSessionStartMoment } from "./bookingLeadTime.js";
+import { dashboardSessionUrl } from "./frontendUrls.js";
 
 function stampUtc(m) {
   return moment(m).utc().format("YYYYMMDDTHHmmss[Z]");
@@ -93,14 +94,17 @@ export function buildIcsContent({
   ].join("\r\n");
 }
 
-export function calendarLinksForBooking(booking, { otherPartyName } = {}) {
-  const meetingUrl = booking.meetingDetails?.meetingUrl || "";
+export function calendarLinksForBooking(booking, { otherPartyName, role } = {}) {
+  const dashboardUrl = dashboardSessionUrl({
+    bookingId: booking._id || booking.bookingId,
+    role,
+  });
   const title = `TechyJaunt session${otherPartyName ? ` with ${otherPartyName}` : ""}`;
   const details = [
     otherPartyName
       ? `Session with ${otherPartyName}`
       : "TechyJaunt mentorship session",
-    meetingUrl ? `Join: ${meetingUrl}` : "",
+    dashboardUrl ? `Open in Learning Hub: ${dashboardUrl}` : "",
   ]
     .filter(Boolean)
     .join("\n");
@@ -113,7 +117,7 @@ export function calendarLinksForBooking(booking, { otherPartyName } = {}) {
       endTime: booking.endTime,
       timezone: booking.timezone || "UTC",
       details,
-      location: meetingUrl,
+      location: dashboardUrl,
     }),
     icsContent: buildIcsContent({
       title,
@@ -122,7 +126,8 @@ export function calendarLinksForBooking(booking, { otherPartyName } = {}) {
       endTime: booking.endTime,
       timezone: booking.timezone || "UTC",
       details,
-      location: meetingUrl,
+      location: dashboardUrl,
     }),
+    dashboardUrl,
   };
 }

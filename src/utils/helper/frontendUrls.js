@@ -20,6 +20,19 @@ export function studentMentorshipUrl() {
   return `${getFrontendBaseUrl()}/learning-hub/dashboard/mentorship`;
 }
 
+export function studentSessionUrl(bookingId) {
+  const base = studentMentorshipUrl();
+  if (!bookingId) return base;
+  return `${base}?session=${encodeURIComponent(String(bookingId))}`;
+}
+
+export function dashboardSessionUrl({ bookingId, role } = {}) {
+  if (["tutor", "admin", "super admin"].includes(role)) {
+    return tutorBookingsUrl({ id: bookingId });
+  }
+  return studentSessionUrl(bookingId);
+}
+
 export function studentMessagesUrl({ withUserId } = {}) {
   const base = `${getFrontendBaseUrl()}/learning-hub/dashboard/mentorship/messages`;
   if (!withUserId) return base;

@@ -327,6 +327,7 @@ const sendUnreadMessageEmail = async ({
   senderName,
   preview,
   inboxUrl,
+  sentAt,
 }) => {
   try {
     await sendZeptoEmail({
@@ -338,6 +339,7 @@ const sendUnreadMessageEmail = async ({
         senderName,
         preview,
         inboxUrl,
+        sentAt,
       }),
     });
     logger.info("Unread message email sent", { to: recipientEmail });

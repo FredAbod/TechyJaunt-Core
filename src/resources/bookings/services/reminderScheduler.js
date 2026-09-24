@@ -5,6 +5,7 @@ import {
   sendSessionReminderTutorEmail,
 } from "../../../utils/email/email-sender.js";
 import { calendarLinksForBooking } from "../../../utils/helper/calendarLinks.js";
+import { dashboardSessionUrl } from "../../../utils/helper/frontendUrls.js";
 import bookingService from "./booking.service.js";
 import logger from "../../../utils/log/logger.js";
 import moment from "moment-timezone";
@@ -111,6 +112,7 @@ cron.schedule("* * * * *", async () => {
           const tutor = session.tutorId;
           const { googleCalendarUrl } = calendarLinksForBooking(session, {
             otherPartyName: `${tutor.firstName} ${tutor.lastName}`,
+            role: "user",
           });
 
           const sessionDetails = {
@@ -119,11 +121,11 @@ cron.schedule("* * * * *", async () => {
             endTime: session.endTime,
             duration: session.duration,
             timezone,
-            meetingUrl:
-              session.meetingDetails?.meetingUrl ||
-              session.meetingDetails?.meetingId ||
-              "",
             googleCalendarUrl,
+            dashboardUrl: dashboardSessionUrl({
+              bookingId: session._id,
+              role: "user",
+            }),
           };
 
           const flagPath = FLAG_PATH[type];
@@ -153,7 +155,17 @@ cron.schedule("* * * * *", async () => {
                 tutor.email,
                 `${tutor.firstName} ${tutor.lastName}`,
                 `${student.firstName} ${student.lastName}`,
-                sessionDetails,
+                {
+                  ...sessionDetails,
+                  dashboardUrl: dashboardSessionUrl({
+                    bookingId: session._id,
+                    role: "tutor",
+                  }),
+                  googleCalendarUrl: calendarLinksForBooking(session, {
+                    otherPartyName: `${student.firstName} ${student.lastName}`,
+                    role: "tutor",
+                  }).googleCalendarUrl,
+                },
                 reminderLabel,
               );
               session.reminders[flagPath].tutor = true;
