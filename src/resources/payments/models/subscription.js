@@ -62,7 +62,16 @@ const subscriptionSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["card", "bank_transfer", "ussd"],
+      enum: [
+        "card",
+        "bank",
+        "bank_transfer",
+        "ussd",
+        "qr",
+        "mobile_money",
+        "eft",
+        "apple_pay",
+      ],
       required: true,
     },
     transactionReference: {

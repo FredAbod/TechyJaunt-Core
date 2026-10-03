@@ -38,6 +38,17 @@ class SubscriptionService {
       },
       timeout: 30000,
     };
+
+    this.paystackChannels = [
+      "card",
+      "bank",
+      "bank_transfer",
+      "ussd",
+      "qr",
+      "mobile_money",
+      "eft",
+      "apple_pay",
+    ];
   }
 
   // Get subscription plans from database
@@ -337,14 +348,49 @@ class SubscriptionService {
             logger.error(
               `Failed to re-initialize payment for pending subscription: ${paystackError.message}`,
             );
-            // If re-initialization fails, update the old subscription status and create a new one below
-            existingSubscription.status = "failed";
-            existingSubscription.metadata = {
-              ...existingSubscription.metadata,
-              failureReason:
-                "Payment link re-initialization failed, new subscription created",
-            };
-            await existingSubscription.save();
+
+            // The reference may already be a successful charge. Never mark it failed
+            // until Paystack says the payment itself did not succeed.
+            try {
+              const verified = await this.verifySubscription(
+                existingSubscription.transactionReference,
+              );
+              if (verified?.status === "active") {
+                return {
+                  authorizationUrl: null,
+                  reference: existingSubscription.transactionReference,
+                  subscription: verified.toJSON(),
+                  alreadyPaid: true,
+                  message:
+                    "Payment already received. Your access is now active.",
+                };
+              }
+            } catch (verifyError) {
+              logger.error(
+                `Could not verify existing reference ${existingSubscription.transactionReference}: ${verifyError.message}`,
+              );
+            }
+
+            const current = await Subscription.findById(existingSubscription._id);
+            if (current?.status === "active") {
+              return {
+                authorizationUrl: null,
+                reference: current.transactionReference,
+                subscription: current.toJSON(),
+                alreadyPaid: true,
+                message: "Payment already received. Your access is now active.",
+              };
+            }
+
+            if (current && current.status !== "active") {
+              current.status = "failed";
+              current.metadata = {
+                ...(current.metadata || {}),
+                failureReason:
+                  "Payment link re-initialization failed, new subscription created",
+              };
+              await current.save();
+            }
           }
         }
       }
@@ -712,6 +758,22 @@ class SubscriptionService {
   }
 
   /**
+   * Paystack's `channel` is not limited to card/ussd/bank_transfer.
+   * Bank and OPay charges use "bank". Saving that against a smaller enum
+   * threw, so the subscription stayed unpaid even after a successful charge.
+   */
+  normalizePaymentMethod(channel, fallback = "card") {
+    const value = String(channel || "").trim().toLowerCase();
+    if (this.paystackChannels.includes(value)) return value;
+    if (value) {
+      logger.warn(
+        `Unknown Paystack channel "${channel}", storing payment method as ${fallback}`,
+      );
+    }
+    return fallback;
+  }
+
+  /**
    * Verify pending subscriptions with Paystack and activate successful payments.
    * Used by the reconciliation scheduler and manual recovery scripts.
    */
@@ -723,11 +785,20 @@ class SubscriptionService {
     } = options;
 
     const cutoff = new Date(Date.now() - minAgeMinutes * 60 * 1000);
+    const failedSince = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
     const pendingSubscriptions = await Subscription.find({
       status: "pending",
       createdAt: { $lte: cutoff },
     })
       .sort({ createdAt: 1 })
+      .limit(limit);
+
+    const failedSubscriptions = await Subscription.find({
+      status: "failed",
+      createdAt: { $gte: failedSince },
+      paystackReference: null,
+    })
+      .sort({ createdAt: -1 })
       .limit(limit);
 
     const results = {
@@ -738,7 +809,7 @@ class SubscriptionService {
       errors: [],
     };
 
-    for (const subscription of pendingSubscriptions) {
+    for (const subscription of [...pendingSubscriptions, ...failedSubscriptions]) {
       try {
         const response = await axios.get(
           `https://api.paystack.co/transaction/verify/${subscription.transactionReference}`,
@@ -764,8 +835,32 @@ class SubscriptionService {
           continue;
         }
 
-        if (["failed", "abandoned", "reversed"].includes(paystackStatus)) {
-          if (!dryRun) {
+        if (["failed", "reversed"].includes(paystackStatus)) {
+          if (!dryRun && subscription.status !== "failed") {
+            subscription.status = "failed";
+            subscription.metadata = {
+              ...(subscription.metadata || {}),
+              reconciliation: {
+                checkedAt: new Date().toISOString(),
+                paystackStatus,
+              },
+            };
+            await subscription.save();
+          }
+          results.failed += 1;
+          continue;
+        }
+
+        // Bank transfers can sit as "abandoned" and still succeed later.
+        // Leave them pending for 24 hours so a late success can be activated.
+        if (paystackStatus === "abandoned") {
+          const ageMs = Date.now() - new Date(subscription.createdAt).getTime();
+          if (ageMs < 24 * 60 * 60 * 1000) {
+            results.stillPending += 1;
+            continue;
+          }
+
+          if (!dryRun && subscription.status !== "failed") {
             subscription.status = "failed";
             subscription.metadata = {
               ...(subscription.metadata || {}),
@@ -856,13 +951,16 @@ class SubscriptionService {
 
       const paymentData = response.data.data;
 
-      const wasPending = subscription.status === "pending";
+      const previousStatus = subscription.status;
 
       // Update subscription status
       subscription.status =
         paymentData.status === "success" ? "active" : "failed";
       subscription.paystackReference = paymentData.reference;
-      subscription.paymentMethod = paymentData.channel;
+      subscription.paymentMethod = this.normalizePaymentMethod(
+        paymentData.channel,
+        subscription.paymentMethod,
+      );
       subscription.metadata = paymentData;
 
       if (subscription.status === "active") {
@@ -876,8 +974,8 @@ class SubscriptionService {
       await subscription.save();
 
       // If payment was successful, initialize progress and increment totalStudents
-      if (subscription.status === "active") {
-        if (wasPending) {
+        if (subscription.status === "active") {
+        if (previousStatus !== "active") {
           await this.sendPaymentSuccessNotification(subscription);
         }
         if (!subscription.hasFeatureAccess("courseAccess")) {
@@ -1113,12 +1211,15 @@ class SubscriptionService {
           };
         }
 
-        const wasPending = subscription.status === "pending";
+        const previousStatus = subscription.status;
 
         // Update subscription status
         subscription.status = "active";
         subscription.paystackReference = data.reference;
-        subscription.paymentMethod = data.channel;
+        subscription.paymentMethod = this.normalizePaymentMethod(
+          data.channel,
+          subscription.paymentMethod,
+        );
         subscription.metadata = { ...subscription.metadata, paymentData: data };
         subscription.featureAccess = this.setupFeatureAccess(
           subscription.plan,
@@ -1127,7 +1228,7 @@ class SubscriptionService {
         );
         await subscription.save();
 
-        if (wasPending) {
+        if (previousStatus !== "active") {
           await this.sendPaymentSuccessNotification(subscription);
         }
 
