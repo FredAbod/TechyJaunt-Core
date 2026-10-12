@@ -9,7 +9,8 @@ import {
   forgotPassword,
   resetPassword,
   changePasswordRequest,
-  verifyChangePasswordOtp
+  verifyChangePasswordOtp,
+  completeTemporaryPassword
 } from "../controllers/auth.controller.js";
 import { validateRequest } from "../../../middleware/validation.middleware.js";
 import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
@@ -21,7 +22,8 @@ import {
   forgotPasswordSchema,
   resetPasswordSchema,
   changePasswordSchema,
-  verifyChangePasswordOtpSchema
+  verifyChangePasswordOtpSchema,
+  completeTempPasswordSchema
 } from "../../../utils/validation/auth.validation.js";
 
 const router = express.Router();
@@ -267,5 +269,42 @@ router.post("/change-password-request", isAuthenticated, changePasswordRequest);
  *         description: Password changed successfully
  */
 router.post("/verify-change-password-otp", isAuthenticated, verifyChangePasswordOtp);
+
+/**
+ * @swagger
+ * /api/v1/auth/complete-temp-password:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Replace an admin-issued temporary password
+ *     description: Only allowed while the account has mustChangePassword set (returned by login).
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [currentPassword, newPassword]
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *                 description: Min 8 chars with uppercase, lowercase, number and special character
+ *     responses:
+ *       200:
+ *         description: Password updated; mustChangePassword cleared
+ *       400:
+ *         description: Wrong temporary password, weak password, or nothing to change
+ */
+router.post(
+  "/complete-temp-password",
+  authLimiter,
+  isAuthenticated,
+  validateRequest(completeTempPasswordSchema),
+  completeTemporaryPassword,
+);
 
 export default router;

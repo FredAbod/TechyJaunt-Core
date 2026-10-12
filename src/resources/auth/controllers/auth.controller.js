@@ -134,3 +134,22 @@ export const verifyChangePasswordOtp = async (req, res) => {
     return errorResMsg(res, 400, error.message);
   }
 };
+
+export const completeTemporaryPassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.userId;
+
+    const result = await AuthService.completeTemporaryPassword(
+      userId,
+      currentPassword,
+      newPassword,
+    );
+
+    logger.info(`Temporary password replaced for user: ${userId}`);
+    return successResMsg(res, 200, { ...result });
+  } catch (error) {
+    logger.error(`Complete temporary password error: ${error.message}`);
+    return errorResMsg(res, 400, error.message);
+  }
+};

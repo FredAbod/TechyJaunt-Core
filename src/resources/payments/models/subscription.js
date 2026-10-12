@@ -71,6 +71,7 @@ const subscriptionSchema = new mongoose.Schema(
         "mobile_money",
         "eft",
         "apple_pay",
+        "admin_grant", // Complimentary access granted by an admin (no charge)
       ],
       required: true,
     },

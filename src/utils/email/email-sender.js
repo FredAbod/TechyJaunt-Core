@@ -8,6 +8,7 @@ import sessionBookingAdminTemplate from "../templates/session-booking-admin-temp
 import sessionReminderStudentTemplate from "../templates/session-reminder-student-template.js";
 import sessionReminderTutorTemplate from "../templates/session-reminder-tutor-template.js";
 import subscriptionPaymentSuccessTemplate from "../templates/subscription-payment-success-template.js";
+import planAccessGrantedTemplate from "../templates/plan-access-granted-template.js";
 import unreadMessageTemplate from "../templates/unread-message-template.js";
 import sessionRescheduledTemplate from "../templates/session-rescheduled-template.js";
 import { sendZeptoEmail } from "./zeptomail-client.js";
@@ -321,6 +322,38 @@ const sendSubscriptionPaymentSuccessEmail = async (
   }
 };
 
+const sendPlanAccessGrantedEmail = async (
+  email,
+  { firstName, planName, courseTitle, accessEndsAt, loginUrl, credentials = null },
+) => {
+  try {
+    await sendZeptoEmail({
+      to: email,
+      toName: firstName,
+      fromName: "TechyJaunt",
+      subject: credentials
+        ? "Your TechyJaunt account is ready"
+        : "You've been given access on TechyJaunt",
+      html: planAccessGrantedTemplate({
+        firstName,
+        planName,
+        courseTitle,
+        accessEndsAt,
+        loginUrl,
+        credentials,
+      }),
+    });
+    // Never log credentials
+    logger.info("Plan access email sent", { to: email, withCredentials: !!credentials });
+  } catch (error) {
+    logger.error("Plan access email error", {
+      to: email,
+      error: error.message,
+    });
+    throw new Error("Couldn't send plan access email.");
+  }
+};
+
 const sendUnreadMessageEmail = async ({
   recipientEmail,
   recipientName,
@@ -390,6 +423,7 @@ export {
   sendOtpEmail,
   sendWelcomeOnboardingEmail,
   sendSubscriptionPaymentSuccessEmail,
+  sendPlanAccessGrantedEmail,
   sendMail,
   sendPasswordResetEmail,
   sendServerFailure,

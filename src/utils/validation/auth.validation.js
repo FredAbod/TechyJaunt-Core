@@ -170,3 +170,27 @@ export const inviteSchema = Joi.object({
     "string.max": "Headline must not exceed 200 characters",
   }),
 });
+
+// Replace an admin-issued temporary password (authenticated users)
+// Same strength rules the frontend password forms enforce.
+export const completeTempPasswordSchema = Joi.object({
+  currentPassword: Joi.string().required().messages({
+    "any.required": "Current (temporary) password is required",
+  }),
+  newPassword: Joi.string()
+    .min(8)
+    .max(128)
+    .pattern(/[A-Z]/, "uppercase")
+    .pattern(/[a-z]/, "lowercase")
+    .pattern(/\d/, "number")
+    .pattern(/[^A-Za-z0-9]/, "special character")
+    .invalid(Joi.ref("currentPassword"))
+    .required()
+    .messages({
+      "string.min": "New password must be at least 8 characters",
+      "string.pattern.name":
+        "New password must contain at least one {#name}",
+      "any.invalid": "New password must be different from the temporary password",
+      "any.required": "New password is required",
+    }),
+});

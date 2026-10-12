@@ -45,6 +45,10 @@ export function tutorMessagesUrl({ withUserId } = {}) {
   return `${base}?with=${encodeURIComponent(withUserId)}`;
 }
 
+export function loginUrl() {
+  return `${getFrontendBaseUrl()}/learning-hub/login`;
+}
+
 export function adminDashboardUrl() {
   return `${getFrontendBaseUrl()}/learning-hub/admin/dashboard`;
 }

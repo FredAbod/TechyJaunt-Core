@@ -20,6 +20,7 @@ import subscriptionRoute from "./src/resources/payments/routes/subscription.rout
 import webhookRoute from "./src/resources/payments/routes/webhook.routes.js";
 import aiTutorRoute from "./src/resources/ai-tutor/routes/aiTutor.routes.js";
 import certificateRoute from "./src/resources/courses/routes/certificate.routes.js";
+import planGrantRoute from "./src/resources/plan-grants/routes/planGrant.routes.js";
 const app = express();
 
 // Trust only the first proxy (safe for most cloud hosts like Render/Heroku)
@@ -183,5 +184,6 @@ app.use("/api/v1/subscriptions", subscriptionRoute);
 app.use("/api/v1/webhooks", webhookRoute);
 app.use("/api/v1/ai-tutor", aiTutorRoute);
 app.use("/api/v1/certificates", certificateRoute);
+app.use("/api/v1/admin/plan-grants", planGrantRoute);
 
 export default app;

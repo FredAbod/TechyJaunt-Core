@@ -96,6 +96,23 @@ const userSchema = new mongoose.Schema(
     changePasswordOtpExpiresAt: {
       type: Date,
     },
+    // Set when an admin provisions the account with a temporary password.
+    // Cleared once the user sets their own password (change or reset).
+    mustChangePassword: {
+      type: Boolean,
+      default: false,
+    },
+    tempPasswordExpiresAt: {
+      type: Date,
+    },
+    // How the account was created when not via self sign-up (e.g. admin plan grant).
+    provisioning: {
+      source: { type: String },
+      action: { type: String, enum: ["created", "activated"] },
+      jobId: { type: mongoose.Schema.Types.ObjectId },
+      provisionedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      provisionedAt: { type: Date },
+    },
     about: {
       type: String,
       maxlength: 1000,
@@ -118,6 +135,7 @@ userSchema.methods.toJSON = function () {
   delete user.resetOTP;
   delete user.otpExpiresAt;
   delete user.resetOtpExpiresAt;
+  delete user.provisioning;
   return user;
 };
 

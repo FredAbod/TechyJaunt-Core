@@ -260,6 +260,17 @@ class AuthService {
         throw new Error("Invalid email or password");
       }
 
+      // Admin-issued temporary passwords are short-lived.
+      if (
+        user.mustChangePassword &&
+        user.tempPasswordExpiresAt &&
+        user.tempPasswordExpiresAt < new Date()
+      ) {
+        throw new Error(
+          "Your temporary password has expired. Use 'Forgot password' to set a new one.",
+        );
+      }
+
       // Update last login and check profile completion
       user.lastLogin = new Date();
       user.profileCompleted = isProfileComplete(user);
@@ -357,6 +368,8 @@ class AuthService {
       user.password = hashedPassword;
       user.resetPasswordToken = undefined;
       user.resetPasswordExpiry = undefined;
+      user.mustChangePassword = false;
+      user.tempPasswordExpiresAt = undefined;
       user.lastLogin = new Date();
       await user.save();
 
@@ -433,6 +446,59 @@ class AuthService {
     }
   }
 
+  /**
+   * Replace an admin-issued temporary password. No OTP: the user just proved
+   * email ownership by signing in with the password we emailed them.
+   */
+  async completeTemporaryPassword(userId, currentPassword, newPassword) {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (!user.mustChangePassword) {
+      throw new Error("Your password has already been updated");
+    }
+
+    const isPasswordValid = await bcrypt.compare(
+      currentPassword,
+      user.password || "",
+    );
+    if (!isPasswordValid) {
+      throw new Error("Temporary password is incorrect");
+    }
+
+    if (user.tempPasswordExpiresAt && user.tempPasswordExpiresAt < new Date()) {
+      throw new Error(
+        "Your temporary password has expired. Use 'Forgot password' to set a new one.",
+      );
+    }
+
+    user.password = await bcrypt.hash(newPassword, 12);
+    user.mustChangePassword = false;
+    user.tempPasswordExpiresAt = undefined;
+    await user.save();
+
+    try {
+      await sendPasswordResetConfirmationEmail(
+        user.email,
+        user.firstName || "User",
+      );
+    } catch (emailError) {
+      // The password is already changed; don't report failure to the user
+      logger.warn("Password change confirmation email failed", {
+        userId: String(user._id),
+        error: emailError?.message,
+      });
+    }
+
+    return {
+      message: "Password updated successfully.",
+      user: user.toJSON(),
+    };
+  }
+
   async verifyChangePasswordOtp(userId, otp, newPassword) {
     try {
       const user = await User.findById(userId);
@@ -457,6 +523,8 @@ class AuthService {
       user.password = hashedPassword;
       user.changePasswordOtp = undefined;
       user.changePasswordOtpExpiresAt = undefined;
+      user.mustChangePassword = false;
+      user.tempPasswordExpiresAt = undefined;
       await user.save();
 
       // Send password change confirmation email

@@ -40,6 +40,7 @@ const options = {
     './src/resources/payments/routes/*.js',
     './src/resources/bookings/routes/*.js',
     './src/resources/ai-tutor/routes/*.js',
+    './src/resources/plan-grants/routes/*.js',
   ],
 };
 
