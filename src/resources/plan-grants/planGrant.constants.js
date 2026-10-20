@@ -4,8 +4,12 @@ const toPositiveInt = (value, fallback) => {
 };
 
 export const PLAN_GRANT_LIMITS = {
-  // Hard cap on recipients per request (keeps the JSON body under express's 100kb default)
-  MAX_RECIPIENTS: toPositiveInt(process.env.PLAN_GRANT_MAX_RECIPIENTS, 500),
+  // Hard cap on rows (email + course) per request
+  MAX_RECIPIENTS: toPositiveInt(process.env.PLAN_GRANT_MAX_RECIPIENTS, 2000),
+  // JSON body limit for this route only (2,000 rows with names + course ≈ 250 KB)
+  BODY_LIMIT: "1mb",
+  // Steady send rate: thousands of identical emails in one burst look like spam
+  EMAILS_PER_MINUTE: toPositiveInt(process.env.PLAN_GRANT_EMAILS_PER_MINUTE, 400),
   // Items loaded and prefetched per worker pass
   BATCH_SIZE: 50,
   // Items processed in parallel within a batch (bcrypt + email are the bottlenecks)
@@ -24,6 +28,10 @@ export const TEMP_PASSWORD_TTL_DAYS = toPositiveInt(
   7,
 );
 
+// Temporary passwords are 14 random chars and must be changed at first login,
+// so a lower cost than user-chosen passwords (12) is safe and ~4x faster.
+export const TEMP_PASSWORD_BCRYPT_ROUNDS = 10;
+
 export const PLAN_GRANT_SOURCE = "admin_plan_grant";
 
 /** Roles allowed to run plan grants. */
@@ -35,12 +43,14 @@ export const JOB_STATUS = {
   COMPLETED: "completed",
   COMPLETED_WITH_ERRORS: "completed_with_errors",
   FAILED: "failed",
+  CANCELLED: "cancelled",
 };
 
 export const TERMINAL_JOB_STATUSES = [
   JOB_STATUS.COMPLETED,
   JOB_STATUS.COMPLETED_WITH_ERRORS,
   JOB_STATUS.FAILED,
+  JOB_STATUS.CANCELLED,
 ];
 
 export const ITEM_STATUS = {
@@ -48,6 +58,7 @@ export const ITEM_STATUS = {
   GRANTED: "granted",
   SKIPPED: "skipped",
   FAILED: "failed",
+  CANCELLED: "cancelled",
 };
 
 /** Machine-readable reason for an item's final state. */
@@ -60,6 +71,7 @@ export const ITEM_OUTCOME = {
   SKIPPED_ACCOUNT_RESTRICTED: "SKIPPED_ACCOUNT_RESTRICTED",
   SKIPPED_NOT_STUDENT: "SKIPPED_NOT_STUDENT",
   INVALID_EMAIL: "INVALID_EMAIL",
+  CANCELLED: "CANCELLED",
   ERROR: "ERROR",
 };
 

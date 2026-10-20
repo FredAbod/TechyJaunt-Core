@@ -21,6 +21,7 @@ import webhookRoute from "./src/resources/payments/routes/webhook.routes.js";
 import aiTutorRoute from "./src/resources/ai-tutor/routes/aiTutor.routes.js";
 import certificateRoute from "./src/resources/courses/routes/certificate.routes.js";
 import planGrantRoute from "./src/resources/plan-grants/routes/planGrant.routes.js";
+import { PLAN_GRANT_LIMITS } from "./src/resources/plan-grants/planGrant.constants.js";
 const app = express();
 
 // Trust only the first proxy (safe for most cloud hosts like Render/Heroku)
@@ -30,6 +31,12 @@ app.use(morgan("dev"));
 app.use(cors({
   origin: "*", // Allow all origins, adjust as needed for production  
 }));
+// Bulk plan grants send up to 2,000 rows; raise the body limit for that route
+// only. Must run before the global parser, which then skips the parsed body.
+app.use(
+  "/api/v1/admin/plan-grants",
+  express.json({ limit: PLAN_GRANT_LIMITS.BODY_LIMIT }),
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

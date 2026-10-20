@@ -26,6 +26,13 @@ const planGrantItemSchema = new mongoose.Schema(
     },
     firstName: String,
     lastName: String,
+    // Absent on rows created before per-row courses (the job's courseId applies)
+    courseId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Course",
+    },
+    courseTitle: String,
+    courseCode: String,
     status: {
       type: String,
       enum: Object.values(ITEM_STATUS),
@@ -52,6 +59,8 @@ const planGrantItemSchema = new mongoose.Schema(
       },
       sentAt: Date,
       error: String,
+      // The email carried a temporary password
+      withCredentials: Boolean,
     },
     attempts: {
       type: Number,
@@ -66,8 +75,28 @@ const planGrantItemSchema = new mongoose.Schema(
   },
 );
 
-planGrantItemSchema.index({ job: 1, email: 1 }, { unique: true });
+// One row per person per course
+planGrantItemSchema.index(
+  { job: 1, email: 1, courseId: 1 },
+  { unique: true, name: "job_email_course_unique" },
+);
 planGrantItemSchema.index({ job: 1, status: 1, index: 1 });
+planGrantItemSchema.index({ job: 1, courseId: 1, status: 1 });
+
+/**
+ * Drop the pre-per-row-course unique index (job, email), which would reject
+ * the same email on two courses. Safe to call on every startup.
+ */
+planGrantItemSchema.statics.dropLegacyIndexes = async function () {
+  try {
+    await this.collection.dropIndex("job_1_email_1");
+    return true;
+  } catch (error) {
+    // 27 = IndexNotFound, 26 = NamespaceNotFound (collection not created yet)
+    if ([26, 27].includes(error?.code)) return false;
+    throw error;
+  }
+};
 
 const PlanGrantItem = mongoose.model("PlanGrantItem", planGrantItemSchema);
 

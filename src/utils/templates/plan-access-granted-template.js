@@ -17,15 +17,19 @@ const planAccessGrantedTemplate = ({
   firstName,
   planName,
   courseTitle,
+  courseTitles = courseTitle ? [courseTitle] : [],
   accessEndsAt,
   loginUrl,
   credentials = null,
 }) => {
   const name = escapeHtml(firstName || "there");
   const plan = escapeHtml(planName || "a TechyJaunt plan");
-  const course = courseTitle
-    ? ` for <strong>${escapeHtml(courseTitle)}</strong>`
-    : "";
+  const titles = courseTitles.map((title) => `<strong>${escapeHtml(title)}</strong>`);
+  let course = "";
+  if (titles.length === 1) course = ` for ${titles[0]}`;
+  else if (titles.length > 1) {
+    course = ` for ${titles.slice(0, -1).join(", ")} and ${titles.at(-1)}`;
+  }
   const period = accessEndsAt
     ? `<p>Your plan benefits are active until <strong>${escapeHtml(
         new Date(accessEndsAt).toDateString(),

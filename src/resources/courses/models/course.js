@@ -1,4 +1,9 @@
 import mongoose from "mongoose";
+import {
+  COURSE_CODE_PATTERN,
+  COURSE_CODE_HINT,
+  normalizeCourseCode,
+} from "../../../utils/helper/courseCode.js";
 
 const courseSchema = new mongoose.Schema(
   {
@@ -6,6 +11,12 @@ const courseSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+    },
+    // Optional short code admins use to reference the course (e.g. in CSV imports)
+    code: {
+      type: String,
+      set: (value) => normalizeCourseCode(value) || undefined,
+      match: [COURSE_CODE_PATTERN, `Course code must be ${COURSE_CODE_HINT}`],
     },
     description: {
       type: String,
@@ -143,5 +154,9 @@ const courseSchema = new mongoose.Schema(
 // Index for search functionality
 courseSchema.index({ title: "text", description: "text", tags: "text" });
 courseSchema.index({ category: 1, level: 1, status: 1 });
+courseSchema.index(
+  { code: 1 },
+  { unique: true, partialFilterExpression: { code: { $type: "string" } } },
+);
 
 export default mongoose.model("Course", courseSchema);

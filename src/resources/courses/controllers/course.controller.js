@@ -155,6 +155,23 @@ export const updateCourse = async (req, res) => {
   }
 };
 
+export const setCourseCode = async (req, res) => {
+  try {
+    const { courseId } = req.params;
+    const course = await CourseService.setCourseCode(courseId, req.body.code);
+
+    logger.info(`Course code set: ${courseId} -> ${course.code || "(cleared)"} by ${req.user.userId}`);
+    return successResMsg(res, 200, {
+      message: course.code ? "Course code saved" : "Course code cleared",
+      course,
+    });
+  } catch (error) {
+    logger.error(`Set course code error: ${error.message}`);
+    const status = error.message === "Course not found" ? 404 : 400;
+    return errorResMsg(res, status, error.message);
+  }
+};
+
 export const deleteCourse = async (req, res) => {
   try {
     const { courseId } = req.params;

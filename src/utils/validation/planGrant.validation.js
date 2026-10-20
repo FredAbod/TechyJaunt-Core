@@ -14,12 +14,16 @@ const name = Joi.string().trim().max(100).allow("");
 
 // Emails are only loosely checked here; the service validates each one and
 // reports invalid rows individually instead of rejecting the whole batch.
+// A row names its course by code (CSV imports) or id; otherwise the
+// request-level courseId applies.
 const recipient = Joi.alternatives().try(
   Joi.string().max(320),
   Joi.object({
-    email: Joi.string().max(320).required(),
+    email: Joi.string().allow("").max(320).required(),
     firstName: name,
     lastName: name,
+    courseCode: Joi.string().trim().max(40).allow(""),
+    courseId: objectId,
   }),
 );
 
@@ -35,7 +39,7 @@ export const planGrantValidation = {
       .valid("bronze", "silver", "gold")
       .required()
       .messages({ "any.only": "Plan type must be one of: bronze, silver, gold" }),
-    courseId: objectId.required(),
+    courseId: objectId,
     durationMonths: Joi.number()
       .integer()
       .min(1)
@@ -48,7 +52,7 @@ export const planGrantValidation = {
       .max(PLAN_GRANT_LIMITS.MAX_RECIPIENTS)
       .required()
       .messages({
-        "array.max": `A single request can include at most ${PLAN_GRANT_LIMITS.MAX_RECIPIENTS} recipients`,
+        "array.max": `A single request can include at most ${PLAN_GRANT_LIMITS.MAX_RECIPIENTS} rows`,
       }),
   }),
 
@@ -69,5 +73,7 @@ export const planGrantValidation = {
     limit: Joi.number().integer().min(1).max(200).default(50),
     status: Joi.string().valid(...Object.values(ITEM_STATUS)),
     outcome: Joi.string().valid(...Object.values(ITEM_OUTCOME)),
+    courseId: objectId,
+    search: Joi.string().trim().max(254).allow(""),
   }),
 };

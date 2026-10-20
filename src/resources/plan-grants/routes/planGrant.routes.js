@@ -4,6 +4,9 @@ import { isAuthenticated } from "../../../middleware/isAuthenticated.js";
 import roleBasedAccess from "../../../middleware/rbac.js";
 import {
   createPlanGrantJob,
+  previewPlanGrant,
+  listPlanGrantCourses,
+  cancelPlanGrantJob,
   listPlanGrantJobs,
   getPlanGrantJob,
   listPlanGrantItems,
@@ -20,7 +23,51 @@ const createJobLimiter = rateLimit({
   keyGenerator: (req) => req.user?.userId || req.ip,
 });
 
+// Previews are read-only but each one evaluates up to 2,000 rows
+const previewLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: "Too many previews, please try again later.",
+  keyGenerator: (req) => req.user?.userId || req.ip,
+});
+
 router.use(isAuthenticated, roleBasedAccess(PLAN_GRANT_ADMIN_ROLES));
+
+/**
+ * @swagger
+ * /api/v1/admin/plan-grants/courses:
+ *   get:
+ *     tags:
+ *       - Admin
+ *     summary: Courses that can be granted, with their codes (for CSV templates)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All non-archived courses with title, code and status
+ */
+router.get("/courses", listPlanGrantCourses);
+
+/**
+ * @swagger
+ * /api/v1/admin/plan-grants/preview:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Dry run of a plan grant (nothing is written)
+ *     description: |
+ *       Same body as POST /plan-grants. Returns a summary (new accounts, emails to send,
+ *       counts per outcome and per course) and the predicted outcome of every row.
+ *       Unknown or archived course codes return 400 with an `errors` array of row numbers.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Predicted outcomes
+ *       400:
+ *         description: Validation error or unknown course codes
+ */
+router.post("/preview", previewLimiter, previewPlanGrant);
 
 /**
  * @swagger
@@ -58,6 +105,7 @@ router.use(isAuthenticated, roleBasedAccess(PLAN_GRANT_ADMIN_ROLES));
  *                 enum: ["bronze", "silver", "gold"]
  *               courseId:
  *                 type: string
+ *                 description: Default course for rows that don't name one
  *               durationMonths:
  *                 type: integer
  *                 minimum: 1
@@ -72,7 +120,7 @@ router.use(isAuthenticated, roleBasedAccess(PLAN_GRANT_ADMIN_ROLES));
  *                 maxLength: 500
  *               recipients:
  *                 type: array
- *                 maxItems: 500
+ *                 maxItems: 2000
  *                 items:
  *                   oneOf:
  *                     - type: string
@@ -85,6 +133,11 @@ router.use(isAuthenticated, roleBasedAccess(PLAN_GRANT_ADMIN_ROLES));
  *                         firstName:
  *                           type: string
  *                         lastName:
+ *                           type: string
+ *                         courseCode:
+ *                           type: string
+ *                           example: DA-101
+ *                         courseId:
  *                           type: string
  *     responses:
  *       202:
@@ -114,7 +167,7 @@ router.use(isAuthenticated, roleBasedAccess(PLAN_GRANT_ADMIN_ROLES));
  *         name: status
  *         schema:
  *           type: string
- *           enum: ["queued", "processing", "completed", "completed_with_errors", "failed"]
+ *           enum: ["queued", "processing", "completed", "completed_with_errors", "failed", "cancelled"]
  *     responses:
  *       200:
  *         description: Paginated list of jobs
@@ -147,6 +200,30 @@ router.get("/:jobId", getPlanGrantJob);
 
 /**
  * @swagger
+ * /api/v1/admin/plan-grants/{jobId}/cancel:
+ *   post:
+ *     tags:
+ *       - Admin
+ *     summary: Cancel a queued or running job
+ *     description: Rows not yet started are marked cancelled. Rows already granted keep their access.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: jobId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Job cancelled
+ *       409:
+ *         description: Job already finished
+ */
+router.post("/:jobId/cancel", cancelPlanGrantJob);
+
+/**
+ * @swagger
  * /api/v1/admin/plan-grants/{jobId}/items:
  *   get:
  *     tags:
@@ -164,7 +241,16 @@ router.get("/:jobId", getPlanGrantJob);
  *         name: status
  *         schema:
  *           type: string
- *           enum: ["pending", "granted", "skipped", "failed"]
+ *           enum: ["pending", "granted", "skipped", "failed", "cancelled"]
+ *       - in: query
+ *         name: courseId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Filter by email (partial match)
  *       - in: query
  *         name: outcome
  *         schema:
@@ -178,6 +264,7 @@ router.get("/:jobId", getPlanGrantJob);
  *             - SKIPPED_ACCOUNT_RESTRICTED
  *             - SKIPPED_NOT_STUDENT
  *             - INVALID_EMAIL
+ *             - CANCELLED
  *             - ERROR
  *       - in: query
  *         name: page

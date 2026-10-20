@@ -8,6 +8,14 @@ import PaymentService from "../../payments/services/payment.service.js";
 import { getVideoDurationFromUrl } from "../../../utils/image/s3.js";
 import CourseDataValidator from "../../../utils/helper/courseDataValidator.js";
 
+// Duplicate course codes surface as E11000 on the partial unique index
+const toCourseCodeError = (error, code) => {
+  if (error?.code === 11000 && error?.keyPattern?.code) {
+    return new Error(`Course code "${code}" is already used by another course`);
+  }
+  return error;
+};
+
 class CourseService {
   // Admin/Tutor methods
   async createCourse(courseData, instructorId) {
@@ -30,7 +38,7 @@ class CourseService {
 
       return course;
     } catch (error) {
-      throw error;
+      throw toCourseCodeError(error, courseData?.code);
     }
   }
 
@@ -48,15 +56,38 @@ class CourseService {
         }
       }
 
+      // An empty code clears it (the setter maps "" to undefined, which an update would ignore)
+      const update = { ...updateData };
+      if ("code" in update && !String(update.code ?? "").trim()) {
+        delete update.code;
+        update.$unset = { code: 1 };
+      }
+
       const updatedCourse = await Course.findByIdAndUpdate(
         courseId,
-        updateData,
+        update,
         { new: true, runValidators: true },
       ).populate("instructor", "firstName lastName email");
 
       return updatedCourse;
     } catch (error) {
-      throw error;
+      throw toCourseCodeError(error, updateData?.code);
+    }
+  }
+
+  /** Set or clear (empty string) a course's short code. Admins only. */
+  async setCourseCode(courseId, code) {
+    const normalized = String(code ?? "").trim().toUpperCase();
+    try {
+      const course = await Course.findByIdAndUpdate(
+        courseId,
+        normalized ? { $set: { code: normalized } } : { $unset: { code: 1 } },
+        { new: true, runValidators: true },
+      ).select("title code status");
+      if (!course) throw new Error("Course not found");
+      return course;
+    } catch (error) {
+      throw toCourseCodeError(error, normalized);
     }
   }
 

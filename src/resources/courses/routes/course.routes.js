@@ -4,6 +4,7 @@ import rateLimit from "express-rate-limit";
 import {
   createCourse,
   updateCourse,
+  setCourseCode,
   deleteCourse,
   addCurriculum,
   addModule,
@@ -32,6 +33,7 @@ import {
   createLessonSchema,
   enrollCourseSchema,
   completeLessonSchema,
+  setCourseCodeSchema,
 } from "../../../utils/validation/course.validation.js";
 import roleBasedAccess from "../../../middleware/rbac.js";
 import { checkCoursePayment } from "../../../middleware/checkCoursePayment.js";
@@ -432,6 +434,48 @@ router.put(
  *       200:
  *         description: Course deleted successfully
  */
+/**
+ * @swagger
+ * /api/v1/courses/{courseId}/code:
+ *   patch:
+ *     tags:
+ *       - Courses
+ *     summary: Set or clear a course's short code (admins)
+ *     description: The code identifies the course in admin CSV imports (e.g. bulk plan grants). Send an empty string to clear it.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: courseId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [code]
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 example: DA-101
+ *     responses:
+ *       200:
+ *         description: Code saved or cleared
+ *       400:
+ *         description: Invalid or duplicate code
+ */
+router.patch(
+  "/:courseId/code",
+  adminLimiter,
+  isAuthenticated,
+  roleBasedAccess(["admin", "super admin"]),
+  validateRequest(setCourseCodeSchema),
+  setCourseCode,
+);
+
 router.delete("/:courseId", adminLimiter, isAuthenticated, deleteCourse);
 
 /**

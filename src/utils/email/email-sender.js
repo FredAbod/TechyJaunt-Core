@@ -324,7 +324,7 @@ const sendSubscriptionPaymentSuccessEmail = async (
 
 const sendPlanAccessGrantedEmail = async (
   email,
-  { firstName, planName, courseTitle, accessEndsAt, loginUrl, credentials = null },
+  { firstName, planName, courseTitle, courseTitles, accessEndsAt, loginUrl, credentials = null },
 ) => {
   try {
     await sendZeptoEmail({
@@ -338,6 +338,7 @@ const sendPlanAccessGrantedEmail = async (
         firstName,
         planName,
         courseTitle,
+        courseTitles,
         accessEndsAt,
         loginUrl,
         credentials,

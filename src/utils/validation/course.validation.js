@@ -1,4 +1,20 @@
 import Joi from "joi";
+import {
+  COURSE_CODE_PATTERN,
+  COURSE_CODE_HINT,
+} from "../helper/courseCode.js";
+
+// Empty string clears the code on update
+export const courseCodeSchema = Joi.string()
+  .trim()
+  .uppercase()
+  .pattern(COURSE_CODE_PATTERN)
+  .allow("")
+  .messages({ "string.pattern.base": `Course code must be ${COURSE_CODE_HINT}` });
+
+export const setCourseCodeSchema = Joi.object({
+  code: courseCodeSchema.required(),
+});
 
 // Course creation validation for multipart/form-data
 export const createCourseMultipartSchema = Joi.object({
@@ -7,6 +23,7 @@ export const createCourseMultipartSchema = Joi.object({
     "string.max": "Course title cannot exceed 100 characters",
     "any.required": "Course title is required",
   }),
+  code: courseCodeSchema,
   description: Joi.string().min(20).max(2000).required().messages({
     "string.min": "Description must be at least 20 characters",
     "string.max": "Description cannot exceed 2000 characters",
@@ -108,6 +125,7 @@ export const createCourseSchema = Joi.object({
     "string.max": "Course title cannot exceed 100 characters",
     "any.required": "Course title is required",
   }),
+  code: courseCodeSchema,
   description: Joi.string().min(20).max(2000).required().messages({
     "string.min": "Description must be at least 20 characters",
     "string.max": "Description cannot exceed 2000 characters",

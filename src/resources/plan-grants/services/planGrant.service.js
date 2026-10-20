@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import Joi from "joi";
 import mongoose from "mongoose";
 import PlanGrantJob from "../models/planGrantJob.js";
@@ -15,6 +14,8 @@ import SenderService from "../../../utils/integrations/sender.service.js";
 import AppError from "../../../utils/lib/appError.js";
 import logger from "../../../utils/log/logger.js";
 import { generateTemporaryPassword } from "../../../utils/helper/tempPassword.js";
+import { hashPasswordOffThread } from "../../../utils/helper/hashPool.js";
+import { normalizeCourseCode } from "../../../utils/helper/courseCode.js";
 import { loginUrl } from "../../../utils/helper/frontendUrls.js";
 import { sendPlanAccessGrantedEmail } from "../../../utils/email/email-sender.js";
 import { evaluateEligibility } from "./grantEligibility.js";
@@ -26,26 +27,29 @@ import {
   PLAN_GRANT_ADMIN_ROLES,
   PLAN_GRANT_LIMITS,
   PLAN_GRANT_SOURCE,
+  TEMP_PASSWORD_BCRYPT_ROUNDS,
   TEMP_PASSWORD_TTL_DAYS,
   TERMINAL_JOB_STATUSES,
 } from "../planGrant.constants.js";
 
-const BCRYPT_ROUNDS = 12; // matches auth.service
 const SUPPORTED_BILLING = ["one-time", "monthly"]; // Subscription.planDetails.billing enum
 const DEFAULT_DURATION_MONTHS = { monthly: 1 };
 const USER_FIELDS =
   "email firstName lastName role status password mustChangePassword provisioning";
+const MAX_ERROR_DETAILS = 25;
 
 const emailSchema = Joi.string().email({ tlds: { allow: false } }).max(254);
 
 const isDuplicateKeyError = (error) => error?.code === 11000;
 
-const groupBy = (rows, key) => {
+const keyOf = (userId, courseId) => `${userId}|${courseId}`;
+
+const groupBy = (rows, keyFn) => {
   const map = new Map();
   for (const row of rows) {
-    const id = String(row[key]);
-    if (!map.has(id)) map.set(id, []);
-    map.get(id).push(row);
+    const key = keyFn(row);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(row);
   }
   return map;
 };
@@ -80,33 +84,85 @@ const withRetry = async (fn, { attempts = 3, baseDelayMs = 500 } = {}) => {
   throw lastError;
 };
 
-/** Error that asks the worker to retry the whole item later. */
-class RetryableItemError extends Error {}
+/**
+ * Spaces calls evenly so at most `perMinute` happen per minute in this process.
+ * Shared by every concurrent sender.
+ */
+const createRateLimiter = (perMinute) => {
+  const interval = 60_000 / perMinute;
+  let nextSlot = 0;
+  return async () => {
+    const now = Date.now();
+    const slot = Math.max(now, nextSlot);
+    nextSlot = slot + interval;
+    if (slot > now) await sleep(slot - now);
+  };
+};
+
+const validationError = (message, details) => {
+  const error = new AppError(message, 400);
+  error.details = details.slice(0, MAX_ERROR_DETAILS);
+  return error;
+};
+
+/** Error that asks the worker to retry a recipient later. */
+class RetryableRecipientError extends Error {}
 
 class PlanGrantService {
-  // ==================== JOB CREATION ====================
+  constructor() {
+    this.acquireEmailSlot = createRateLimiter(
+      PLAN_GRANT_LIMITS.EMAILS_PER_MINUTE,
+    );
+  }
+
+  // ==================== REQUEST PREPARATION ====================
 
   /**
-   * Validate the request, snapshot the plan and enqueue one item per recipient.
-   * Returns quickly; the worker does the actual granting.
+   * Shared by preview and job creation: checks the admin and plan, resolves
+   * every row's course and normalizes recipients. Unknown or archived courses
+   * reject the whole request with row numbers; invalid emails become rows.
    */
-  async createJob({ adminId, payload, idempotencyKey }) {
+  async prepareRequest(adminId, payload) {
     const admin = await this.assertAdmin(adminId);
+    const plan = await this.resolvePlan(payload);
+    const { rows, courses, submitted, duplicatesRemoved } =
+      await this.resolveRecipients(payload);
 
-    if (idempotencyKey) {
-      const existing = await PlanGrantJob.findOne({
-        createdBy: admin._id,
-        idempotencyKey,
-      });
-      if (existing) return { job: existing, reused: true };
+    if (rows.length === 0) {
+      throw new AppError("No recipients to process", 400);
     }
 
-    const { planType, courseId, note } = payload;
-    const notifyExistingUsers = payload.notifyExistingUsers !== false;
+    return {
+      admin,
+      ...plan,
+      rows,
+      courses,
+      submitted,
+      duplicatesRemoved,
+      notifyExistingUsers: payload.notifyExistingUsers !== false,
+    };
+  }
 
-    const plan = await SubscriptionPlan.getPlanByType(planType);
+  async assertAdmin(adminId) {
+    // Re-check against the DB: JWT role claims can be stale after a demotion.
+    const admin = await User.findById(adminId).select("role status");
+    if (
+      !admin ||
+      !PLAN_GRANT_ADMIN_ROLES.includes(admin.role) ||
+      ["suspended", "inactive"].includes(admin.status)
+    ) {
+      throw new AppError("Access denied. Admin privileges required.", 403);
+    }
+    return admin;
+  }
+
+  async resolvePlan(payload) {
+    const plan = await SubscriptionPlan.getPlanByType(payload.planType);
     if (!plan) {
-      throw new AppError(`Plan "${planType}" does not exist or is inactive`, 400);
+      throw new AppError(
+        `Plan "${payload.planType}" does not exist or is inactive`,
+        400,
+      );
     }
     if (!SUPPORTED_BILLING.includes(plan.billing)) {
       throw new AppError(
@@ -128,30 +184,9 @@ class PlanGrantService {
         payload.durationMonths || DEFAULT_DURATION_MONTHS[plan.billing];
     }
 
-    const course = await Course.findById(courseId).select(
-      "title status instructor assistants",
-    );
-    if (!course) throw new AppError("Course not found", 404);
-    if (course.status === "archived") {
-      throw new AppError("Cannot grant access to an archived course", 400);
-    }
-    this.assertCanManageCourse(admin, course);
-
-    const { items, submitted, duplicatesRemoved } = this.normalizeRecipients(
-      payload.recipients,
-    );
-    if (items.length === 0) {
-      throw new AppError("No recipients to process", 400);
-    }
-
-    const invalid = items.filter((item) => item.status === ITEM_STATUS.FAILED);
-
-    // Build the job in memory and insert items first, so the worker can never
-    // claim a job whose items haven't been written yet.
-    const job = new PlanGrantJob({
-      createdBy: admin._id,
-      idempotencyKey: idempotencyKey || undefined,
-      planType: plan.planType,
+    return {
+      plan,
+      durationMonths,
       planSnapshot: {
         name: plan.name,
         price: plan.price,
@@ -159,23 +194,275 @@ class PlanGrantService {
         billing: plan.billing,
         features: plan.features,
       },
-      courseId: course._id,
-      courseTitle: course.title,
-      durationMonths,
-      notifyExistingUsers,
-      note,
+    };
+  }
+
+  /**
+   * Resolve each row's course (courseCode, courseId, or the request default),
+   * then trim/lowercase/dedupe by email + course and validate emails.
+   */
+  async resolveRecipients(payload) {
+    const recipients = payload.recipients || [];
+    const entries = recipients.map((raw, i) => {
+      const entry = typeof raw === "string" ? { email: raw } : raw || {};
+      return {
+        row: i + 1,
+        email: String(entry.email || "").trim().toLowerCase(),
+        firstName: entry.firstName?.trim() || undefined,
+        lastName: entry.lastName?.trim() || undefined,
+        courseCode: entry.courseCode ? normalizeCourseCode(entry.courseCode) : null,
+        courseId: entry.courseId || (entry.courseCode ? null : payload.courseId) || null,
+      };
+    });
+
+    const codes = [...new Set(entries.map((e) => e.courseCode).filter(Boolean))];
+    const ids = [...new Set(entries.map((e) => e.courseId).filter(Boolean))];
+    const found = await Course.find({
+      $or: [{ code: { $in: codes } }, { _id: { $in: ids } }],
+    })
+      .select("title code status")
+      .lean();
+    const byCode = new Map(found.filter((c) => c.code).map((c) => [c.code, c]));
+    const byId = new Map(found.map((c) => [String(c._id), c]));
+
+    const errors = [];
+    for (const entry of entries) {
+      const course = entry.courseCode
+        ? byCode.get(entry.courseCode)
+        : entry.courseId && byId.get(String(entry.courseId));
+
+      if (!entry.courseCode && !entry.courseId) {
+        errors.push({ row: entry.row, email: entry.email, message: "No course given" });
+      } else if (!course) {
+        errors.push({
+          row: entry.row,
+          email: entry.email,
+          message: entry.courseCode
+            ? `Unknown course code "${entry.courseCode}"`
+            : "Course not found",
+        });
+      } else if (course.status === "archived") {
+        errors.push({
+          row: entry.row,
+          email: entry.email,
+          message: `Course "${course.title}" is archived`,
+        });
+      } else {
+        entry.course = course;
+      }
+    }
+    if (errors.length) {
+      const distinct = [...new Set(errors.map((e) => e.message))];
+      const message =
+        distinct.length === 1
+          ? `${distinct[0]}${errors.length > 1 ? ` (${errors.length} rows)` : ""}`
+          : `${errors.length} rows reference a course that can't be granted. Fix them and try again.`;
+      throw validationError(message, errors);
+    }
+
+    const seen = new Set();
+    const rows = [];
+    const courses = new Map();
+    let duplicatesRemoved = 0;
+
+    for (const entry of entries) {
+      const courseId = String(entry.course._id);
+      const key = `${entry.email}|${courseId}`;
+      if (seen.has(key)) {
+        duplicatesRemoved += 1;
+        continue;
+      }
+      seen.add(key);
+
+      const summary = courses.get(courseId) || {
+        course: entry.course._id,
+        title: entry.course.title,
+        code: entry.course.code,
+        total: 0,
+      };
+      summary.total += 1;
+      courses.set(courseId, summary);
+
+      const base = {
+        index: rows.length,
+        row: entry.row,
+        email: entry.email,
+        firstName: entry.firstName,
+        lastName: entry.lastName,
+        courseId: entry.course._id,
+        courseTitle: entry.course.title,
+        courseCode: entry.course.code,
+      };
+
+      if (emailSchema.validate(entry.email).error) {
+        rows.push({
+          ...base,
+          // Keep something unique and displayable for blank/garbage input
+          email: entry.email || `(blank row ${entry.row})`,
+          status: ITEM_STATUS.FAILED,
+          outcome: ITEM_OUTCOME.INVALID_EMAIL,
+          reason: "Not a valid email address",
+          notification: { status: NOTIFICATION_STATUS.NOT_REQUESTED },
+          processedAt: new Date(),
+        });
+        continue;
+      }
+      rows.push(base);
+    }
+
+    return {
+      rows,
+      courses: [...courses.values()],
+      submitted: recipients.length,
+      duplicatesRemoved,
+    };
+  }
+
+  // ==================== PREVIEW (DRY RUN) ====================
+
+  /**
+   * Predict every row's outcome with the same eligibility rules the worker
+   * uses, without writing anything.
+   */
+  async previewJob({ adminId, payload }) {
+    const prepared = await this.prepareRequest(adminId, payload);
+    const { rows, planSnapshot, durationMonths, notifyExistingUsers } = prepared;
+
+    const valid = rows.filter((row) => row.status !== ITEM_STATUS.FAILED);
+    const users = await User.find({
+      email: { $in: [...new Set(valid.map((row) => row.email))] },
+    })
+      .select(USER_FIELDS)
+      .lean();
+    const usersByEmail = new Map(users.map((user) => [user.email, user]));
+    const state = await this.loadCourseState(
+      users.map((user) => user._id),
+      [...new Set(valid.map((row) => String(row.courseId)))],
+    );
+
+    const predicted = rows.map((row) => {
+      const result = {
+        row: row.row,
+        email: row.email,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        courseId: row.courseId,
+        courseTitle: row.courseTitle,
+        courseCode: row.courseCode,
+      };
+      if (row.status === ITEM_STATUS.FAILED) {
+        return { ...result, outcome: row.outcome, reason: row.reason };
+      }
+
+      const user = usersByEmail.get(row.email);
+      if (!user) return { ...result, outcome: ITEM_OUTCOME.GRANTED_NEW_ACCOUNT };
+
+      const ineligible = this.checkEligibility(
+        this.previewContext(prepared),
+        user,
+        row.courseId,
+        state,
+      );
+      if (ineligible) return { ...result, ...ineligible };
+
+      return {
+        ...result,
+        outcome: user.password
+          ? ITEM_OUTCOME.GRANTED_EXISTING_ACCOUNT
+          : ITEM_OUTCOME.GRANTED_ACTIVATED_ACCOUNT,
+      };
+    });
+
+    return {
+      plan: { type: prepared.plan.planType, ...planSnapshot, durationMonths },
+      summary: this.summarizePreview(predicted, prepared, notifyExistingUsers),
+      rows: predicted,
+    };
+  }
+
+  summarizePreview(predicted, prepared, notifyExistingUsers) {
+    const byOutcome = {};
+    const byCourse = new Map(
+      prepared.courses.map((c) => [
+        String(c.course),
+        { courseId: c.course, title: c.title, code: c.code, total: c.total, byOutcome: {} },
+      ]),
+    );
+    const newAccounts = new Set();
+    const emailRecipients = new Set();
+
+    for (const row of predicted) {
+      byOutcome[row.outcome] = (byOutcome[row.outcome] || 0) + 1;
+      const course = byCourse.get(String(row.courseId));
+      course.byOutcome[row.outcome] = (course.byOutcome[row.outcome] || 0) + 1;
+
+      if (!row.outcome.startsWith("GRANTED_")) continue;
+      const credentials = row.outcome !== ITEM_OUTCOME.GRANTED_EXISTING_ACCOUNT;
+      if (credentials) newAccounts.add(row.email);
+      if (credentials || notifyExistingUsers) emailRecipients.add(row.email);
+    }
+
+    const toGrant = predicted.filter((row) => row.outcome.startsWith("GRANTED_")).length;
+    return {
+      submitted: prepared.submitted,
+      duplicatesRemoved: prepared.duplicatesRemoved,
+      rows: predicted.length,
+      people: new Set(predicted.map((row) => row.email)).size,
+      toGrant,
+      newAccounts: newAccounts.size,
+      emailsToSend: emailRecipients.size,
+      byOutcome,
+      byCourse: [...byCourse.values()],
+    };
+  }
+
+  // ==================== JOB CREATION ====================
+
+  /**
+   * Validate the request, snapshot the plan and enqueue one item per row.
+   * Returns quickly; the worker does the actual granting.
+   */
+  async createJob({ adminId, payload, idempotencyKey }) {
+    const admin = await this.assertAdmin(adminId);
+
+    if (idempotencyKey) {
+      const existing = await PlanGrantJob.findOne({
+        createdBy: admin._id,
+        idempotencyKey,
+      });
+      if (existing) return { job: existing, reused: true };
+    }
+
+    const prepared = await this.prepareRequest(adminId, payload);
+    const { rows, courses } = prepared;
+    const invalid = rows.filter((row) => row.status === ITEM_STATUS.FAILED);
+    const single = courses.length === 1 ? courses[0] : null;
+
+    // Build the job in memory and insert items first, so the worker can never
+    // claim a job whose items haven't been written yet.
+    const job = new PlanGrantJob({
+      createdBy: admin._id,
+      idempotencyKey: idempotencyKey || undefined,
+      planType: prepared.plan.planType,
+      planSnapshot: prepared.planSnapshot,
+      courseId: single?.course,
+      courseTitle: single?.title,
+      courses,
+      durationMonths: prepared.durationMonths,
+      notifyExistingUsers: prepared.notifyExistingUsers,
+      note: payload.note,
       status: JOB_STATUS.QUEUED,
       totals: {
-        submitted,
-        duplicatesRemoved,
-        total: items.length,
+        submitted: prepared.submitted,
+        duplicatesRemoved: prepared.duplicatesRemoved,
+        total: rows.length,
         failed: invalid.length,
-        pending: items.length - invalid.length,
+        pending: rows.length - invalid.length,
       },
     });
 
     await PlanGrantItem.insertMany(
-      items.map((item) => ({ ...item, job: job._id })),
+      rows.map(({ row, ...item }) => ({ ...item, job: job._id })),
       { ordered: false },
     );
 
@@ -198,89 +485,83 @@ class PlanGrantService {
       jobId: job._id.toString(),
       adminId: admin._id.toString(),
       planType: job.planType,
-      courseId: job.courseId.toString(),
-      total: items.length,
+      courses: courses.length,
+      total: rows.length,
     });
 
     return { job, reused: false };
   }
 
-  async assertAdmin(adminId) {
-    // Re-check against the DB: JWT role claims can be stale after a demotion.
-    const admin = await User.findById(adminId).select("role status");
-    if (
-      !admin ||
-      !PLAN_GRANT_ADMIN_ROLES.includes(admin.role) ||
-      ["suspended", "inactive"].includes(admin.status)
-    ) {
-      throw new AppError("Access denied. Admin privileges required.", 403);
-    }
-    return admin;
-  }
-
-  // Same rule as the admin invite flow: non-super admins only manage courses they teach.
-  assertCanManageCourse(admin, course) {
-    if (admin.role === "super admin") return;
-    const adminId = admin._id.toString();
-    const isInstructor = course.instructor?.toString() === adminId;
-    const isAssistant = (course.assistants || []).some(
-      (id) => id.toString() === adminId,
-    );
-    if (!isInstructor && !isAssistant) {
-      throw new AppError(
-        "You don't have permission to grant access to this course",
-        403,
-      );
-    }
-  }
+  // ==================== CANCEL ====================
 
   /**
-   * Trim, lowercase, dedupe and validate recipients.
-   * Invalid emails become terminal failed items so they appear in the report.
+   * Stop a queued or running job. Rows not yet started are marked cancelled;
+   * rows already being processed may still complete. Grants are not undone.
    */
-  normalizeRecipients(recipients = []) {
-    const seen = new Set();
-    const items = [];
-    let duplicatesRemoved = 0;
+  async cancelJob({ adminId, jobId }) {
+    const admin = await this.assertAdmin(adminId);
 
-    recipients.forEach((raw) => {
-      const entry = typeof raw === "string" ? { email: raw } : raw || {};
-      const email = String(entry.email || "").trim().toLowerCase();
+    const job = await PlanGrantJob.findOneAndUpdate(
+      {
+        _id: jobId,
+        status: { $in: [JOB_STATUS.QUEUED, JOB_STATUS.PROCESSING] },
+      },
+      { $set: { cancelRequestedAt: new Date(), cancelledBy: admin._id } },
+      { new: true },
+    );
+    if (!job) {
+      const exists = await PlanGrantJob.exists({ _id: jobId });
+      if (!exists) throw new AppError("Plan grant job not found", 404);
+      throw new AppError("This job has already finished", 409);
+    }
 
-      if (seen.has(email)) {
-        duplicatesRemoved += 1;
-        return;
-      }
-      seen.add(email);
-
-      const base = {
-        index: items.length,
-        email,
-        firstName: entry.firstName?.trim() || undefined,
-        lastName: entry.lastName?.trim() || undefined,
-      };
-
-      if (emailSchema.validate(email).error) {
-        items.push({
-          ...base,
-          // Keep something unique and displayable for blank/garbage input
-          email: email || `(blank #${items.length + 1})`,
-          status: ITEM_STATUS.FAILED,
-          outcome: ITEM_OUTCOME.INVALID_EMAIL,
-          reason: "Not a valid email address",
-          notification: { status: NOTIFICATION_STATUS.NOT_REQUESTED },
+    const { modifiedCount } = await PlanGrantItem.updateMany(
+      { job: job._id, status: ITEM_STATUS.PENDING },
+      {
+        $set: {
+          status: ITEM_STATUS.CANCELLED,
+          outcome: ITEM_OUTCOME.CANCELLED,
+          reason: "Cancelled by an admin before processing",
+          "notification.status": NOTIFICATION_STATUS.NOT_REQUESTED,
           processedAt: new Date(),
-        });
-        return;
-      }
+        },
+      },
+    );
 
-      items.push(base);
+    // Nobody is working on a queued job, so close it now; a running job is
+    // closed by its worker after the current batch.
+    if (job.status === JOB_STATUS.QUEUED) {
+      const totals = await this.computeTotals(job._id);
+      await PlanGrantJob.updateOne(
+        { _id: job._id, status: JOB_STATUS.QUEUED },
+        {
+          $set: {
+            status: JOB_STATUS.CANCELLED,
+            completedAt: new Date(),
+            ...this.totalsUpdate(totals),
+          },
+        },
+      );
+    }
+
+    logger.info("Plan grant job cancelled", {
+      jobId: job._id.toString(),
+      adminId: admin._id.toString(),
+      rowsCancelled: modifiedCount,
     });
 
-    return { items, submitted: recipients.length, duplicatesRemoved };
+    return { job: await this.getJob(job._id), rowsCancelled: modifiedCount };
   }
 
   // ==================== QUERIES ====================
+
+  /** Every grantable course with its code, for the CSV template and pickers. */
+  async listCourses() {
+    return Course.find({ status: { $ne: "archived" }, isActive: { $ne: false } })
+      .select("title code status")
+      .sort({ title: 1 })
+      .lean();
+  }
 
   async listJobs({ page = 1, limit = 20, status } = {}) {
     const filter = status ? { status } : {};
@@ -305,6 +586,7 @@ class PlanGrantService {
     const job = await PlanGrantJob.findById(jobId)
       .select("-leaseOwner -leaseExpiresAt -idempotencyKey")
       .populate("createdBy", "firstName lastName email")
+      .populate("cancelledBy", "firstName lastName email")
       .lean();
     if (!job) throw new AppError("Plan grant job not found", 404);
 
@@ -312,17 +594,27 @@ class PlanGrantService {
     if (!TERMINAL_JOB_STATUSES.includes(job.status)) {
       job.totals = { ...job.totals, ...(await this.computeTotals(job._id)) };
     }
-    job.outcomes = await this.computeOutcomeBreakdown(job._id);
+    const [outcomes, byCourse] = await Promise.all([
+      this.computeOutcomeBreakdown(job._id),
+      this.computeCourseBreakdown(job),
+    ]);
+    job.outcomes = outcomes;
+    job.byCourse = byCourse;
     return job;
   }
 
-  async listItems(jobId, { page = 1, limit = 50, status, outcome } = {}) {
+  async listItems(jobId, { page = 1, limit = 50, status, outcome, courseId, search } = {}) {
     const exists = await PlanGrantJob.exists({ _id: jobId });
     if (!exists) throw new AppError("Plan grant job not found", 404);
 
     const filter = { job: jobId };
     if (status) filter.status = status;
     if (outcome) filter.outcome = outcome;
+    if (courseId) filter.courseId = courseId;
+    if (search) {
+      const escaped = search.trim().toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      filter.email = { $regex: escaped };
+    }
 
     const [items, total] = await Promise.all([
       PlanGrantItem.find(filter)
@@ -345,11 +637,17 @@ class PlanGrantService {
       { $match: { job: new mongoose.Types.ObjectId(String(jobId)) } },
       { $group: { _id: "$status", count: { $sum: 1 } } },
     ]);
-    const totals = { granted: 0, skipped: 0, failed: 0, pending: 0 };
+    const totals = { granted: 0, skipped: 0, failed: 0, pending: 0, cancelled: 0 };
     rows.forEach((row) => {
       totals[row._id] = row.count;
     });
     return totals;
+  }
+
+  totalsUpdate(totals) {
+    return Object.fromEntries(
+      Object.entries(totals).map(([key, value]) => [`totals.${key}`, value]),
+    );
   }
 
   async computeOutcomeBreakdown(jobId) {
@@ -365,48 +663,90 @@ class PlanGrantService {
     return Object.fromEntries(rows.map((row) => [row._id, row.count]));
   }
 
+  async computeCourseBreakdown(job) {
+    const rows = await PlanGrantItem.aggregate([
+      { $match: { job: new mongoose.Types.ObjectId(String(job._id)) } },
+      {
+        $group: {
+          _id: { course: { $ifNull: ["$courseId", job.courseId ?? null] }, status: "$status" },
+          count: { $sum: 1 },
+          title: { $first: "$courseTitle" },
+          code: { $first: "$courseCode" },
+        },
+      },
+    ]);
+
+    const byCourse = new Map();
+    for (const row of rows) {
+      const id = String(row._id.course);
+      const entry = byCourse.get(id) || {
+        courseId: row._id.course,
+        title: row.title || job.courseTitle,
+        code: row.code,
+        total: 0,
+        granted: 0,
+        skipped: 0,
+        failed: 0,
+        pending: 0,
+        cancelled: 0,
+      };
+      entry[row._id.status] = row.count;
+      entry.total += row.count;
+      byCourse.set(id, entry);
+    }
+    return [...byCourse.values()].sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+  }
+
   // ==================== PROCESSING (called by the worker) ====================
 
   /**
-   * Process the next batch of pending items for a job.
-   * @returns {number} number of items processed (0 when the job is drained)
+   * Process the next batch of pending rows. All of a person's rows are
+   * processed together so their account is created once and they get a
+   * single email listing every course.
+   * @returns {number} number of rows processed (0 when the job is drained)
    */
   async processNextBatch(job) {
-    const items = await PlanGrantItem.find({
-      job: job._id,
-      status: ITEM_STATUS.PENDING,
-    })
+    const seed = await PlanGrantItem.find({ job: job._id, status: ITEM_STATUS.PENDING })
       .sort({ index: 1 })
       .limit(PLAN_GRANT_LIMITS.BATCH_SIZE)
+      .select("email")
       .lean();
+    if (seed.length === 0) return 0;
 
-    if (items.length === 0) return 0;
+    const emails = [...new Set(seed.map((item) => item.email))];
+    // Every row for these people, including finished ones (needed to know
+    // whether their credentials email already went out on an earlier pass)
+    const items = await PlanGrantItem.find({ job: job._id, email: { $in: emails } }).lean();
+    const pending = items.filter((item) => item.status === ITEM_STATUS.PENDING);
 
-    const ctx = await this.loadBatchContext(job, items);
-    await mapWithConcurrency(items, PLAN_GRANT_LIMITS.CONCURRENCY, (item) =>
-      this.processItemSafely(job, item, ctx),
+    const ctx = await this.loadBatchContext(job, emails, pending);
+    const byEmail = groupBy(items, (item) => item.email);
+    const groups = emails
+      .map((email) => ({
+        email,
+        all: byEmail.get(email) || [],
+        pending: (byEmail.get(email) || []).filter((i) => i.status === ITEM_STATUS.PENDING),
+      }))
+      .filter((group) => group.pending.length > 0);
+
+    await mapWithConcurrency(groups, PLAN_GRANT_LIMITS.CONCURRENCY, (group) =>
+      this.processRecipientSafely(job, group, ctx),
     );
-    return items.length;
+    return pending.length;
   }
 
   async finalizeJob(job, owner) {
+    // Re-read: a cancel may have arrived after this worker claimed the job
+    const current = await PlanGrantJob.findById(job._id).select("cancelRequestedAt").lean();
     const totals = await this.computeTotals(job._id);
-    const status =
-      totals.failed > 0
-        ? JOB_STATUS.COMPLETED_WITH_ERRORS
-        : JOB_STATUS.COMPLETED;
+    let status = JOB_STATUS.COMPLETED;
+    if (current?.cancelRequestedAt) status = JOB_STATUS.CANCELLED;
+    else if (totals.failed > 0) status = JOB_STATUS.COMPLETED_WITH_ERRORS;
 
     await PlanGrantJob.updateOne(
       { _id: job._id, leaseOwner: owner },
       {
-        $set: {
-          status,
-          completedAt: new Date(),
-          "totals.granted": totals.granted,
-          "totals.skipped": totals.skipped,
-          "totals.failed": totals.failed,
-          "totals.pending": totals.pending,
-        },
+        $set: { status, completedAt: new Date(), ...this.totalsUpdate(totals) },
         $unset: { leaseOwner: 1, leaseExpiresAt: 1 },
       },
     );
@@ -423,180 +763,238 @@ class PlanGrantService {
     return `TJ_GRANT_${jobId}_${itemId}`;
   }
 
+  courseOf(job, item) {
+    return item.courseId || job.courseId;
+  }
+
   /** Prefetch everything a batch needs in a fixed number of queries (no N+1). */
-  async loadBatchContext(job, items) {
-    const emails = items.map((item) => item.email);
-    const refs = items.map((item) => this.grantReference(job._id, item._id));
+  async loadBatchContext(job, emails, pending) {
+    const refs = pending.map((item) => this.grantReference(job._id, item._id));
 
     const [users, grantSubs] = await Promise.all([
       User.find({ email: { $in: emails } }).select(USER_FIELDS).lean(),
       Subscription.find({ transactionReference: { $in: refs } })
-        .select("_id transactionReference featureAccess")
+        .select("_id transactionReference featureAccess endDate")
         .lean(),
     ]);
 
+    const courseIds = [...new Set(pending.map((item) => String(this.courseOf(job, item))))];
     const courseState = await this.loadCourseState(
       users.map((user) => user._id),
-      job.courseId,
+      courseIds,
     );
 
     return {
       usersByEmail: new Map(users.map((user) => [user.email, user])),
-      grantSubsByRef: new Map(
-        grantSubs.map((sub) => [sub.transactionReference, sub]),
-      ),
+      grantSubsByRef: new Map(grantSubs.map((sub) => [sub.transactionReference, sub])),
       ...courseState,
     };
   }
 
-  async loadCourseState(userIds, courseId) {
-    if (userIds.length === 0) {
-      return { subsByUser: new Map(), pendingPaymentsByUser: new Map() };
+  async loadCourseState(userIds, courseIds) {
+    if (userIds.length === 0 || courseIds.length === 0) {
+      return { subsByKey: new Map(), pendingPaymentsByKey: new Map() };
     }
     const [subs, pendingPayments] = await Promise.all([
       Subscription.find({
         user: { $in: userIds },
-        courseId,
+        courseId: { $in: courseIds },
         status: { $in: ["pending", "active", "expired"] },
       })
-        .select("user plan status endDate transactionReference")
+        .select("user courseId plan status endDate transactionReference")
         .lean(),
       CoursePayment.find({
         user: { $in: userIds },
-        course: courseId,
+        course: { $in: courseIds },
         status: "pending",
       })
-        .select("user transactionReference")
+        .select("user course transactionReference")
         .lean(),
     ]);
     return {
-      subsByUser: groupBy(subs, "user"),
-      pendingPaymentsByUser: groupBy(pendingPayments, "user"),
+      subsByKey: groupBy(subs, (sub) => keyOf(sub.user, sub.courseId)),
+      pendingPaymentsByKey: groupBy(pendingPayments, (p) => keyOf(p.user, p.course)),
     };
   }
 
-  async processItemSafely(job, item, ctx) {
-    const isLastAttempt =
-      item.attempts + 1 >= PLAN_GRANT_LIMITS.MAX_ITEM_ATTEMPTS;
+  // Preview runs eligibility before a job exists; give the checker the fields it reads
+  previewContext(prepared) {
+    return { _id: null, planType: prepared.plan.planType, planSnapshot: prepared.planSnapshot };
+  }
+
+  /** Eligibility for one person + course, ignoring grants made by this job. */
+  checkEligibility(job, user, courseId, state) {
+    const key = keyOf(user._id, courseId);
+    const ownPrefix = job._id ? `TJ_GRANT_${job._id}_` : null;
+    return evaluateEligibility({
+      user,
+      planType: job.planType,
+      planBilling: job.planSnapshot.billing,
+      subscriptions: (state.subsByKey.get(key) || []).filter(
+        (sub) => !ownPrefix || !sub.transactionReference?.startsWith(ownPrefix),
+      ),
+      pendingCoursePayments: state.pendingPaymentsByKey.get(key) || [],
+    });
+  }
+
+  async processRecipientSafely(job, group, ctx) {
+    const attempts = Math.max(...group.pending.map((item) => item.attempts || 0));
+    const isLastAttempt = attempts + 1 >= PLAN_GRANT_LIMITS.MAX_ITEM_ATTEMPTS;
+    let results;
 
     try {
-      const result = await this.processItem(job, item, ctx, { isLastAttempt });
-      await PlanGrantItem.updateOne(
-        { _id: item._id },
-        {
-          $set: { ...result, processedAt: new Date() },
-          $inc: { attempts: 1 },
-          $unset: { lastError: 1 },
-        },
-      );
+      results = await this.processRecipient(job, group, ctx, { isLastAttempt });
     } catch (error) {
-      logger.error("Plan grant item failed", {
+      logger.error("Plan grant recipient failed", {
         jobId: job._id.toString(),
-        itemId: item._id.toString(),
-        attempt: item.attempts + 1,
+        email: group.email,
+        attempt: attempts + 1,
         error: error.message,
       });
-
-      const update = {
-        $inc: { attempts: 1 },
-        $set: { lastError: error.message },
-      };
-      if (isLastAttempt) {
-        update.$set.status = ITEM_STATUS.FAILED;
-        update.$set.outcome = ITEM_OUTCOME.ERROR;
-        update.$set.reason = error.message;
-        update.$set.processedAt = new Date();
-      }
-      // Not the last attempt: stays pending and is picked up by the next batch
-      await PlanGrantItem.updateOne({ _id: item._id }, update);
+      results = new Map(
+        group.pending.map((item) => [String(item._id), this.failureUpdate(error, isLastAttempt)]),
+      );
     }
+
+    const now = new Date();
+    await PlanGrantItem.bulkWrite(
+      group.pending.map((item) => {
+        // Every pending row must leave this pass with a decision or a retry,
+        // otherwise it would be picked up again forever
+        const result =
+          results.get(String(item._id)) ||
+          this.failureUpdate(new Error("Row was not processed"), isLastAttempt);
+        const { retry, lastError, ...fields } = result;
+        return {
+          updateOne: {
+            filter: { _id: item._id },
+            update: retry
+              ? { $inc: { attempts: 1 }, $set: { lastError } }
+              : {
+                  $inc: { attempts: 1 },
+                  $set: { ...fields, processedAt: now },
+                  $unset: { lastError: 1 },
+                },
+          },
+        };
+      }),
+      { ordered: false },
+    );
+  }
+
+  failureUpdate(error, isLastAttempt) {
+    if (!isLastAttempt) return { retry: true, lastError: error.message };
+    return {
+      status: ITEM_STATUS.FAILED,
+      outcome: ITEM_OUTCOME.ERROR,
+      reason: error.message,
+    };
   }
 
   /**
-   * Grant the plan to one recipient. Safe to re-run after a crash at any step:
-   * - user creation is guarded by the unique email index
-   * - the subscription uses a deterministic reference with a unique index
-   * - users provisioned by this job are recognised via `provisioning.jobId`
+   * Grant every pending course for one person. Safe to re-run after a crash:
+   * - account creation is guarded by the unique email index
+   * - each subscription uses a deterministic reference with a unique index
+   * - accounts provisioned by this job are recognised via `provisioning.jobId`
+   * @returns {Map<string, object>} update per item id
    */
-  async processItem(job, item, ctx, { isLastAttempt }) {
-    const reference = this.grantReference(job._id, item._id);
-    let grantSub = ctx.grantSubsByRef.get(reference);
-    let user = ctx.usersByEmail.get(item.email);
+  async processRecipient(job, group, ctx, { isLastAttempt }) {
+    const { email, pending, all } = group;
+    const first = pending[0];
+    const results = new Map();
+    let user = ctx.usersByEmail.get(email);
     let account = null; // { action, temporaryPassword? }
-    let courseState = ctx;
+    let state = ctx;
 
     if (!user) {
-      const created = await this.createProvisionedUser(job, item);
+      const created = await this.createProvisionedUser(job, first);
       if (created) {
         user = created.user;
-        account = {
-          action: "created",
-          temporaryPassword: created.temporaryPassword,
-        };
+        account = { action: "created", temporaryPassword: created.temporaryPassword };
       } else {
         // Lost a race with a concurrent sign-up: treat as an existing user
-        user = await User.findOne({ email: item.email })
-          .select(USER_FIELDS)
-          .lean();
+        user = await User.findOne({ email }).select(USER_FIELDS).lean();
         if (!user) throw new Error("User lookup failed after duplicate key");
-        courseState = await this.loadCourseState([user._id], job.courseId);
+        state = await this.loadCourseState(
+          [user._id],
+          pending.map((item) => this.courseOf(job, item)),
+        );
       }
+    } else if (this.isProvisionedByJob(user, job._id)) {
+      // An earlier pass created or activated this account
+      account = { action: user.provisioning.action || "created" };
     }
+
+    // Decide per course
+    const toGrant = [];
+    for (const item of pending) {
+      const courseId = this.courseOf(job, item);
+      const reference = this.grantReference(job._id, item._id);
+      const grantSub = ctx.grantSubsByRef.get(reference);
+
+      if (!grantSub) {
+        const ineligible = this.checkEligibility(job, user, courseId, state);
+        if (ineligible) {
+          results.set(String(item._id), {
+            status: ITEM_STATUS.SKIPPED,
+            ...ineligible,
+            user: user._id,
+            notification: { status: NOTIFICATION_STATUS.NOT_REQUESTED },
+          });
+          continue;
+        }
+      }
+      toGrant.push({ item, courseId, reference, grantSub });
+    }
+    if (toGrant.length === 0) return results;
 
     if (!account) {
-      if (this.isProvisionedByJob(user, job._id)) {
-        // Retry of an item this job already provisioned. The plaintext password
-        // was never stored, so issue a fresh one if the email didn't go out.
-        account = { action: user.provisioning.action || "created" };
-        if (
-          user.mustChangePassword &&
-          item.notification?.status !== NOTIFICATION_STATUS.SENT
-        ) {
-          account.temporaryPassword = await this.reissueTemporaryPassword(
-            user._id,
-            job._id,
-          );
-        }
-      } else {
-        if (!grantSub) {
-          const userId = String(user._id);
-          const ineligible = evaluateEligibility({
-            user,
-            planType: job.planType,
-            planBilling: job.planSnapshot.billing,
-            subscriptions: courseState.subsByUser.get(userId) || [],
-            pendingCoursePayments:
-              courseState.pendingPaymentsByUser.get(userId) || [],
-          });
-          if (ineligible) {
-            return {
-              status: ITEM_STATUS.SKIPPED,
-              ...ineligible,
-              user: user._id,
-              notification: { status: NOTIFICATION_STATUS.NOT_REQUESTED },
-            };
-          }
-        }
+      // Started sign-up but never set a password: give them credentials
+      const temporaryPassword = user.password
+        ? null
+        : await this.activateExistingUser(job, first, user);
+      account = temporaryPassword
+        ? { action: "activated", temporaryPassword }
+        : { action: "existing" };
+    }
 
-        // Started sign-up but never set a password: give them credentials
-        const temporaryPassword = user.password
-          ? null
-          : await this.activateExistingUser(job, item, user);
-        account = temporaryPassword
-          ? { action: "activated", temporaryPassword }
-          : { action: "existing" };
+    const granted = [];
+    for (const entry of toGrant) {
+      try {
+        const sub =
+          entry.grantSub ||
+          (await this.createGrantSubscription(job, user._id, entry.courseId, entry.reference));
+        await this.ensureCourseProgress(sub, user._id, entry.courseId);
+        granted.push({ ...entry, sub });
+      } catch (error) {
+        logger.error("Plan grant row failed", {
+          jobId: job._id.toString(),
+          itemId: entry.item._id.toString(),
+          error: error.message,
+        });
+        results.set(String(entry.item._id), this.failureUpdate(error, isLastAttempt));
       }
     }
+    if (granted.length === 0) return results;
 
-    if (!grantSub) {
-      grantSub = await this.createGrantSubscription(job, user._id, reference);
+    // Retry of an account this job provisioned: the plaintext password was
+    // never stored, so issue a fresh one only if no credentials email went out.
+    const credentialsSent = all.some(
+      (item) =>
+        item.notification?.status === NOTIFICATION_STATUS.SENT &&
+        item.notification?.withCredentials,
+    );
+    if (
+      !account.temporaryPassword &&
+      account.action !== "existing" &&
+      user.mustChangePassword &&
+      !credentialsSent
+    ) {
+      account.temporaryPassword = await this.reissueTemporaryPassword(user._id, job._id);
     }
 
-    await this.ensureCourseProgress(grantSub, user._id, job.courseId);
-
-    const notification = await this.notify(job, item, user, account, {
+    const notification = await this.notify(job, first, user, account, granted, {
       isLastAttempt,
-      accessEndsAt: grantSub.endDate,
     });
 
     const outcome = {
@@ -604,19 +1002,22 @@ class PlanGrantService {
       activated: ITEM_OUTCOME.GRANTED_ACTIVATED_ACCOUNT,
       existing: ITEM_OUTCOME.GRANTED_EXISTING_ACCOUNT,
     }[account.action];
+    const credentialsFailed =
+      notification.status === NOTIFICATION_STATUS.FAILED && notification.withCredentials;
 
-    return {
-      status: ITEM_STATUS.GRANTED,
-      outcome,
-      reason:
-        notification.status === NOTIFICATION_STATUS.FAILED &&
-        account.temporaryPassword
+    for (const entry of granted) {
+      results.set(String(entry.item._id), {
+        status: ITEM_STATUS.GRANTED,
+        outcome,
+        reason: credentialsFailed
           ? "Access granted, but the credentials email failed. The user can use 'Forgot password' to sign in."
           : undefined,
-      user: user._id,
-      subscription: grantSub._id,
-      notification,
-    };
+        user: user._id,
+        subscription: entry.sub._id,
+        notification,
+      });
+    }
+    return results;
   }
 
   isProvisionedByJob(user, jobId) {
@@ -628,10 +1029,9 @@ class PlanGrantService {
 
   async issueTemporaryPassword() {
     const temporaryPassword = generateTemporaryPassword();
-    const hash = await bcrypt.hash(temporaryPassword, BCRYPT_ROUNDS);
-    const expiresAt = new Date(
-      Date.now() + TEMP_PASSWORD_TTL_DAYS * 24 * 60 * 60 * 1000,
-    );
+    // Off the event loop: a 2,000-account job would otherwise block the API for minutes
+    const hash = await hashPasswordOffThread(temporaryPassword, TEMP_PASSWORD_BCRYPT_ROUNDS);
+    const expiresAt = new Date(Date.now() + TEMP_PASSWORD_TTL_DAYS * 24 * 60 * 60 * 1000);
     return { temporaryPassword, hash, expiresAt };
   }
 
@@ -647,8 +1047,7 @@ class PlanGrantService {
 
   /** @returns {null | { user, temporaryPassword }} null if the email already exists */
   async createProvisionedUser(job, item) {
-    const { temporaryPassword, hash, expiresAt } =
-      await this.issueTemporaryPassword();
+    const { temporaryPassword, hash, expiresAt } = await this.issueTemporaryPassword();
 
     try {
       const doc = await User.create({
@@ -679,8 +1078,7 @@ class PlanGrantService {
    * @returns {string|null} temporary password, or null if a password now exists
    */
   async activateExistingUser(job, item, user) {
-    const { temporaryPassword, hash, expiresAt } =
-      await this.issueTemporaryPassword();
+    const { temporaryPassword, hash, expiresAt } = await this.issueTemporaryPassword();
 
     const set = {
       password: hash,
@@ -702,8 +1100,7 @@ class PlanGrantService {
   }
 
   async reissueTemporaryPassword(userId, jobId) {
-    const { temporaryPassword, hash, expiresAt } =
-      await this.issueTemporaryPassword();
+    const { temporaryPassword, hash, expiresAt } = await this.issueTemporaryPassword();
     const updated = await User.findOneAndUpdate(
       { _id: userId, "provisioning.jobId": jobId, mustChangePassword: true },
       { $set: { password: hash, tempPasswordExpiresAt: expiresAt } },
@@ -724,7 +1121,7 @@ class PlanGrantService {
     return { startDate, endDate };
   }
 
-  async createGrantSubscription(job, userId, reference) {
+  async createGrantSubscription(job, userId, courseId, reference) {
     const { startDate, endDate } = this.buildGrantPeriod(job);
     const featureAccess = SubscriptionService.setupFeatureAccess(
       job.planType,
@@ -735,7 +1132,7 @@ class PlanGrantService {
     try {
       const subscription = await Subscription.create({
         user: userId,
-        courseId: job.courseId,
+        courseId,
         plan: job.planType,
         planDetails: {
           name: job.planSnapshot.name,
@@ -764,9 +1161,7 @@ class PlanGrantService {
       return subscription.toObject();
     } catch (error) {
       if (!isDuplicateKeyError(error)) throw error;
-      const existing = await Subscription.findOne({
-        transactionReference: reference,
-      }).lean();
+      const existing = await Subscription.findOne({ transactionReference: reference }).lean();
       if (!existing) throw error;
       return existing;
     }
@@ -782,16 +1177,9 @@ class PlanGrantService {
 
     try {
       const hadProgress = await Progress.exists({ userId, courseId });
-      await progressService.initializeProgress(
-        userId,
-        courseId,
-        subscription._id,
-      );
+      await progressService.initializeProgress(userId, courseId, subscription._id);
       if (!hadProgress) {
-        await Course.updateOne(
-          { _id: courseId },
-          { $inc: { totalStudents: 1 } },
-        );
+        await Course.updateOne({ _id: courseId }, { $inc: { totalStudents: 1 } });
       }
     } catch (error) {
       logger.warn("Progress initialization failed for granted plan", {
@@ -802,24 +1190,27 @@ class PlanGrantService {
     }
   }
 
-  async notify(job, item, user, account, { isLastAttempt, accessEndsAt }) {
+  /** One email per person listing every course granted in this pass. */
+  async notify(job, item, user, account, granted, { isLastAttempt }) {
     const withCredentials = !!account.temporaryPassword;
 
-    if (!withCredentials && item.notification?.status === NOTIFICATION_STATUS.SENT) {
-      return item.notification;
-    }
     if (!withCredentials && !job.notifyExistingUsers) {
-      return { status: NOTIFICATION_STATUS.NOT_REQUESTED };
+      return { status: NOTIFICATION_STATUS.NOT_REQUESTED, withCredentials };
     }
 
+    const courseTitles = [
+      ...new Set(granted.map((entry) => entry.item.courseTitle || job.courseTitle).filter(Boolean)),
+    ];
+
     try {
-      await withRetry(() =>
-        sendPlanAccessGrantedEmail(user.email, {
+      await withRetry(async () => {
+        await this.acquireEmailSlot();
+        await sendPlanAccessGrantedEmail(user.email, {
           firstName: user.firstName || item.firstName,
           planName: job.planSnapshot.name,
-          courseTitle: job.courseTitle,
+          courseTitles,
           accessEndsAt:
-            job.planSnapshot.billing === "one-time" ? null : accessEndsAt,
+            job.planSnapshot.billing === "one-time" ? null : granted[0].sub.endDate,
           loginUrl: loginUrl(),
           credentials: withCredentials
             ? {
@@ -828,18 +1219,16 @@ class PlanGrantService {
                 expiresInDays: TEMP_PASSWORD_TTL_DAYS,
               }
             : null,
-        }),
-      );
-      return { status: NOTIFICATION_STATUS.SENT, sentAt: new Date() };
+        });
+      });
+      return { status: NOTIFICATION_STATUS.SENT, sentAt: new Date(), withCredentials };
     } catch (error) {
-      // Without the email a new user can't sign in, so retry the whole item
-      // (it is idempotent and will issue a fresh password) before giving up.
+      // Without the email a new user can't sign in, so retry the whole person
+      // (idempotent; a fresh password is issued) before giving up.
       if (withCredentials && !isLastAttempt) {
-        throw new RetryableItemError(
-          `Credentials email failed: ${error.message}`,
-        );
+        throw new RetryableRecipientError(`Credentials email failed: ${error.message}`);
       }
-      return { status: NOTIFICATION_STATUS.FAILED, error: error.message };
+      return { status: NOTIFICATION_STATUS.FAILED, error: error.message, withCredentials };
     }
   }
 

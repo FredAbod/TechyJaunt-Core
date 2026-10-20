@@ -22,6 +22,14 @@ const validate = (schema, data) => {
 };
 
 const handleError = (res, error, context) => {
+  // Row-level problems (e.g. unknown course codes) are returned so the UI can point at them
+  if (error.details) {
+    return res.status(error.statusCode || 400).json({
+      status: "error",
+      message: error.message,
+      errors: error.details,
+    });
+  }
   if (error.statusCode && error.statusCode < 500) {
     return errorResMsg(res, error.statusCode, error.message);
   }
@@ -36,11 +44,54 @@ const toJobSummary = (job) => ({
   planName: job.planSnapshot?.name,
   courseId: job.courseId,
   courseTitle: job.courseTitle,
+  courses: job.courses,
   durationMonths: job.durationMonths,
   notifyExistingUsers: job.notifyExistingUsers,
   totals: job.totals,
   createdAt: job.createdAt,
 });
+
+export const previewPlanGrant = async (req, res) => {
+  try {
+    const payload = validate(planGrantValidation.createJob, req.body);
+    const preview = await PlanGrantService.previewJob({
+      adminId: req.user.userId,
+      payload,
+    });
+    return successResMsg(res, 200, {
+      message: "Preview generated. Nothing has been granted yet.",
+      ...preview,
+    });
+  } catch (error) {
+    return handleError(res, error, "Preview plan grant error");
+  }
+};
+
+export const listPlanGrantCourses = async (req, res) => {
+  try {
+    const courses = await PlanGrantService.listCourses();
+    return successResMsg(res, 200, { message: "Courses retrieved", courses });
+  } catch (error) {
+    return handleError(res, error, "List plan grant courses error");
+  }
+};
+
+export const cancelPlanGrantJob = async (req, res) => {
+  try {
+    const { jobId } = validate(planGrantValidation.jobIdParams, req.params);
+    const { job, rowsCancelled } = await PlanGrantService.cancelJob({
+      adminId: req.user.userId,
+      jobId,
+    });
+    return successResMsg(res, 200, {
+      message: `Job cancelled. ${rowsCancelled} row(s) were not processed; rows already granted keep their access.`,
+      job,
+      rowsCancelled,
+    });
+  } catch (error) {
+    return handleError(res, error, "Cancel plan grant job error");
+  }
+};
 
 export const createPlanGrantJob = async (req, res) => {
   try {

@@ -25,12 +25,23 @@ const planGrantJobSchema = new mongoose.Schema(
       billing: { type: String, enum: ["one-time", "monthly", "yearly"] },
       features: [mongoose.Schema.Types.Mixed],
     },
+    // Single-course jobs (and jobs created before per-row courses) keep the
+    // course here; it is also the default for rows that don't name a course.
     courseId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Course",
-      required: true,
     },
     courseTitle: String,
+    // Every course in the job with its row count
+    courses: [
+      {
+        _id: false,
+        course: { type: mongoose.Schema.Types.ObjectId, ref: "Course" },
+        title: String,
+        code: String,
+        total: Number,
+      },
+    ],
     durationMonths: {
       type: Number,
       min: 1,
@@ -56,7 +67,10 @@ const planGrantJobSchema = new mongoose.Schema(
       skipped: { type: Number, default: 0 },
       failed: { type: Number, default: 0 },
       pending: { type: Number, default: 0 },
+      cancelled: { type: Number, default: 0 },
     },
+    cancelRequestedAt: Date,
+    cancelledBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     // Worker lease (multi-instance safe claiming + crash recovery)
     leaseOwner: String,
     leaseExpiresAt: Date,
