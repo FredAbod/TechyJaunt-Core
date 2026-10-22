@@ -6,7 +6,6 @@ import {
   updateProfile,
   getDashboard,
   inviteUser,
-  promoteUserRole,
   uploadProfilePicture,
   updateProfileWithPicture,
   getAllStudents,
@@ -199,21 +198,6 @@ router.put(
   imageUpload.single("profilePicture"),
   updateProfileWithPicture,
 );
-
-/**
- * @swagger
- * /api/v1/user/promote-role:
- *   post:
- *     tags:
- *       - User Management
- *     summary: Promote user role (dev endpoint)
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: User role promoted
- */
-router.post("/promote-role", profileLimiter, isAuthenticated, promoteUserRole);
 
 // Admin routes
 

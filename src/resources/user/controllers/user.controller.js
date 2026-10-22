@@ -188,37 +188,6 @@ export const getUserDashboard = async (req, res) => {
   }
 };
 
-// Development endpoint to promote user role (remove in production)
-export const promoteUserRole = async (req, res) => {
-  try {
-    const { role } = req.body;
-    const userId = req.user.userId;
-
-    if (!["admin", "super admin", "tutor"].includes(role)) {
-      return errorResMsg(
-        res,
-        400,
-        "Invalid role. Use: admin, super admin, or tutor",
-      );
-    }
-
-    const user = await User.findByIdAndUpdate(
-      userId,
-      { role },
-      { new: true },
-    ).select("-password -__v");
-
-    logger.info(`User role updated: ${userId} to ${role}`);
-    return successResMsg(res, 200, {
-      message: `Role updated to ${role} successfully`,
-      user,
-    });
-  } catch (error) {
-    logger.error(`Promote user error: ${error.message}`);
-    return errorResMsg(res, 500, "Failed to update user role");
-  }
-};
-
 // Profile picture upload
 export const uploadProfilePicture = async (req, res) => {
   try {
