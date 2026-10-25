@@ -654,7 +654,7 @@ class SubscriptionService {
           hasAccess: true,
           expiresAt: aiMentorshipExpiresAt,
           sessionsUsed: 0,
-          sessionsLimit: 4,
+          sessionsLimit: 5,
         };
         break;
 
