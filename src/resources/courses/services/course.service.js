@@ -6,6 +6,7 @@ import Progress from "../models/progress.js";
 import User from "../../user/models/user.js";
 import PaymentService from "../../payments/services/payment.service.js";
 import { getVideoDurationFromUrl } from "../../../utils/image/s3.js";
+import { queueLessonVideo } from "./videoPackaging.service.js";
 import CourseDataValidator from "../../../utils/helper/courseDataValidator.js";
 
 // Duplicate course codes surface as E11000 on the partial unique index
@@ -286,6 +287,10 @@ class CourseService {
         }
       }
 
+      if (lessonData.content?.videoUrl) {
+        queueLessonVideo(lessonData.content);
+      }
+
       const lesson = new Lesson(lessonData);
       await lesson.save();
 
@@ -322,7 +327,7 @@ class CourseService {
           populate: {
             path: "lessons",
             select:
-              "title description type order isFree content.videoUrl content.videoDuration",
+              "title description type order isFree content.videoUrl content.hlsUrl content.videoStatus content.videoDuration",
           },
           select: "title description order duration isActive",
         })
@@ -385,7 +390,7 @@ class CourseService {
           populate: {
             path: "lessons",
             select:
-              "title description type order isFree content.videoUrl content.videoDuration",
+              "title description type order isFree content.videoUrl content.hlsUrl content.videoStatus content.videoDuration",
           },
           select: "title description order duration isActive",
         })
@@ -952,6 +957,10 @@ class CourseService {
           // Not critical; proceed without auto duration
           // Continue without video duration - not a critical error
         }
+      }
+
+      if (updateData.content?.videoUrl) {
+        queueLessonVideo(updateData.content, lesson.content?.videoUrl);
       }
 
       const updatedLesson = await Lesson.findByIdAndUpdate(

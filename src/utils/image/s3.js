@@ -3,6 +3,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
+  PutBucketCorsCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Upload } from "@aws-sdk/lib-storage";
@@ -318,6 +319,80 @@ export const getVideoDurationFromUrl = async (videoUrl) => {
   return meta.duration;
 };
 
+export function toPublicVideoUrl(key) {
+  const encoded = String(key)
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+  const cdn = (process.env.CLOUDFRONT_URL || "").replace(/\/$/, "");
+  if (cdn) return `${cdn}/${encoded}`;
+  const region = AWS_REGION || "us-east-1";
+  return `https://${AWS_BUCKET_NAME}.s3.${region}.amazonaws.com/${encoded}`;
+}
+
+export async function getReadableVideoUrl(videoUrl) {
+  const key = extractPublicIdFromUrl(videoUrl);
+  if (!key || !AWS_BUCKET_NAME) return videoUrl;
+  try {
+    const host = new URL(videoUrl).hostname;
+    const cdnHost = process.env.CLOUDFRONT_URL
+      ? new URL(process.env.CLOUDFRONT_URL).hostname
+      : "";
+    const isOurs =
+      host.includes(AWS_BUCKET_NAME) || (cdnHost && host === cdnHost);
+    if (!isOurs) return videoUrl;
+    const command = new GetObjectCommand({
+      Bucket: AWS_BUCKET_NAME,
+      Key: decodeURIComponent(key),
+    });
+    return await getSignedUrl(s3Client, command, { expiresIn: 60 * 60 });
+  } catch (error) {
+    logger.warn("Could not sign video URL", { error: error.message });
+    return videoUrl;
+  }
+}
+
+export async function uploadVideoObject(key, body, contentType, cacheControl) {
+  const upload = new Upload({
+    client: s3Client,
+    params: {
+      Bucket: AWS_BUCKET_NAME,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      CacheControl: cacheControl,
+    },
+  });
+  await upload.done();
+  return toPublicVideoUrl(key);
+}
+
+export async function ensureVideoBucketCors() {
+  if (!AWS_BUCKET_NAME) return;
+  await s3Client.send(
+    new PutBucketCorsCommand({
+      Bucket: AWS_BUCKET_NAME,
+      CORSConfiguration: {
+        CORSRules: [
+          {
+            AllowedHeaders: ["*"],
+            AllowedMethods: ["GET", "HEAD"],
+            AllowedOrigins: ["*"],
+            ExposeHeaders: [
+              "Content-Range",
+              "Accept-Ranges",
+              "Content-Length",
+              "Content-Type",
+              "ETag",
+            ],
+            MaxAgeSeconds: 3000,
+          },
+        ],
+      },
+    }),
+  );
+}
+
 // Utils
 export const extractPublicIdFromUrl = (url) => {
   // S3 URL: https://bucket.s3.region.amazonaws.com/folder/file.ext
@@ -340,4 +415,8 @@ export default {
   getVideoMetadata,
   getVideoDurationFromUrl,
   extractPublicIdFromUrl,
+  toPublicVideoUrl,
+  getReadableVideoUrl,
+  uploadVideoObject,
+  ensureVideoBucketCors,
 };

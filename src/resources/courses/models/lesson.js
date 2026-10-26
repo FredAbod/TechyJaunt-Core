@@ -34,6 +34,16 @@ const lessonSchema = new mongoose.Schema(
       videoUrl: {
         type: String,
       },
+      hlsUrl: {
+        type: String,
+      },
+      videoStatus: {
+        type: String,
+        enum: ["pending", "processing", "ready", "failed"],
+      },
+      videoError: {
+        type: String,
+      },
       videoDuration: {
         type: Number, // in seconds
       },

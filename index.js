@@ -8,6 +8,7 @@ import { sendServerFailure } from "./src/utils/email/email-sender.js";
 import './src/resources/bookings/services/reminderScheduler.js';
 import './src/resources/payments/services/subscriptionReconciliationScheduler.js';
 import './src/resources/plan-grants/services/planGrantWorker.js';
+import './src/resources/courses/services/videoPackagingScheduler.js';
 
 
 const port = process.env.PORT || 4000;

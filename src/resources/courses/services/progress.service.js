@@ -585,6 +585,7 @@ class ProgressService {
             lesson.type = lessonData.type;
             lesson.isFree = lessonData.isFree;
             lesson.videoUrl = lessonData.content?.videoUrl || null;
+            lesson.hlsUrl = lessonData.content?.hlsUrl || null;
             lesson.resources = lessonData.resources || [];
             lesson.order = lessonData.order;
             validLessons.push(lesson);
@@ -690,6 +691,7 @@ class ProgressService {
                   type: lesson.type,
                   isFree: lesson.isFree,
                   videoUrl: lesson.videoUrl,
+                  hlsUrl: lesson.hlsUrl,
                   order: lesson.order,
                 }))
               : [], // Empty array when no lessons, but lessonStatus indicates this

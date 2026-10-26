@@ -269,6 +269,10 @@ export const createLessonSchema = Joi.object({
     }),
   content: Joi.object({
     videoUrl: Joi.string().uri().optional(),
+    hlsUrl: Joi.string().uri().optional().allow(null, ""),
+    videoStatus: Joi.string()
+      .valid("pending", "processing", "ready", "failed")
+      .optional(),
     videoDuration: Joi.number().min(0).optional(),
     textContent: Joi.string().optional(),
     assignmentInstructions: Joi.string().optional(),
